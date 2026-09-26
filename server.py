@@ -77,6 +77,18 @@ def home_page():
     return FileResponse("web/index.html")
 
 
+# ---------- installing omw! on a phone (Add to Home Screen) ----------
+# both live at the top of the site, so the installed app covers every page
+@app.get("/manifest.webmanifest")
+def manifest():
+    return FileResponse("web/manifest.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse("web/sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
+
 # ---------- Firebase sign-in page, served from omw!'s own address ----------
 # Safari blocks sign-in that runs on a different site (yourproject.firebaseapp.com) and shows
 # "Unable to process request due to missing initial state". auth.js points Firebase at this site instead,
