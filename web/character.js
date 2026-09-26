@@ -8,7 +8,7 @@ export const EYE_COLORS = ["4a2b16", "6b4423", "8a6a3a", "4d7a3a", "3f6f9a", "7d
 export const OUTFIT_COLORS = ["1f2430", "3c4a5c", "25557c", "4c8ee8", "7cc7ff", "3aa876", "a7e0b0", "f2d15c", "ff9f68", "ff6f91", "c0392b", "8e6fd8", "e9e9ee", "ffffff"];
 export const BGS = ["ffd000", "ffb3c7", "b9a8ff", "8fe3c0", "9fd4ff", "ffc49c", "f1f0f7", "2b2b3a"];
 export const PARTS = {
-  gender: ["man", "woman", "nonbinary"],
+  gender: ["man", "woman"],
   face: ["oval", "round", "square", "heart"],
   hair: ["crew", "sidePart", "quiff", "buzz", "curly", "afro", "long", "wavy", "bob", "bun", "locs", "bald", "beanie", "hijab"],
   eyes: ["almond", "round", "hooded", "narrow", "lashes", "happy"],
@@ -28,21 +28,34 @@ export function cleanLook(l = {}) {
   if (!SKINS.includes(l.skin)) out.skin = SKINS[3];
   if (!HAIR_COLORS.includes(l.hairColor)) out.hairColor = HAIR_COLORS[1];
   if (!OUTFIT_COLORS.includes(l.outfitColor)) out.outfitColor = OUTFIT_COLORS[3];
-  return out;
+  if (l.gender === "nonbinary") out.gender = l.gender;  // no longer offered, but avatars saved with it keep looking the same
+  return fitGender(out);
 }
 
-// hairstyles people usually pick for each; everyone can still choose any of them
-const HAIR_FOR = { man: ["crew", "sidePart", "quiff", "buzz", "curly", "afro", "locs"],
-                   woman: ["long", "wavy", "bob", "bun", "curly", "afro", "locs"],
-                   nonbinary: ["crew", "sidePart", "quiff", "buzz", "curly", "afro", "long", "wavy", "bob", "bun", "locs"] };
-// switching gender in the editor: swap in a matching hairstyle and drop the beard, like Bitmoji's first step
-export function withGender(look, gender) {
-  const l = { ...look, gender };
-  if (gender === "nonbinary") return l;
-  if (!HAIR_FOR[gender].includes(l.hair) && !["bald", "beanie", "hijab"].includes(l.hair)) l.hair = HAIR_FOR[gender][0];
-  if (gender === "woman") l.beard = "none";
+// Man and Woman each get their own set of choices (like Bitmoji): their own hairstyles, eyes and brows, and beards only for Man.
+// Anything not listed here (face, nose, mouth, glasses, outfit, colors) is the same for both.
+export const OPTIONS = {
+  man: { hair: ["crew", "sidePart", "quiff", "buzz", "curly", "afro", "locs", "bald", "beanie"],
+         eyes: ["almond", "round", "hooded", "narrow", "happy"],
+         brows: ["natural", "straight", "thick"],
+         beard: ["none", "stubble", "mustache", "goatee", "full"] },
+  woman: { hair: ["long", "wavy", "bob", "bun", "curly", "afro", "locs", "hijab", "beanie"],
+           eyes: ["lashes", "almond", "round", "hooded", "happy"],
+           brows: ["arched", "natural", "thin", "straight"],
+           beard: ["none"] },
+};
+export const optionsFor = (look, part) => OPTIONS[look.gender]?.[part] || PARTS[part];
+// switching Man <-> Woman: each hairstyle trades for its look-alike on the other side, and anything not in the new set resets
+const HAIR_SWAP = { crew: "long", sidePart: "wavy", quiff: "bob", buzz: "bun", bald: "long",
+                    long: "crew", wavy: "sidePart", bob: "quiff", bun: "buzz", hijab: "crew" };
+function fitGender(l) {
+  for (const part of ["hair", "eyes", "brows", "beard"]) {
+    const opts = optionsFor(l, part);
+    if (!opts.includes(l[part])) l[part] = part === "hair" && opts.includes(HAIR_SWAP[l.hair]) ? HAIR_SWAP[l.hair] : opts[0];
+  }
   return l;
 }
+export const withGender = (look, gender) => fitGender({ ...look, gender });
 
 const hash = s => {
   let h = 2166136261;
@@ -52,10 +65,11 @@ const hash = s => {
 };
 export function randomLook(seed = Math.random().toString(36)) {
   const one = (k, list) => list[hash(seed + k) % list.length], roll = k => hash(seed + k) % 100;
-  const gender = one("g0", ["man", "woman", "man", "woman", "nonbinary"]);
-  return cleanLook({ gender, skin: one("s", SKINS), face: one("f", PARTS.face), hair: one("h", HAIR_FOR[gender]),
-    hairColor: one("hc", HAIR_COLORS.slice(0, 8)), eyes: one("e", PARTS.eyes.slice(0, 5)), eyeColor: one("ec", EYE_COLORS),
-    brows: one("b", PARTS.brows.slice(0, 4)), nose: one("n", PARTS.nose), mouth: one("m", ["smile", "grin", "smile", "smirk"]),
+  const gender = one("g0", PARTS.gender);
+  const pick = (k, part) => one(k, optionsFor({ gender }, part));
+  return cleanLook({ gender, skin: one("s", SKINS), face: one("f", PARTS.face), hair: one("h", optionsFor({ gender }, "hair").slice(0, 7)),
+    hairColor: one("hc", HAIR_COLORS.slice(0, 8)), eyes: pick("e", "eyes"), eyeColor: one("ec", EYE_COLORS),
+    brows: pick("b", "brows"), nose: one("n", PARTS.nose), mouth: one("m", ["smile", "grin", "smile", "smirk"]),
     beard: gender === "man" && roll("bd") < 35 ? one("bd2", PARTS.beard.slice(1)) : "none", glasses: roll("g") < 20 ? one("g2", ["round", "square"]) : "none",
     outfit: one("o", PARTS.outfit), outfitColor: one("oc", OUTFIT_COLORS), bg: "ffd000" });
 }

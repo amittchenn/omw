@@ -18,7 +18,7 @@ import { calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
 import { liveHangouts, sharingNow, shareStart } from "./live.js";
 import { chatHangouts, unreadCount, postLeft } from "./chat.js";
-import { PARTS, COLOR_PARTS, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
+import { COLOR_PARTS, optionsFor, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -109,7 +109,7 @@ const TABS = { gender: "Gender", skin: "Skin", face: "Face", hair: "Hair", hairC
                brows: "Brows", nose: "Nose", mouth: "Mouth", beard: "Beard", glasses: "Glasses", outfit: "Outfit",
                outfitColor: "Outfit color", bg: "Background" };
 const ZOOM = { face: "head", hair: "head", eyes: "face", eyeColor: "face", brows: "face", nose: "face", mouth: "face", beard: "head", glasses: "face" };
-const GENDERS = { man: "Man", woman: "Woman", nonbinary: "Non-binary" };
+const GENDERS = { man: "Man", woman: "Woman" };
 const nice = v => GENDERS[v] || (v === "none" ? "None" : v.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase()));
 const savedDraft = () => ({ mode: usesUpload(profile.avatar, profile.upload) ? "upload" : usesPhoto(profile.avatar, me) ? "photo" : "character",
                             look: myLook(), upload: profile.upload || "" });
@@ -118,7 +118,11 @@ const changed = () => { const s = savedDraft();
 
 function renderAvatarEditor() {
   draft ||= savedDraft();
-  const l = draft.look, value = l[ccTab], colors = COLOR_PARTS[ccTab], opts = colors || PARTS[ccTab];
+  const l = draft.look;
+  // each gender has its own choices; a tab with nothing to pick (Beard for Woman) is hidden
+  const tabs = Object.keys(TABS).filter(t => COLOR_PARTS[t] || optionsFor(l, t).length > 1);
+  if (!tabs.includes(ccTab)) ccTab = "gender";
+  const value = l[ccTab], colors = COLOR_PARTS[ccTab], opts = colors || optionsFor(l, ccTab);
   const preview = draft.mode === "upload" ? safePhoto(draft.upload) : draft.mode === "photo" ? safePhoto(me.photoURL) : characterSrc(l);
   // keep your place in the scrolling rows while the editor redraws
   const keep = { tabs: document.querySelector(".cc-tabs")?.scrollLeft || 0, opts: document.querySelector(".cc-opts")?.scrollTop || 0 };
@@ -135,7 +139,7 @@ function renderAvatarEditor() {
         </div></div>
     </div>
     <div class="note av-err" id="photoMsg"></div>
-    <div class="cc-tabs">${Object.entries(TABS).map(([t, n]) => `<button class="${t === ccTab ? "on" : ""}" data-tab="${t}">${n}</button>`).join("")}</div>
+    <div class="cc-tabs">${tabs.map(t => `<button class="${t === ccTab ? "on" : ""}" data-tab="${t}">${TABS[t]}</button>`).join("")}</div>
     <div class="cc-opts ${colors ? "colors" : ""}">${colors
       ? opts.map(c => `<button class="${c === value ? "on" : ""}" style="background:#${c}" data-set="${ccTab}" data-val="${c}" title="Color"></button>`).join("")
       : opts.map(v => `<button class="${v === value ? "on" : ""}" data-set="${ccTab}" data-val="${v}" title="${nice(v)}">
