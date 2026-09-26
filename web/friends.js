@@ -5,20 +5,21 @@
 //   users/{uid}                 name, photo, code, travelMode, home {lat, lng}: readable by you and your friends only
 //   users/{uid}/friends/{fid}   one doc per friend (both people get one, only by accepting a request)
 //   requests/{from}_{to}        a pending friend request
-//   private/{uid}               { calToken }: the secret in your personal calendar link (only you can read it)
+//   private/{uid}               { calToken, avatarArt }: the secret in your personal calendar link, your AI avatar (only you can read it)
+//   private/{uid}/avatars/{id}  My pictures: every AI avatar, upload and character you made, until you delete it
 //   hangouts/{id}               a planned hangout: invited = everyone asked, attendees = who accepted, rsvp = {uid: going|declined}
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, arrayUnion, arrayRemove, collection, query, where, onSnapshot, writeBatch,
-  deleteDoc, serverTimestamp,
+  deleteDoc, serverTimestamp, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
 import { liveHangouts, sharingNow, shareStart } from "./live.js";
 import { chatHangouts, unreadCount, postLeft } from "./chat.js";
-import { COLOR_PARTS, optionsFor, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
+import { COLOR_PARTS, ADJUST, optionsFor, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -32,17 +33,16 @@ let hangoutDocs = {};  // every hangout you're invited to or going to, by id
 const say = (text, ok = false) => { $("addMsg").textContent = text; $("addMsg").className = ok ? "ok" : ""; };
 const randomId = () => Array.from(crypto.getRandomValues(new Uint32Array(6)), n => ID_CHARS[n % ID_CHARS.length]).join("");
 const cleanId = v => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
-// ---------- avatars: make one with AI, build your own character (character.js), or use your own photo ----------
-// friends see it as a small JPEG saved on your profile. Nothing changes until you tap Save.
-// avatar = { style: "ai", traits, extra, bg } (the drawing itself is in private/{uid}.avatarArt, so you can change the color later)
-//        | { style: "real", v: 2, look }, plus useUpload / usePhoto  (older omw avatars had other styles; their saved picture keeps working)
+// ---------- your picture: everything you make or upload is kept in "My pictures", to switch between or delete ----------
+// private/{uid}/avatars/{id} = { kind: "ai", art, bg } | { kind: "upload", art } | { kind: "character", look }, plus at (when it was added)
+// users/{uid}.avatar = the one in use: { kind, id, style, look, bg, v, usePhoto }; users/{uid}.photo = the small JPEG friends see
+// (older avatars had { style: "real" | "ai" | ..., useUpload, usePhoto } and no library; they're moved into it the first time you open the editor)
 const AV_BGS = ["ffd66b", "ffb3c7", "c7b8ff", "9fe6c8", "a8d8ff", "ffc49c", "f1f0f7", "2b2b3a"];
-const hashOf = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+const LIBRARY_MAX = 40;
 const usesUpload = (a, upload) => !!(a?.useUpload && upload);
 const usesPhoto = (a, user) => !a?.useUpload && !!user?.photoURL && (a?.style ? !!a.usePhoto : true);
-const myLook = () => cleanLook(profile.avatar?.style === "real" ? profile.avatar.look : randomLook(me.uid));
-const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("Couldn't load that avatar.")); i.src = src; });
-// the AI's drawing on its color, as a 256 px JPEG
+const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("Couldn't load that picture.")); i.src = src; });
+// an AI drawing (see-through) on its color, as a 256 px JPEG
 async function onColor(src, bg) {
   const img = await loadImg(src), c = document.createElement("canvas"), g = c.getContext("2d");
   c.width = c.height = 256;
@@ -51,29 +51,32 @@ async function onColor(src, bg) {
   g.drawImage(img, 0, 6, 256, 256);
   return c.toDataURL("image/jpeg", 0.88);
 }
-// the picture for a profile: your upload, your Google/Facebook photo (the default), your AI avatar or your character
-async function photoFor(a, user, upload, saved, art) {
+// the picture friends see for a profile, worked out again each time you sign in
+async function photoFor(a, user, upload, saved) {
+  if (a?.kind === "account" || usesPhoto(a, user)) return user.photoURL;
   if (usesUpload(a, upload)) return upload;
-  if (usesPhoto(a, user)) return user.photoURL;
-  if (a?.style === "ai" && art) return onColor(art, a.bg);
-  // characters saved before the 3D-style redraw (no v: 2) are drawn again in the new style
-  if (a?.style === "real") return a.v === 2 && /^data:image\/jpeg/.test(saved || "") ? saved : renderJpeg(a.look);
-  if (a?.style && saved) return saved;  // an older avatar, or an AI one (already saved)
+  // characters are drawn again whenever the drawing style changes (v)
+  if (a?.style === "real") return a.v === 3 && /^data:image\/jpeg/.test(saved || "") ? saved : renderJpeg(a.look);
+  if (a?.style && saved) return saved;  // an AI avatar or upload: already saved
   return renderJpeg(randomLook(user.uid));  // no photo at all: a character to start with
 }
-// shrink the AI's 1024 px drawing to 512 px (still see-through), small enough to keep
+// shrink the AI's 1024 px drawing (still see-through), small enough to keep
 async function shrinkArt(src) {
-  const img = await loadImg(src), c = document.createElement("canvas");
-  c.width = c.height = 512;
-  c.getContext("2d").imageSmoothingQuality = "high";
-  c.getContext("2d").drawImage(img, 0, 0, 512, 512);
-  const webp = c.toDataURL("image/webp", 0.9);
-  return webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/png");
+  const img = await loadImg(src);
+  for (const size of [512, 384, 288]) {  // smaller until it fits in My pictures (Safari can't make WebP, and PNGs are bigger)
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    c.getContext("2d").imageSmoothingQuality = "high";
+    c.getContext("2d").drawImage(img, 0, 0, size, size);
+    const webp = c.toDataURL("image/webp", 0.9), out = webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/png");
+    if (out.length < 450000 || size === 288) return out;
+  }
 }
+
 // only real pictures: web links or uploaded images (anything else someone saved could break the page)
 const safePhoto = s => typeof s === "string" && /^(https:\/\/|data:image\/(jpeg|png|webp);base64,)[^"'<>\s]*$/.test(s) ? s : "";
 
-// shrink an uploaded picture to a 256 px square (center crop), as a small JPEG
+// shrink an uploaded picture to a square (center crop), as a small JPEG
 function shrinkPhoto(file, size = 256) {
   return new Promise((ok, no) => {
     if (!file.type.startsWith("image/")) return no(new Error("That's not a picture."));
@@ -90,7 +93,10 @@ function shrinkPhoto(file, size = 256) {
   });
 }
 let ccTab = "hair";  // which part of your character you're changing
-let draft = null;  // what you're trying on in the editor: { mode: "ai" | "character" | "old" | "upload" | "photo", look, art, bg, ... }
+// the editor: sel = the picture you're looking at ({ kind, id, art, look, bg }; id "" = not in My pictures yet),
+// pane = what you're making ("ai" | "build" | null), plus the AI's choices
+let draft = null;
+let library = null;  // My pictures, newest first: [{ id, kind, art, look, bg, at }]
 
 const pic = (p, cls = "") => safePhoto(p.photo)
   ? `<div class="avatar ${cls}" style="background-image:url('${esc(safePhoto(p.photo))}')"></div>`
@@ -129,7 +135,6 @@ function renderMe() {
   renderBusy(profile.busy || []);
 }
 
-// what the AI can be asked for (the server has the same list and ignores anything else)
 const AI_PARTS = [
   ["skin", "Skin", { light: "fde0cf", fair: "f5cdb3", tan: "e0ac85", medium: "c98d62", brown: "8a5230", dark: "5e3720" }],
   ["hair", "Hair", ["short", "sidePart", "curly", "afro", "spiky", "buzz", "long", "wavy", "bob", "bun", "ponytail", "pigtails", "braids", "locs", "hijab", "bald"]],
@@ -146,135 +151,191 @@ const LABELS = { sidePart: "Side part", buzz: "Buzz cut", catBeanie: "Cat beanie
                  darkBrown: "Dark brown", strawberry: "Strawberry" };
 const nice = v => LABELS[v] || (v === "none" ? "None" : v.replace(/^./, c => c.toUpperCase()));
 let aiReady = null;  // is the server set up to draw avatars?
-let myArt = "";      // your AI avatar's drawing (from private/{uid})
-let making = 0;      // which request is drawing right now (0: none)
+let making = 0;      // which AI request is drawing right now (0: none)
 
-const TABS = { gender: "Gender", skin: "Skin", face: "Face", hair: "Hair", hairColor: "Hair color", hat: "Hat", hatColor: "Hat color",
+const TABS = { gender: "Gender", adjust: "Adjust", skin: "Skin", face: "Face", hair: "Hair", hairColor: "Hair color", hat: "Hat", hatColor: "Hat color",
                eyes: "Eyes", eyeColor: "Eye color", brows: "Brows", nose: "Nose", mouth: "Mouth", beard: "Beard", glasses: "Glasses",
-               bg: "Background" };
+               top: "Outfit", topColor: "Outfit color", bg: "Background" };
 const ZOOM = { face: "head", hair: "head", eyes: "face", eyeColor: "face", brows: "face", nose: "face", mouth: "face", beard: "head", glasses: "face", hat: "head" };
 const GENDERS = { man: "Man", woman: "Woman" };
 const partName = v => GENDERS[v] || (v === "none" ? "None" : v.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase()));
+const KIND_NAME = { ai: "AI avatar", upload: "Your photo", character: "Your character", account: "Your account photo" };
 
-const savedDraft = () => {
+// the one in use, as a My pictures entry
+function inUse() {
   const a = profile.avatar || {};
-  return { mode: usesUpload(a, profile.upload) ? "upload" : usesPhoto(a, me) ? "photo"
-               : a.style === "ai" && myArt ? "ai" : a.style === "real" || !safePhoto(profile.photo) ? "character" : "old",
-           look: myLook(), bg: a.style === "ai" && a.bg ? a.bg : AV_BGS[hashOf(me.uid) % 6],
-           upload: profile.upload || "", art: a.style === "ai" ? myArt : "", traits: a.traits || {}, extra: a.extra || "",
-           made: myArt ? [myArt] : [], selfie: "", tab: draft?.tab };
-};
-const changed = () => { const s = savedDraft();
-  return draft.mode !== s.mode || draft.upload !== s.upload || (draft.mode === "ai" && (draft.art !== s.art || draft.bg !== s.bg))
-      || (draft.mode === "character" && JSON.stringify(draft.look) !== JSON.stringify(s.look)); };
+  if (a.kind && a.kind !== "account") return (library || []).find(x => x.id === a.id) || null;
+  if (a.kind === "account" || usesPhoto(a, me)) return me.photoURL ? { id: "account", kind: "account", art: me.photoURL } : null;
+  return null;
+}
+const sameAsInUse = s => { const u = inUse(), a = profile.avatar || {};
+  return !!u && s.id === u.id && (s.kind !== "ai" || (s.bg || u.bg) === (a.bg || u.bg)); };
+const tileSrc = x => x.kind === "character" ? characterSrc(x.look) : x.art;
 
-// with an AI avatar on screen, the choices change that one (only what you pick) instead of drawing a new one
-const aiEditing = () => draft.tab === "create" && draft.mode === "ai" && !!draft.art && draft.aiMode !== "new";
+async function addToLibrary(item) {
+  const entry = { ...item, at: new Date().toISOString() };
+  delete entry.id;
+  const ref = await addDoc(collection(db, "private", me.uid, "avatars"), entry);
+  const saved = { ...entry, id: ref.id };
+  library = [saved, ...(library || [])];
+  return saved;
+}
+
+// load My pictures once; pictures from before it existed (your upload, AI avatar, character) are moved into it
+async function loadLibrary() {
+  try {
+    const snap = await getDocs(collection(db, "private", me.uid, "avatars"));
+    library = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(x => x.kind === "character" ? !!x.look : !!safePhoto(x.art)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  } catch { library = []; return; }
+  const a = profile.avatar || {}, has = (kind, key) => library.find(x => x.kind === kind && (kind === "character" ? JSON.stringify(x.look) === key : x.art === key));
+  const old = [];
+  if (safePhoto(profile.upload) && !has("upload", profile.upload)) old.push({ kind: "upload", art: profile.upload, was: a.useUpload });
+  if (a.style === "ai" && !a.kind) {
+    const art = (await getDoc(doc(db, "private", me.uid)).catch(() => null))?.data()?.avatarArt;
+    if (safePhoto(art) && !has("ai", art)) old.push({ kind: "ai", art, bg: a.bg || AV_BGS[0], was: !a.useUpload && !a.usePhoto });
+  }
+  if (a.style === "real" && a.look && !has("character", JSON.stringify(cleanLook(a.look))))
+    old.push({ kind: "character", look: cleanLook(a.look), was: !a.useUpload && !a.usePhoto });
+  for (const { was, ...item } of old) {
+    const saved = await addToLibrary(item);
+    // point your current picture at its new home, without changing how it looks
+    if (was) { const avatar = { ...a, kind: saved.kind, id: saved.id }; profile = { ...profile, avatar }; await saveProfile({ avatar }); }
+  }
+}
 
 async function openAvatarEditor() {
   draft = null;
   renderAvatarEditor();
   if (aiReady === null) fetch("/ai/avatar").then(r => r.json()).then(d => { aiReady = !!d.ready; }).catch(() => { aiReady = false; })
     .finally(() => !$("avatarEditor").hidden && renderAvatarEditor());
-  if (profile.avatar?.style === "ai" && !myArt) {
-    try { myArt = (await getDoc(doc(db, "private", me.uid))).data()?.avatarArt || ""; } catch { /* keep the saved picture */ }
-    if (myArt && !$("avatarEditor").hidden && draft && !changed()) { draft = null; renderAvatarEditor(); }
-  }
+  if (!library) { await loadLibrary(); draft = null; if (!$("avatarEditor").hidden) renderAvatarEditor(); }
+}
+
+// with an AI avatar picked, the AI choices change that one (only what you pick) instead of drawing a new one
+const aiEditing = () => draft.pane === "ai" && draft.sel?.kind === "ai" && draft.aiMode !== "new";
+
+function newDraft() {
+  const u = inUse(), a = profile.avatar || {};
+  const sel = u ? { ...u, bg: u.kind === "ai" ? a.bg || u.bg : undefined }
+          : { id: "", kind: "character", look: cleanLook(a.style === "real" ? a.look : randomLook(me.uid)), old: !!safePhoto(profile.photo) && a.style !== "real" };
+  return { sel, pane: null, traits: {}, extra: "", selfie: "", changes: {}, changeText: "", aiMode: "", err: "" };
 }
 
 function renderAvatarEditor() {
-  if (!draft) draft = savedDraft();
-  draft.tab ||= aiReady === false || draft.mode === "character" ? "build" : "create";
-  const m = draft.mode, onBg = m === "ai", l = draft.look, editing = aiEditing();
-  draft.changes ||= {};
-  const t = editing ? draft.changes : draft.traits, anyWord = editing ? "Keep" : "Any";
-  const preview = m === "upload" ? safePhoto(draft.upload) : m === "photo" ? safePhoto(me.photoURL) : m === "old" ? safePhoto(profile.photo)
-                : m === "ai" ? draft.art : characterSrc(l);
+  if (!draft) draft = newDraft();
+  const s = draft.sel, editing = aiEditing(), busy = !!making;
+  const preview = s.old ? safePhoto(profile.photo) : tileSrc(s);
   const box = document.querySelector("#avatarEditor .cc-opts, #avatarEditor .ai-form");
-  const keep = box?.scrollTop || 0, keepTabs = document.querySelector("#avatarEditor .cc-tabs")?.scrollLeft || 0;
-  // building: each gender has its own choices; a tab with nothing to pick (Beard for Woman) is hidden
-  const tabs = Object.keys(TABS).filter(k => COLOR_PARTS[k] || optionsFor(l, k).length > 1);
-  if (!tabs.includes(ccTab)) ccTab = "gender";
-  const colors = COLOR_PARTS[ccTab], opts = colors || optionsFor(l, ccTab);
-  const rows = Object.fromEntries([...document.querySelectorAll("#avatarEditor [data-row]")].map(r => [r.dataset.row, r.scrollLeft]));
+  const keep = { box: box?.className, top: box?.scrollTop || 0, tabs: document.querySelector("#avatarEditor .cc-tabs")?.scrollLeft || 0,
+                 lib: document.querySelector("#avatarEditor .lib-row")?.scrollLeft || 0,
+                 rows: Object.fromEntries([...document.querySelectorAll("#avatarEditor [data-row]")].map(r => [r.dataset.row, r.scrollLeft])) };
+  const status = busy ? "Drawing your avatar… about 20 seconds." : s.old ? "Your picture now." : sameAsInUse(s) ? "This is your picture now."
+    : s.id ? "Tap Use this picture to switch to it." : "New! Tap Use this picture to keep it.";
+  const items = [...(me.photoURL ? [{ id: "account", kind: "account", art: me.photoURL }] : []), ...(library || [])];
+  const used = inUse();
+
+  // the builder
+  const l = draft.look || (s.kind === "character" ? s.look : null);
+  let builder = "";
+  if (draft.pane === "build") {
+    const tabs = Object.keys(TABS).filter(k => k === "adjust" || COLOR_PARTS[k] || optionsFor(l, k).length > 1);
+    if (!tabs.includes(ccTab)) ccTab = "gender";
+    const colors = COLOR_PARTS[ccTab], opts = ccTab === "adjust" ? [] : colors || optionsFor(l, ccTab);
+    builder = `<div class="cc-tabs">${tabs.map(k => `<button class="${k === ccTab ? "on" : ""}" data-tab="${k}">${TABS[k]}</button>`).join("")}</div>
+      ${ccTab === "adjust" ? `<div class="cc-adjust">${Object.entries(ADJUST).map(([k, [label]]) => `<label><span>${label}</span>
+          <input type="range" min="-5" max="5" step="1" value="${l[k] || 0}" data-adjust="${k}"></label>`).join("")}
+          <button class="wide" data-adjust-reset="1">Reset</button></div>`
+      : `<div class="cc-opts ${colors ? "colors" : ""}">${colors
+        ? opts.map(c => `<button class="${c === l[ccTab] ? "on" : ""}" style="background:#${c}" data-set="${ccTab}" data-val="${c}" title="Color"></button>`).join("")
+        : opts.map(v => `<button class="${v === l[ccTab] ? "on" : ""}" data-set="${ccTab}" data-val="${v}" title="${partName(v)}">
+            <img src="${esc(characterSrc(ccTab === "gender" ? withGender(l, v) : { ...l, [ccTab]: v }, ZOOM[ccTab] || "full"))}" alt="${partName(v)}" loading="lazy">${v === "none" || GENDERS[v] ? `<small>${partName(v)}</small>` : ""}</button>`).join("")}</div>`}`;
+  }
+
+  // the AI
+  const t = editing ? draft.changes : draft.traits, anyWord = editing ? "Keep" : "Any";
   const chips = (key, opts) => Array.isArray(opts)
     ? `<button class="${!t[key] || (key === "extras" && !t.extras?.length) ? "on" : ""}" data-trait="${key}" data-val="">${anyWord}</button>` +
       opts.map(v => `<button class="${(key === "extras" ? (t.extras || []).includes(v) : t[key] === v) ? "on" : ""}" data-trait="${key}" data-val="${v}">${nice(v)}</button>`).join("")
     : `<button class="sw any ${editing ? "keep" : ""} ${!t[key] ? "on" : ""}" data-trait="${key}" data-val="" title="${editing ? "Keep as it is" : "Any: the AI picks"}">${editing ? "Keep" : icon("shuffle")}</button>` +
       Object.entries(opts).map(([v, c]) => `<button class="sw ${t[key] === v ? "on" : ""}" style="background:${c === "rainbow" ? "conic-gradient(#ff5b5b,#ffd23f,#3fbf6b,#3d8bff,#9b6cff,#ff5b5b)" : "#" + c}" data-trait="${key}" data-val="${v}" title="${nice(v)}"></button>`).join("");
-  const busy = !!making;
+  const ai = draft.pane !== "ai" ? "" : aiReady === false ? `<p class="ai-off">AI avatars aren't turned on for this app yet. Build your own for now.</p>`
+    : `<div class="ai-form">
+        ${s.kind === "ai" ? `<div class="ai-mode"><button class="${editing ? "on" : ""}" data-ai-mode="edit">${icon("pencil")} Change this one</button>
+          <button class="${editing ? "" : "on"}" data-ai-mode="new">${icon("sparkles")} Make a new one</button></div>
+          <p class="ai-note">${editing ? "Pick only what should change. Everything else stays the same." : "Draws a brand-new avatar from your picks."}</p>` : ""}
+        ${editing ? "" : `<div class="ai-row"><small>Start from a selfie <em>(optional)</em></small><div class="ai-selfie">
+          ${draft.selfie ? `<img src="${esc(draft.selfie)}" alt="Your selfie"><button data-no-selfie="1">Remove</button>`
+                         : `<label class="cc-upload">${icon("camera")} Add a selfie<input type="file" accept="image/*" id="selfieFile" hidden></label>`}
+          <span>${draft.selfie ? "The AI will make it look like you." : "Or just pick below."}</span></div></div>`}
+        ${AI_PARTS.map(([key, label, opts]) => `<div class="ai-row"><small>${label}${key === "extras" ? " <em>(pick any)</em>" : ""}</small>
+          <div class="ai-chips ${Array.isArray(opts) ? "" : "sws"}" data-row="${key}">${chips(key, opts)}</div></div>`).join("")}
+        <div class="ai-row"><small>${editing ? "Anything else to change?" : "Anything else?"}</small>
+          <input id="aiExtra" maxlength="100" placeholder="${editing ? "e.g. make the cap red, add a nose ring" : "e.g. pink streak, gap tooth, dimples"}" value="${esc(editing ? draft.changeText : draft.extra)}"></div>
+        <button class="wide dark ai-go" data-make="1" ${busy ? "disabled" : ""}>${busy ? "Drawing…"
+          : editing ? `${icon("pencil")} Apply changes` : `${icon("sparkles")} Create my avatar`}</button>
+        ${draft.selfie && !editing ? `<p class="ai-note">Your selfie is only sent to the AI to draw your avatar. omw! doesn't keep it.</p>` : ""}
+      </div>`;
+
   $("avatarEditor").innerHTML = `
     <div class="cc-top">
-      <div class="cc-preview ${onBg ? "pick ai" : ""} ${busy ? "busy" : ""}" style="${onBg ? `background:#${draft.bg}` : ""}">
+      <div class="cc-preview ${s.kind === "ai" ? "pick ai" : ""} ${busy ? "busy" : ""}" style="${s.kind === "ai" ? `background:#${s.bg}` : ""}">
         ${preview ? `<img src="${esc(preview)}" alt="Preview">` : ""}${busy ? `<i class="av-spin"></i>` : ""}</div>
-      <div><b>${onBg ? "Your avatar" : m === "character" ? "Your character" : m === "upload" ? "Your photo" : m === "photo" ? "Your account photo" : "Your current avatar"}</b>
-        <small>${busy ? "Drawing your avatar… about 20 seconds." : onBg ? "Pick a color too, then tap Save." : m === "character" ? "Try things on below, then tap Save." : "Make or build an avatar below to use it instead."}</small>
-        <div class="cc-actions">
-          ${draft.tab === "build" ? `<button data-random="1">${icon("shuffle")} Surprise me</button>` : ""}
-          ${draft.upload && m !== "upload" ? `<button data-use-upload="1">${icon("image")} Use my photo</button>` : ""}
-          ${me.photoURL && m !== "photo" ? `<button data-use-photo="1">${icon("user")} Account photo</button>` : ""}
-          <label class="cc-upload">${icon("upload")} Upload photo<input type="file" accept="image/*" id="photoFile" hidden></label>
-        </div></div>
+      <div><b>${s.old ? "Your picture" : KIND_NAME[s.kind]}</b><small>${status}</small>
+        ${s.kind === "ai" ? `<div class="cc-bgs small">${AV_BGS.map(c => `<button class="${c === s.bg ? "on" : ""}" style="background:#${c}" data-bg="${c}" title="Background color"></button>`).join("")}</div>` : ""}
+        ${s.kind === "character" && draft.pane !== "build" ? `<div class="cc-actions"><button data-pane="build">${icon("pencil")} Edit</button></div>` : ""}
+      </div>
     </div>
     <div class="note av-err" id="photoMsg">${esc(draft.err || "")}</div>
-    ${draft.tab === "create" ? `<div class="cc-bgs">${AV_BGS.map(c => `<button class="${onBg && c === draft.bg ? "on" : ""}" style="background:#${c}" data-bg="${c}" title="Background"></button>`).join("")}</div>` : ""}
-    <div class="cc-seg"><button class="${draft.tab === "create" ? "on" : ""}" data-av-tab="create">${icon("sparkles")} Create with AI</button>
-      <button class="${draft.tab === "build" ? "on" : ""}" data-av-tab="build">${icon("user")} Build your own</button></div>
-    ${draft.tab === "build"
-      ? `<div class="cc-tabs">${tabs.map(k => `<button class="${k === ccTab ? "on" : ""}" data-tab="${k}">${TABS[k]}</button>`).join("")}</div>
-         <div class="cc-opts ${colors ? "colors" : ""}">${colors
-          ? opts.map(c => `<button class="${c === l[ccTab] ? "on" : ""}" style="background:#${c}" data-set="${ccTab}" data-val="${c}" title="Color"></button>`).join("")
-          : opts.map(v => `<button class="${v === l[ccTab] ? "on" : ""}" data-set="${ccTab}" data-val="${v}" title="${partName(v)}">
-              <img src="${esc(characterSrc(ccTab === "gender" ? withGender(l, v) : { ...l, [ccTab]: v }, ZOOM[ccTab] || "full"))}" alt="${partName(v)}">${v === "none" || GENDERS[v] ? `<small>${partName(v)}</small>` : ""}</button>`).join("")}</div>`
-      : aiReady === false ? `<p class="ai-off">AI avatars aren't turned on for this app yet. Build your own for now.</p>`
-      : `<div class="ai-form">
-          ${draft.made.length ? `<div class="ai-made"><small>Yours so far</small><div>${draft.made.map((src, i) => `<button class="${m === "ai" && draft.art === src ? "on" : ""}" style="background:#${draft.bg}" data-made="${i}"><img src="${esc(src)}" alt=""></button>`).join("")}</div></div>` : ""}
-          ${m === "ai" && draft.art ? `<div class="ai-mode"><button class="${editing ? "on" : ""}" data-ai-mode="edit">${icon("pencil")} Change this one</button>
-            <button class="${editing ? "" : "on"}" data-ai-mode="new">${icon("sparkles")} Start new</button></div>
-            <p class="ai-note">${editing ? "Pick only what should change. Everything else stays the same." : "Draws a brand-new avatar from your picks."}</p>` : ""}
-          ${editing ? "" : `<div class="ai-row"><small>Start from a selfie <em>(optional)</em></small><div class="ai-selfie">
-            ${draft.selfie ? `<img src="${esc(draft.selfie)}" alt="Your selfie"><button data-no-selfie="1">Remove</button>`
-                           : `<label class="cc-upload">${icon("camera")} Add a selfie<input type="file" accept="image/*" id="selfieFile" hidden></label>`}
-            <span>${draft.selfie ? "The AI will make it look like you." : "Or just pick below."}</span></div></div>`}
-          ${AI_PARTS.map(([key, label, opts]) => `<div class="ai-row"><small>${label}${key === "extras" ? " <em>(pick any)</em>" : ""}</small>
-            <div class="ai-chips ${Array.isArray(opts) ? "" : "sws"}" data-row="${key}">${chips(key, opts)}</div></div>`).join("")}
-          <div class="ai-row"><small>${editing ? "Anything else to change?" : "Anything else?"}</small>
-            <input id="aiExtra" maxlength="100" placeholder="${editing ? "e.g. make the cap red, add a nose ring" : "e.g. pink streak, gap tooth, dimples"}" value="${esc(editing ? draft.changeText || "" : draft.extra)}"></div>
-          <button class="wide dark ai-go" data-make="1" ${busy ? "disabled" : ""}>${busy ? "Drawing…"
-            : editing ? `${icon("pencil")} Apply changes` : `${icon("sparkles")} ${draft.made.length ? "Make another" : "Create my avatar"}`}</button>
-          ${draft.selfie ? `<p class="ai-note">Your selfie is only sent to the AI to draw your avatar. omw! doesn't keep it.</p>` : ""}
-        </div>`}
+    ${items.length ? `<div class="lib"><div class="lib-head"><b>My pictures</b><small>${library ? `${items.length}` : "Loading…"}</small></div>
+      <div class="lib-row">${items.map((x, i) => `<div class="lib-tile">
+        <button class="${x.id === s.id ? "on" : ""}" style="${x.kind === "ai" ? `background:#${x.id === s.id ? s.bg : x.bg}` : ""}" data-lib="${i}" title="${KIND_NAME[x.kind]}">
+          <img src="${esc(tileSrc(x))}" alt="" loading="lazy">${x.kind === "account" ? `<i class="lib-tag">${icon("user")}</i>` : ""}</button>
+        ${used && x.id === used.id ? `<i class="lib-inuse" title="Your picture now">${icon("check")}</i>`
+          : x.kind !== "account" ? `<button class="lib-del" data-del="${esc(x.id)}" title="Delete">${icon("x")}</button>` : ""}</div>`).join("")}</div></div>` : ""}
+    <div class="lib-head"><b>Make a new one</b></div>
+    <div class="make">
+      <button class="${draft.pane === "ai" ? "on" : ""}" data-pane="ai"><i>${icon("sparkles")}</i><b>Create with AI</b><small>Pick a look or add a selfie</small></button>
+      <button class="${draft.pane === "build" ? "on" : ""}" data-pane="build"><i>${icon("user")}</i><b>Build your own</b><small>Change every detail</small></button>
+      <label class="${draft.pane === "upload" ? "on" : ""}"><i>${icon("upload")}</i><b>Upload photo</b><small>From your phone</small><input type="file" accept="image/*" id="photoFile" hidden></label>
+    </div>
+    ${builder}${ai}
     <div class="cc-save">
-      <button class="wide" data-cancel="1">Cancel</button>
-      <button class="wide dark" data-save="1" ${changed() && !(m === "ai" && !draft.art) ? "" : "disabled"}>Save</button>
+      <button class="wide" data-cancel="1">Close</button>
+      <button class="wide dark" data-save="1" ${s.old || sameAsInUse(s) || busy ? "disabled" : ""}>Use this picture</button>
     </div>`;
   const nb = document.querySelector("#avatarEditor .cc-opts, #avatarEditor .ai-form");
-  if (nb && box && nb.className === box.className) nb.scrollTop = keep;
-  if (document.querySelector("#avatarEditor .cc-tabs")) document.querySelector("#avatarEditor .cc-tabs").scrollLeft = keepTabs;
+  if (nb && nb.className === keep.box) nb.scrollTop = keep.top;
+  if (document.querySelector("#avatarEditor .cc-tabs")) document.querySelector("#avatarEditor .cc-tabs").scrollLeft = keep.tabs;
+  if (document.querySelector("#avatarEditor .lib-row")) document.querySelector("#avatarEditor .lib-row").scrollLeft = keep.lib;
   // each row of choices stays where you scrolled it; opened fresh, it shows what's picked
   document.querySelectorAll("#avatarEditor [data-row]").forEach(r => {
     const on = r.querySelector(".on");
-    r.scrollLeft = r.dataset.row in rows ? rows[r.dataset.row] : on ? Math.max(0, on.offsetLeft - r.offsetLeft - 40) : 0;
+    r.scrollLeft = r.dataset.row in keep.rows ? keep.rows[r.dataset.row] : on ? Math.max(0, on.offsetLeft - r.offsetLeft - 40) : 0;
   });
 }
 
+const libraryFull = () => (library || []).length >= LIBRARY_MAX
+  ? (draft.err = `You have ${LIBRARY_MAX} pictures saved. Delete some (×) to add more.`, renderAvatarEditor(), true) : false;
+
 async function makeAvatar() {
-  const id = making = Date.now(), d = draft, editing = aiEditing();
-  if (editing && !Object.values(d.changes).some(v => Array.isArray(v) ? v.length : v) && !d.changeText?.trim()) {
-    making = 0; d.err = "Pick what should change first."; return renderAvatarEditor();
+  const d = draft, editing = aiEditing();
+  if (libraryFull()) return;
+  if (editing && !Object.values(d.changes).some(v => Array.isArray(v) ? v.length : v) && !d.changeText.trim()) {
+    d.err = "Pick what should change first."; return renderAvatarEditor();
   }
+  const id = making = Date.now();
   d.err = "";
   renderAvatarEditor();
   try {
     const res = await fetch("/ai/avatar", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editing ? { traits: d.changes, extra: d.changeText || "", base: d.art }
+      body: JSON.stringify(editing ? { traits: d.changes, extra: d.changeText, base: d.sel.art }
                                    : { traits: d.traits, extra: d.extra, selfie: d.selfie || null }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Couldn't draw that. Try again.");
-    const art = await shrinkArt(data.image);
-    d.made = [art, ...d.made].slice(0, 6);
+    const saved = await addToLibrary({ kind: "ai", art: await shrinkArt(data.image), bg: d.sel.kind === "ai" ? d.sel.bg : AV_BGS[Math.floor(Math.random() * 6)] });
     if (editing) Object.assign(d, { changes: {}, changeText: "" });
-    if (draft === d) Object.assign(d, { mode: "ai", art });
+    if (draft === d) d.sel = saved;
   } catch (e) {
     d.err = e.message;
   } finally {
@@ -284,21 +345,31 @@ async function makeAvatar() {
 }
 
 async function saveAvatar() {
-  if (draft.mode === "old") { draft = null; $("avatarEditor").hidden = true; return; }
-  const m = draft.mode;
-  const avatar = m === "ai" ? { style: "ai", traits: draft.traits, extra: draft.extra, bg: draft.bg }
-               : { style: "real", v: 2, look: cleanLook(draft.look) };
-  // keep what you had underneath a photo, so switching back later still works
-  if (m === "upload" || m === "photo") Object.assign(avatar, profile.avatar?.style === "ai" && myArt ? profile.avatar : {}, { useUpload: m === "upload", usePhoto: m === "photo" });
-  else Object.assign(avatar, { useUpload: false, usePhoto: false });
-  const upload = draft.upload || undefined, art = m === "ai" ? draft.art : myArt;
-  const photo = await photoFor(avatar, me, upload, profile.photo, art);
-  if (m === "ai" && art !== myArt) { myArt = art; await setDoc(doc(db, "private", me.uid), { avatarArt: art }, { merge: true }); }
-  profile = { ...profile, avatar, photo, ...(upload ? { upload } : {}) };  // show it right away
+  let s = draft.sel;
+  if (s.kind === "character" && !s.id) {  // a new character: keep it in My pictures too
+    if (libraryFull()) return;
+    s = await addToLibrary({ kind: "character", look: cleanLook(s.look) });
+  }
+  if (s.kind === "ai" && s.bg !== library.find(x => x.id === s.id)?.bg) {  // remember its new color
+    await setDoc(doc(db, "private", me.uid, "avatars", s.id), { bg: s.bg }, { merge: true });
+    library = library.map(x => x.id === s.id ? { ...x, bg: s.bg } : x);
+  }
+  const photo = s.kind === "account" ? me.photoURL : s.kind === "upload" ? s.art : s.kind === "ai" ? await onColor(s.art, s.bg) : await renderJpeg(s.look);
+  const avatar = { kind: s.kind, id: s.id, style: s.kind === "character" ? "real" : s.kind, v: 3, usePhoto: s.kind === "account", useUpload: false,
+                   ...(s.kind === "character" ? { look: cleanLook(s.look) } : {}), ...(s.kind === "ai" ? { bg: s.bg } : {}) };
+  profile = { ...profile, avatar, photo };  // show it right away
   draft = null;
   $("avatarEditor").hidden = true;
   renderMe();
-  await saveProfile({ avatar, photo, ...(upload ? { upload } : {}) });
+  await saveProfile({ avatar, photo });
+}
+
+async function deletePicture(id) {
+  const x = library.find(p => p.id === id);
+  if (!x || !confirm("Delete this picture from My pictures? You can't get it back.")) return;
+  await deleteDoc(doc(db, "private", me.uid, "avatars", id));
+  library = library.filter(p => p !== x);
+  if (draft.sel.id === id) draft = { ...newDraft(), pane: draft.pane };
 }
 
 const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -629,41 +700,58 @@ if (configured) {
     if (profile.code) await setDoc(doc(db, "codes", profile.code), { name }, { merge: true });
   });
   $("meModes").onclick = run(async e => { const b = e.target.closest("[data-mode]"); if (b) await saveProfile({ travelMode: b.dataset.mode }); });
-  // trying things on only changes the draft; Save is what changes your picture
+  // trying things on only changes the draft; "Use this picture" is what changes your picture
+  const tryLook = look => { draft.look = look; draft.sel = { id: "", kind: "character", look }; };
   $("avatarEditor").onclick = run(async e => {
     const b = e.target.closest("button");
     if (!b || b.disabled) return;
-    if (b.dataset.tab) { ccTab = b.dataset.tab; document.querySelector(".cc-opts").scrollTop = 0; }
-    if (b.dataset.set) draft = { ...draft, mode: "character", look: b.dataset.set === "gender" ? withGender(draft.look, b.dataset.val)
-                                                                                     : { ...draft.look, [b.dataset.set]: b.dataset.val } };
-    if (b.dataset.random) draft = { ...draft, mode: "character", look: randomLook() };
-    if (b.dataset.bg) draft = { ...draft, bg: b.dataset.bg, mode: draft.art ? "ai" : draft.mode };
-    if (b.dataset.avTab) draft.tab = b.dataset.avTab;
+    draft.err = "";
+    if (b.dataset.pane) {
+      draft.pane = draft.pane === b.dataset.pane && b.closest(".make") ? null : b.dataset.pane;
+      if (draft.pane === "build") draft.look = draft.sel.kind === "character" ? draft.sel.look : cleanLook(profile.avatar?.look || randomLook(me.uid));
+    }
+    if (b.dataset.lib) {
+      const x = [...(me.photoURL ? [{ id: "account", kind: "account", art: me.photoURL }] : []), ...library][+b.dataset.lib];
+      draft.sel = x.id === inUse()?.id ? newDraft().sel : { ...x };
+      if (x.kind === "character" && draft.pane === "build") draft.look = x.look;
+      if (draft.pane === "build" && x.kind !== "character") draft.pane = null;
+    }
+    if (b.dataset.del) await deletePicture(b.dataset.del);
+    if (b.dataset.tab) { ccTab = b.dataset.tab; const o = document.querySelector(".cc-opts"); if (o) o.scrollTop = 0; }
+    if (b.dataset.set) tryLook(b.dataset.set === "gender" ? withGender(draft.look, b.dataset.val) : { ...draft.look, [b.dataset.set]: b.dataset.val });
+    if (b.dataset.adjustReset) tryLook({ ...draft.look, ...Object.fromEntries(Object.keys(ADJUST).map(k => [k, 0])) });
+    if (b.dataset.random) tryLook(randomLook());
+    if (b.dataset.bg) draft.sel = { ...draft.sel, bg: b.dataset.bg };
     if (b.dataset.trait) {
       const into = aiEditing() ? "changes" : "traits", k = b.dataset.trait, v = b.dataset.val, ex = draft[into].extras || [];
       draft[into] = { ...draft[into], [k]: k !== "extras" ? v : !v ? [] : ex.includes(v) ? ex.filter(x => x !== v) : [...ex, v] };
     }
-    if (b.dataset.made) draft = { ...draft, mode: "ai", art: draft.made[+b.dataset.made] };
     if (b.dataset.noSelfie) draft.selfie = "";
     if (b.dataset.aiMode) draft.aiMode = b.dataset.aiMode;
     if (b.dataset.make) return makeAvatar();
-    if (b.dataset.usePhoto) draft = { ...draft, mode: "photo" };
-    if (b.dataset.useUpload) draft = { ...draft, mode: "upload" };
     if (b.dataset.cancel) { draft = null; $("avatarEditor").hidden = true; return; }
     if (b.dataset.save) { b.disabled = true; b.textContent = "Saving…"; return saveAvatar(); }
     renderAvatarEditor();
   });
-  $("avatarEditor").addEventListener("change", async e => {  // picked a picture: try it on, Save keeps it
-    if (e.target.id !== "photoFile" || !e.target.files[0]) return;
-    try { draft = { ...draft, mode: "upload", upload: await shrinkPhoto(e.target.files[0]) }; renderAvatarEditor(); }
-    catch (err) { $("photoMsg").textContent = err.message; }
+  $("avatarEditor").addEventListener("change", run(async e => {
+    if (e.target.dataset.adjust) { tryLook({ ...draft.look, [e.target.dataset.adjust]: +e.target.value }); return renderAvatarEditor(); }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      if (e.target.id === "selfieFile") draft.selfie = await shrinkPhoto(file, 512);
+      if (e.target.id === "photoFile" && !libraryFull()) draft.sel = await addToLibrary({ kind: "upload", art: await shrinkPhoto(file) });  // kept in My pictures right away
+    } catch (err) { draft.err = err.message; }
+    renderAvatarEditor();
+  }));
+  $("avatarEditor").addEventListener("input", e => {
+    if (e.target.id === "aiExtra" && draft) draft[aiEditing() ? "changeText" : "extra"] = e.target.value;
+    if (e.target.dataset.adjust) {  // move the slider: the preview follows along
+      draft.look = { ...draft.look, [e.target.dataset.adjust]: +e.target.value };
+      draft.sel = { id: "", kind: "character", look: draft.look };
+      const img = document.querySelector("#avatarEditor .cc-preview img");
+      if (img) img.src = characterSrc(draft.look);
+    }
   });
-  $("avatarEditor").addEventListener("change", async e => {  // a selfie for the AI to go from
-    if (e.target.id !== "selfieFile" || !e.target.files[0]) return;
-    try { draft.selfie = await shrinkPhoto(e.target.files[0], 512); renderAvatarEditor(); }
-    catch (err) { $("photoMsg").textContent = err.message; }
-  });
-  $("avatarEditor").addEventListener("input", e => { if (e.target.id === "aiExtra" && draft) draft[aiEditing() ? "changeText" : "extra"] = e.target.value; });
   $("readSched").onclick = async () => {
     const text = $("schedText").value.trim();
     $("readSched").disabled = true; $("readSched").textContent = "Reading…"; $("schedMsg").textContent = "";

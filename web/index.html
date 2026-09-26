@@ -678,7 +678,46 @@
     .ai-made button { flex: none; width: 58px; height: 58px; padding: 0; border-radius: 16px; overflow: hidden; }
     .ai-made button.on { box-shadow: 0 0 0 3px var(--ink); }
     .ai-made img { width: 100%; height: 100%; display: block; }
-    .cc-save { display: flex; gap: 8px; margin-top: 10px; }
+    .ai-made > div { padding: 6px 8px 2px 4px; }
+    .ai-made em { font-style: normal; opacity: .8; }
+    .ai-tile { position: relative; flex: none; }
+    .ai-made .ai-del, .ai-made .ai-inuse { position: absolute; top: -6px; right: -6px; width: 22px !important; height: 22px !important; display: grid; place-items: center;
+                         padding: 0; border-radius: 50%; background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+    .ai-made .ai-inuse { background: var(--ink); color: #fff; }
+    .ai-del svg, .ai-inuse svg { width: 13px; height: 13px; }
+    .lib-head { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 2px 6px; }
+    .lib-head b { font-size: 14px; font-weight: 900; }
+    .lib-head small { font-size: 12px; font-weight: 800; color: var(--muted); }
+    .lib-row { display: flex; gap: 12px; overflow-x: auto; padding: 6px 10px 6px 4px; scrollbar-width: none; }
+    .lib-row::-webkit-scrollbar { display: none; }
+    .lib-tile { position: relative; flex: none; }
+    .lib-tile > button:first-child { position: relative; display: block; width: 62px; height: 62px; padding: 0; border-radius: 50%; overflow: hidden;
+                                     background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+    .lib-tile > button:first-child.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+    .lib-tile img { width: 100%; height: 100%; display: block; object-fit: cover; }
+    .lib-tag { position: absolute; left: 0; right: 0; bottom: 0; height: 18px; display: grid; place-items: center; background: rgba(0,0,0,.45); color: #fff; }
+    .lib-tag svg { width: 11px; height: 11px; }
+    .lib-del, .lib-inuse { position: absolute; top: -4px; right: -4px; width: 22px; height: 22px; display: grid; place-items: center; padding: 0;
+                           border-radius: 50%; background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+    .lib-inuse { background: #22a45d; color: #fff; }
+    .lib-del svg, .lib-inuse svg { width: 13px; height: 13px; }
+    .make { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .make > * { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 11px 10px; border-radius: 16px;
+                background: #fff; color: var(--ink); text-align: left; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+    .make i { display: grid; place-items: center; width: 32px; height: 32px; margin-bottom: 6px; border-radius: 10px; background: #fff3c4; }
+    .make i svg { width: 17px; height: 17px; }
+    .make b { font-size: 13px; font-weight: 900; line-height: 1.2; }
+    .make small { font-size: 11px; font-weight: 700; line-height: 1.25; color: var(--muted); }
+    .make .on { background: var(--ink); color: #fff; box-shadow: none; }
+    .make .on i { background: rgba(255,255,255,.15); }
+    .make .on small { color: rgba(255,255,255,.7); }
+    .cc-bgs.small { gap: 6px; margin-top: 8px; }
+    .cc-bgs.small button { max-width: 24px; }
+    .cc-adjust { display: grid; gap: 12px; margin-top: 12px; padding: 12px; border-radius: 16px; background: #fff; }
+    .cc-adjust label { display: grid; grid-template-columns: 104px 1fr; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; }
+    .cc-adjust input { width: 100%; accent-color: var(--ink); }
+    .cc-adjust button { background: #f3f3f6 !important; }
+    .cc-save { position: sticky; bottom: 0; z-index: 2; display: flex; gap: 8px; margin: 10px -12px -12px; padding: 10px 12px 12px; border-radius: 0 0 22px 22px; background: var(--soft); }
     .cc-save button { flex: 1; background: #fff !important; }
     .cc-save button.dark { background: var(--ink) !important; color: #fff; }
     .cc-save button:disabled { opacity: .4; cursor: default; }
