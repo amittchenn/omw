@@ -93,7 +93,21 @@
     input[type=datetime-local], select { width: 100%; height: 46px; padding: 0 14px; border: 0; border-radius: 16px; background: var(--soft);
                                          font-weight: 800; outline: none; }
     input[type=datetime-local]:focus, select:focus { box-shadow: 0 0 0 3px var(--sun); }
-    .wx { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 10px 14px; border-radius: 16px; background: var(--soft);
+    .wx-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .wx-box { padding: 10px 12px; border-radius: 16px; background: #fff; }
+    .wx-box small { display: block; font-size: 11px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .wx-main { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+    .wx-main span { font-size: 26px; }
+    .wx-main b { font-size: 26px; font-weight: 900; letter-spacing: -.03em; }
+    .wx-box .sub { display: block; font-size: 12px; font-weight: 800; color: var(--ink); margin-top: 2px; }
+    .wx-hours { display: flex; justify-content: space-between; gap: 4px; margin-top: 8px; padding: 8px 6px; border-radius: 16px; background: #fff; }
+    .wx-hours div { flex: 1; text-align: center; font-size: 11px; font-weight: 800; color: var(--muted); border-radius: 12px; padding: 2px 0; }
+    .wx-hours div.on { background: var(--sun); color: var(--ink); }
+    .wx-hours b { display: block; font-size: 13px; color: var(--ink); }
+    .wx-hours i { display: block; font-style: normal; font-size: 18px; }
+    .wx-note { margin-top: 8px; font-size: 12px; font-weight: 800; }
+    .wx.rainy .wx-note { color: #0a6cc2; }
+    .wx { display: block; padding: 10px; border-radius: 20px; background: var(--soft);
           font-size: 13px; font-weight: 800; color: var(--muted); }
     .wx .big { font-size: 20px; }
     .wx.rainy { background: #dff1ff; color: #0a6cc2; }
@@ -132,9 +146,9 @@
                       filter: grayscale(1); opacity: .45; transition: all .15s; }
     .friend input:checked + .avatar { filter: none; opacity: 1; box-shadow: 0 0 0 3px var(--c), var(--shadow-sm); }
     .friend small { display: block; margin-top: 5px; font-size: 12px; font-weight: 900; }
-    .friend .avatar { position: relative; }
-    .friend.removable::after { content: "✕"; position: relative; top: -70px; left: 22px; display: grid; place-items: center; width: 20px; height: 20px;
-                               margin-bottom: -20px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 10px; font-weight: 900; }
+    .friend { position: relative; }
+    .friend.removable::after { content: "✕"; position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 20px; height: 20px;
+                               border: 2px solid #fff; border-radius: 50%; background: var(--ink); color: #fff; font-size: 9px; font-weight: 900; }
     .pick-search { position: relative; display: flex; align-items: center; gap: 8px; margin-top: 6px; }
     .pick-search svg { position: absolute; left: 14px; pointer-events: none; }
     .pick-search input { flex: 1; min-width: 0; height: 42px; padding: 0 12px 0 38px; border: 0; border-radius: 999px; background: var(--soft);
@@ -300,6 +314,30 @@
     .x { position: absolute; top: 16px; right: 16px; width: 38px; height: 38px; border: 0; border-radius: 50%; background: var(--soft);
          font-weight: 900; cursor: pointer; }
     .me-card { text-align: center; padding: 8px 0 4px; }
+    #meAvatar { cursor: pointer; }
+    .av-hint { margin-top: 6px; font-size: 12px; font-weight: 800; color: var(--muted); }
+    .av-editor { margin-top: 12px; padding: 12px; border-radius: 22px; background: var(--soft); text-align: left; }
+    .av-editor[hidden] { display: none; }
+    .av-editor button { border: 0; cursor: pointer; font: inherit; }
+    .av-styles { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+    .av-styles button { flex: none; width: 62px; padding: 6px 4px; border-radius: 16px; background: #fff; }
+    .av-styles img { display: block; width: 44px; height: 44px; margin: 0 auto; border-radius: 50%; }
+    .av-styles small { display: block; margin-top: 3px; font-size: 10px; font-weight: 900; }
+    .av-looks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+    .av-looks button { aspect-ratio: 1; padding: 3px; border-radius: 50%; background: #fff; }
+    .av-looks img { width: 100%; height: 100%; border-radius: 50%; display: block; }
+    .av-styles button.on, .av-looks button.on { box-shadow: 0 0 0 3px var(--ink); }
+    .av-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+    .av-bgs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .av-bgs button { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+    .av-bgs button.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+    .av-photo { margin-top: 10px; background: #fff !important; }
+    .av-photo.on { box-shadow: 0 0 0 3px var(--ink); }
+    .mode-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .mode-pick button { height: 44px; border: 0; border-radius: 14px; background: var(--soft); font-weight: 900; font-size: 13px; cursor: pointer; }
+    .mode-pick button.on { background: var(--ink); color: #fff; }
+    #meHome b { font-weight: 900; }
+    #meHome small { display: block; margin: 2px 0 0 26px; font-size: 12px; }
     .avatar.big { width: 88px; height: 88px; margin: 0 auto; border: 4px solid #fff; box-shadow: 0 0 0 4px var(--sun), var(--shadow-sm); }
     .avatar.big span { font-size: 28px; }
     .avatar[style*="background-image"] { background-size: cover; background-position: center; }
@@ -513,9 +551,13 @@
   <div class="section">
     <div class="label">When</div>
     <input type="datetime-local" id="start">
-    <div class="wx" id="wx"></div>
     <button class="find" id="findBtn">✨ Find a time everyone's free</button>
     <div id="slots"></div>
+  </div>
+
+  <div class="section">
+    <div class="label">Weather <span id="wxWhere"></span></div>
+    <div class="wx" id="wx"></div>
   </div>
 
   <button class="cta" id="planBtn">Plan it ✨</button>
@@ -563,6 +605,8 @@
     <button class="x" id="drawerClose" title="Close">✕</button>
     <div class="me-card">
       <div class="avatar big" id="meAvatar"></div>
+      <div class="av-hint">Tap your avatar to change it</div>
+      <div class="av-editor" id="avatarEditor" hidden></div>
       <input id="meName" maxlength="30" title="Tap to change your name">
       <div class="code-box">
         <div><small>Your friend ID</small><b id="meCode">······</b></div>
@@ -607,8 +651,9 @@
     </div>
 
     <div class="section">
-      <div class="label">How you get around</div>
-      <select id="meMode"><option value="driving">🚗 Drive</option><option value="walking">🚶 Walk</option><option value="cycling">🚲 Bike</option><option value="transit">🚌 Transit</option></select>
+      <div class="label">Usually get around by</div>
+      <div class="mode-pick" id="meModes"><button data-mode="driving">🚗 Drive</button><button data-mode="walking">🚶 Walk</button><button data-mode="cycling">🚲 Bike</button><button data-mode="transit">🚌 Transit</button></div>
+      <div class="note">You can still pick a different way for each hangout.</div>
     </div>
 
     <div class="section">
@@ -672,6 +717,7 @@ fetch(`${API}/config`).then(r => r.json()).then(({ mapbox_token }) => {
 let myDot = null, myRing = null, myLocation = null, centeredOnMe = false;
 navigator.geolocation?.watchPosition(p => {
   myLocation = [p.coords.latitude, p.coords.longitude];
+  window.myFix = { here: myLocation, at: Date.now() };  // "Use my current location" in your profile reuses this
   if (!myDot) {
     myRing = L.circle(myLocation, { radius: p.coords.accuracy, color: "#1e88ff", weight: 1, fillOpacity: .12, interactive: false }).addTo(map);
     myDot = L.marker(myLocation, { zIndexOffset: 2000, interactive: false,
@@ -832,17 +878,31 @@ $("start").value = new Date(tomorrow - tomorrow.getTimezoneOffset() * 6e4).toISO
 
 // ---------- weather: the forecast at the spot for the chosen hour (the model uses it too) ----------
 const here = () => venue || [map.getCenter().lat, map.getCenter().lng];
+// °F in the US, °C everywhere else
+const FAHRENHEIT = /-US$|^en$/.test(navigator.language || "en-US");
+const deg = c => c == null ? "–" : `${Math.round(FAHRENHEIT ? c * 9 / 5 + 32 : c)}°`;
 async function showWeather() {
   const [lat, lng] = here(), time = $("start").value;
   if (!time) return;
   try {
     const w = await (await fetch(`${API}/weather?lat=${lat}&lng=${lng}&time=${time}`)).json();
     if ($("start").value !== time) return;  // the time changed while we waited
+    $("wxWhere").textContent = venue ? `· at ${venueName}` : "· near you";
     $("wx").className = "wx" + (w.raining ? " rainy" : "");
-    $("wx").innerHTML = !w.known ? `🌡️ No forecast yet for that day (only 16 days ahead)`
-      : `<span class="big">${w.icon}</span> ${w.label} · ${w.rain_chance ?? 0}% chance of rain` +
-        (w.raining ? ` · alerts go out earlier for the rain-haters` : "") + (venue ? "" : " (where the map is)");
-  } catch { $("wx").textContent = "🌡️ Couldn't get the forecast"; }
+    const when = new Date(time), hour = t => new Date(t).toLocaleTimeString([], { hour: "numeric" }).replace(/\s/g, "").toLowerCase();
+    const now = w.now ? `<div class="wx-box"><small>Right now</small>
+        <div class="wx-main"><span>${w.now.icon}</span><b>${deg(w.now.temp_c)}</b></div>
+        <span class="sub">${esc(w.now.label)} · feels ${deg(w.now.feels_c)}</span></div>`
+      : `<div class="wx-box"><small>Right now</small><span class="sub">Couldn't get it</span></div>`;
+    const then = w.known ? `<div class="wx-box"><small>${esc(when.toLocaleDateString([], { weekday: "short" }))} ${hour(when)} · hangout</small>
+        <div class="wx-main"><span>${w.icon}</span><b>${deg(w.temp_c)}</b></div>
+        <span class="sub">${esc(w.label)} · 💧 ${w.rain_chance ?? 0}%</span></div>`
+      : `<div class="wx-box"><small>Hangout time</small><span class="sub">No forecast yet: only 16 days ahead</span></div>`;
+    $("wx").innerHTML = `<div class="wx-cols">${now}${then}</div>` +
+      (w.hours?.length ? `<div class="wx-hours">${w.hours.map(x => `<div class="${x.hangout ? "on" : ""}">${hour(x.time)}
+         <i>${x.icon}</i><b>${deg(x.temp_c)}</b>${x.rain_chance ? `💧${x.rain_chance}%` : "&nbsp;"}</div>`).join("")}</div>` : "") +
+      (w.raining ? `<div class="wx-note">☔ Rain likely: leave-now alerts go out earlier for the people who run late in the rain.</div>` : "");
+  } catch { $("wx").innerHTML = `<div class="wx-box"><span class="sub">🌡️ Couldn't get the forecast</span></div>`; }
 }
 $("start").onchange = showWeather;
 let wxTimer;  // no spot picked yet: follow the map, but only once it stops moving

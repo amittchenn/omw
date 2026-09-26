@@ -19,7 +19,7 @@ from places import place_name, search_places
 from predictor import HISTORY, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
 from travel import MODES, route, travel_minutes
-from weather import weather_at
+from weather import hours_around, weather_at, weather_now
 
 app = FastAPI(title="Hangout API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -110,9 +110,10 @@ def calendar(token: str):
 
 @app.get("/weather")
 def weather(lat: float, lng: float, time: str):
-    # the forecast at the venue for the hangout's hour, e.g. time=2026-09-28T19:00
+    # right now at the spot, plus the forecast for the hangout's hour (and the hours around it), e.g. time=2026-09-28T19:00
     try:
-        return weather_at(lat, lng, datetime.fromisoformat(time))
+        when = datetime.fromisoformat(time)
+        return {**weather_at(lat, lng, when), "now": weather_now(lat, lng), "hours": hours_around(lat, lng, when)}
     except ValueError:
         raise HTTPException(400, "time should look like '2026-09-28T19:00'.")
 

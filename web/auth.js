@@ -52,8 +52,7 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE")) {
     if (!user) { setMode("signin"); $("password").value = ""; return; }
     const name = user.displayName || user.email.split("@")[0];
     $("userName").textContent = name;
-    $("userPic").textContent = name.slice(0, 1).toUpperCase();
-    if (user.photoURL) $("userPic").style.backgroundImage = `url("${user.photoURL}")`;
+    if (!$("userPic").style.backgroundImage) $("userPic").textContent = name.slice(0, 1).toUpperCase();  // until your avatar loads
     window.currentUser = user;  // the rest of the page can read who's signed in
   });
 

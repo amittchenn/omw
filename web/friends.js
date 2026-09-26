@@ -29,6 +29,15 @@ let hangoutDocs = {};  // every hangout you're invited to or going to, by id
 const say = (text, ok = false) => { $("addMsg").textContent = text; $("addMsg").className = ok ? "ok" : ""; };
 const randomId = () => Array.from(crypto.getRandomValues(new Uint32Array(6)), n => ID_CHARS[n % ID_CHARS.length]).join("");
 const cleanId = v => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+// ---------- avatars: everyone gets a cartoon avatar they can restyle (like Snap Map), or their own photo ----------
+const STYLES = [["avataaars", "Classic"], ["adventurer", "Adventurer"], ["lorelei", "Lorelei"], ["notionists", "Sketch"],
+                ["micah", "Micah"], ["big-smile", "Smiley"], ["fun-emoji", "Emoji"], ["pixel-art", "Pixel"]];
+const BGS = ["ffd000", "ffb3c7", "b9a8ff", "8fe3c0", "9fd4ff", "ffc49c", "f1f0f7", "2b2b3a"];
+const avatarUrl = a => `https://api.dicebear.com/9.x/${a.style}/svg?seed=${encodeURIComponent(a.seed)}&backgroundColor=${a.bg}`;
+const defaultAvatar = uid => ({ style: "avataaars", seed: uid, bg: "ffd000" });
+const photoFor = (a, user) => a?.usePhoto && user?.photoURL ? user.photoURL : avatarUrl(a?.style ? a : defaultAvatar(user.uid));
+let looks = [];  // the 8 options shown in the avatar editor
+
 const pic = (p, cls = "") => p.photo
   ? `<div class="avatar ${cls}" style="background-image:url('${esc(p.photo)}')"></div>`
   : `<div class="avatar ${cls}" style="--c:#ffb000"><span>${esc((p.name || "?").slice(0, 2).toUpperCase())}</span></div>`;
@@ -46,15 +55,41 @@ function publish() {
 
 // ---------- drawing the panel ----------
 function renderMe() {
-  $("meAvatar").outerHTML = pic(profile, "big").replace('class="avatar', 'id="meAvatar" class="avatar');
+  $("meAvatar").outerHTML = pic(profile, "big").replace('class="avatar', 'id="meAvatar" title="Change your avatar" class="avatar');
+  $("meAvatar").onclick = () => { $("avatarEditor").hidden = !$("avatarEditor").hidden; renderAvatarEditor(); };
+  if (profile.photo) { $("userPic").style.backgroundImage = `url("${profile.photo}")`; $("userPic").textContent = ""; }
+  if (!$("avatarEditor").hidden) renderAvatarEditor();
   if (document.activeElement !== $("meName")) $("meName").value = profile.name || "";
   $("meCode").textContent = profile.code || "······";
-  $("meMode").value = profile.travelMode || "driving";
+  $("meModes").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === (profile.travelMode || "driving")));
   $("meHome").innerHTML = profile.home
-    ? `✅ Home set <small>(${profile.home.lat.toFixed(3)}, ${profile.home.lng.toFixed(3)})</small>`
+    ? `✅ <b>${esc(profile.homeName || "Home set")}</b>${profile.homeAddress ? `<small>${esc(profile.homeAddress)}</small>` : ""}`
     : `⚠️ Not set yet. The planner needs it to time your alerts.`;
+  if ($("setHome").dataset.busy !== "1") $("setHome").textContent = profile.home ? "📍 Update to where I am now" : "📍 Use my current location";
   if (document.activeElement !== $("schedText")) $("schedText").value = profile.scheduleText || "";
   renderBusy(profile.busy || []);
+}
+
+function renderAvatarEditor() {
+  const a = profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid);
+  if (!looks.length || looks[0].style !== a.style) looks = [a.seed, ...Array.from({ length: 7 }, () => Math.random().toString(36).slice(2, 8))]
+    .map(seed => ({ style: a.style, seed }));
+  const accountPhoto = me.photoURL;
+  $("avatarEditor").innerHTML = `
+    <div class="av-styles">${STYLES.map(([s, n]) => `<button class="${s === a.style && !profile.avatar?.usePhoto ? "on" : ""}" data-style="${s}">
+      <img src="${avatarUrl({ style: s, seed: a.seed, bg: a.bg })}" alt=""><small>${n}</small></button>`).join("")}</div>
+    <div class="av-looks">${looks.map(l => `<button class="${l.seed === a.seed && !profile.avatar?.usePhoto ? "on" : ""}" data-seed="${esc(l.seed)}">
+      <img src="${avatarUrl({ ...l, bg: a.bg })}" alt=""></button>`).join("")}</div>
+    <div class="av-row"><div class="av-bgs">${BGS.map(c => `<button style="background:#${c}" class="${c === a.bg ? "on" : ""}" data-bg="${c}" title="Background"></button>`).join("")}</div>
+      <button class="mini" data-shuffle="1">🎲 More</button></div>
+    ${accountPhoto ? `<button class="wide av-photo ${profile.avatar?.usePhoto ? "on" : ""}" data-photo="1">📷 Use my ${me.providerData.some(p => p.providerId === "facebook.com") ? "Facebook" : "Google"} photo instead</button>` : ""}`;
+}
+async function saveAvatar(change) {
+  const avatar = { ...(profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid)), usePhoto: false, ...change };
+  const photo = photoFor(avatar, me);
+  profile = { ...profile, avatar, photo };  // show it right away
+  renderMe();
+  await saveProfile({ avatar, photo });
 }
 
 const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -383,7 +418,17 @@ if (configured) {
     await saveProfile({ name });
     if (profile.code) await setDoc(doc(db, "codes", profile.code), { name }, { merge: true });
   });
-  $("meMode").onchange = run(() => saveProfile({ travelMode: $("meMode").value }));
+  $("meModes").onclick = run(async e => { const b = e.target.closest("[data-mode]"); if (b) await saveProfile({ travelMode: b.dataset.mode }); });
+  $("avatarEditor").onclick = run(async e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.style) { looks = []; await saveAvatar({ style: b.dataset.style }); }
+    if (b.dataset.seed) await saveAvatar({ seed: b.dataset.seed });
+    if (b.dataset.bg) await saveAvatar({ bg: b.dataset.bg });
+    if (b.dataset.shuffle) { const a = profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid);
+      looks = [a.seed, ...Array.from({ length: 7 }, () => Math.random().toString(36).slice(2, 8))].map(seed => ({ style: a.style, seed })); renderAvatarEditor(); }
+    if (b.dataset.photo) await saveAvatar({ usePhoto: !profile.avatar?.usePhoto });
+  });
   $("readSched").onclick = async () => {
     const text = $("schedText").value.trim();
     $("readSched").disabled = true; $("readSched").textContent = "Reading…"; $("schedMsg").textContent = "";
@@ -403,10 +448,21 @@ if (configured) {
   };
   $("setHome").onclick = () => {
     if (!navigator.geolocation) return say("This browser can't share location.");
-    $("setHome").textContent = "Finding you…";
-    navigator.geolocation.getCurrentPosition(
-      run(async p => { await saveProfile({ home: { lat: p.coords.latitude, lng: p.coords.longitude } }); $("setHome").textContent = "📍 Update home to where I am now"; }),
-      () => { $("setHome").textContent = "📍 Use my current location"; say("Location blocked. Allow it in your browser's site settings."); },
+    $("setHome").textContent = "Finding you…"; $("setHome").dataset.busy = "1";
+    const done = () => { $("setHome").dataset.busy = ""; renderMe(); };
+    const fix = window.myFix;  // the blue dot's latest spot, if fresh (asking again while it's tracking can stall)
+    const locate = fix && Date.now() - fix.at < 60000
+      ? (ok => ok({ coords: { latitude: fix.here[0], longitude: fix.here[1] } }))
+      : ((ok, no) => navigator.geolocation.getCurrentPosition(ok, no, { enableHighAccuracy: true, timeout: 10000 }));
+    locate(
+      run(async p => {
+        const home = { lat: p.coords.latitude, lng: p.coords.longitude };
+        // a readable name for it ("266 Ferst Dr") instead of coordinates
+        const place = await fetch(`/place-name?lat=${home.lat}&lng=${home.lng}`).then(r => r.json()).catch(() => ({}));
+        await saveProfile({ home, homeName: place.name || "Home set", homeAddress: place.address || "" });
+        done();
+      }),
+      () => { done(); say("Location blocked. Allow it in your browser's site settings."); },
     );
   };
   $("requests").onclick = run(async e => {
@@ -462,8 +518,10 @@ if (configured) {
     if (!existing.exists()) {
       await setDoc(ref, { name: user.displayName || (user.email || "friend").split("@")[0], travelMode: "driving" });
     }
-    await setDoc(ref, { photo: user.photoURL || "" }, { merge: true });
     profile = (await getDoc(ref)).data();
+    const photo = photoFor(profile.avatar, user);  // your omw avatar (or your photo, if you chose that)
+    if (profile.photo !== photo) await setDoc(ref, { photo }, { merge: true });
+    profile = { ...profile, photo };
     await ensureId(user);
     await ensureCalToken(user);
 

@@ -99,7 +99,10 @@ async function sync() {
     const photo = me.picture?.data?.url;
     if (photo && !me.picture.data.is_silhouette && (!user.photoURL || /facebook|fbcdn|fbsbx/.test(user.photoURL))) {
       await updateProfile(user, { photoURL: photo });
-      await setDoc(doc(db, "users", user.uid), { photo }, { merge: true });
+      // your omw avatar stays unless you picked "Use my photo" in your profile
+      if ((await getDoc(doc(db, "users", user.uid))).data()?.avatar?.usePhoto) {
+        await setDoc(doc(db, "users", user.uid), { photo }, { merge: true });
+      }
     }
     // put my Facebook ID on my friend ID, so my Facebook friends can find me
     const code = (await getDoc(doc(db, "users", user.uid))).data()?.code;
