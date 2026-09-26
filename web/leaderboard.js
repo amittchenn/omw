@@ -13,7 +13,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const time = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-let db, uid = null, hangouts = [], watch = null, lastFix = null, demoGroups = null;
+let db, uid = null, hangouts = [], watch = null, lastFix = null;
 
 // ---------- check-ins ----------
 const minutesLate = (h, t) => (new Date(t) - new Date(h.start)) / 6e4;
@@ -78,7 +78,7 @@ setInterval(autoCheckIn, 60000);  // a hangout's check-in window can open while 
 export function leaderboardHangouts(list) {
   hangouts = list;
   autoCheckIn();
-  if (!$("board").hidden && $("boardPick").value === "mine") render();
+  if (!$("board").hidden) render();
 }
 
 // ---------- the board ----------
@@ -120,40 +120,17 @@ function rows(board) {
   }).join("");
 }
 
-async function render() {
-  const pick = $("boardPick").value;
-  if (pick === "mine") {
-    const board = friendsBoard();
-    $("boardList").innerHTML = board.length > 1 || board.some(b => b.hangouts) ? rows(board)
-      : `<div class="nobody">Add friends and lock in a hangout. Everyone's arrivals will rank here.</div>`;
-    $("boardNote").textContent = `Ranked by how often each person arrives within ${LATE_AFTER_MIN} minutes of the start. `
-      + "omw checks you in automatically when you get there, or tap “I'm here”.";
-  } else {
-    $("boardList").innerHTML = `<div class="nobody">Loading…</div>`;
-    const board = await (await fetch(`/leaderboard/demo?group_id=${pick}`)).json();
-    if ($("boardPick").value !== pick) return;
-    $("boardList").innerHTML = rows(board);
-    $("boardNote").textContent = `From ${board.reduce((a, b) => a + b.hangouts, 0)} simulated arrivals: the same history the lateness model learned from.`;
-  }
+function render() {
+  const board = friendsBoard();
+  $("boardList").innerHTML = board.some(b => b.hangouts) ? rows(board)
+    : `<div class="nobody">No check-ins yet. Add friends, plan a hangout, and tap “I'm here” when you arrive. Everyone ranks here.</div>`;
+  $("boardNote").textContent = `Ranked by how often each person arrives within ${LATE_AFTER_MIN} minutes of the start. `
+    + "omw checks you in automatically when you get there, or tap “I'm here”.";
 }
 
-async function open() {
-  if (!demoGroups) {
-    const people = await (await fetch("/users")).json();
-    demoGroups = [...new Set(people.map(p => p.group_id))].sort();
-    $("boardPick").innerHTML = `<option value="mine">⭐ My friends</option>` +
-      demoGroups.map(g => `<option value="${g}">👯 Demo group ${g + 1}</option>`).join("");
-    // no real check-ins yet? start on a demo group so there's something to see
-    if (!friendsBoard().some(b => b.hangouts)) $("boardPick").value = String(demoGroups[1] ?? demoGroups[0]);
-  }
-  $("board").hidden = false;
-  render();
-}
-
-$("boardBtn").onclick = open;
+$("boardBtn").onclick = () => { $("board").hidden = false; render(); };
 $("boardClose").onclick = () => ($("board").hidden = true);
 $("board").onclick = e => { if (e.target.id === "board") $("board").hidden = true; };
-$("boardPick").onchange = render;
 
 if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);

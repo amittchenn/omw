@@ -16,6 +16,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { googleCalIcon, appleCalIcon, calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
+import { liveHangouts, sharingNow, SHARE_BEFORE_H } from "./live.js";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -64,10 +65,11 @@ function renderBusy(blocks) {
     : `<div class="note">No busy times saved yet, so the planner assumes you're always free.</div>`;
 }
 
-function updateBadge() {  // friend requests + hangout invitations waiting on you
-  const n = incoming.length + invites.length;
-  $("reqBadge").textContent = n;
-  $("reqBadge").hidden = !n;
+function updateBadge() {  // friend requests on your avatar, hangout invitations on 📅
+  $("reqBadge").textContent = incoming.length;
+  $("reqBadge").hidden = !incoming.length;
+  $("planBadge").textContent = invites.length;
+  $("planBadge").hidden = !invites.length;
 }
 
 function renderRequests() {
@@ -139,20 +141,55 @@ function whoIsComing(h) {  // "Going: You, Priya · Waiting: Sam · Can't: Leo"
     .filter(Boolean).join(" · ");
 }
 
+// ---------- My plans: every hangout you said yes to stays here, coming up and past ----------
+const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const MODE_ICON = { driving: "🚗", walking: "🚶", cycling: "🚲", transit: "🚌" };
+function arrivedText(h, u) {
+  const t = h.arrivals?.[u];
+  if (!t) return "";
+  const late = Math.round((new Date(t) - new Date(h.start)) / 6e4);
+  return late < -1 ? `arrived ${-late} min early` : late <= 5 ? "arrived on time" : `arrived ${late} min late`;
+}
+function personLine(h, u, past) {  // "🚗 Priya · leaves 6:40pm" (or how it went, once it's over)
+  const status = arrivedText(h, u) || (past ? "no check-in" : h.alerts?.[u] ? `leaves ${timeOf(h.alerts[u])}` : "");
+  return `<div><b>${MODE_ICON[h.modes?.[u]] || ""} ${esc(nameOf(h, u))}</b><span>${esc(status)}</span></div>`;
+}
+function planCard(h, { past = false, next = false } = {}) {
+  const invited = h.invited || h.attendees, rsvp = h.rsvp || {};
+  const waiting = invited.filter(u => !h.attendees.includes(u) && rsvp[u] !== "declined");
+  const declined = invited.filter(u => rsvp[u] === "declined");
+  const names = us => us.map(u => esc(nameOf(h, u))).join(", ");
+  const mine = h.createdBy === me.uid;
+  return `<div class="plan-card ${past ? "past" : ""} ${next ? "next" : ""}" data-show="${esc(h.id)}" title="Tap to see it on the map">
+    <div class="plan-head"><div class="who"><b>${esc(h.title)}</b>
+        <small>${esc(whenText(h))}${h.address ? ` · ${esc(h.address)}` : ""}</small>
+        <small>Planned by ${mine ? "you" : esc(h.createdByName || "a friend")}</small></div>
+      ${past ? "" : mine ? `<button class="mini" data-cancel-hangout="${esc(h.id)}" title="Cancel for everyone">✕</button>`
+                         : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">✕</button>`}</div>
+    ${!past && leaveTime(h) ? `<div class="plan-you">🔔 You leave at ${leaveTime(h)}</div>` : ""}
+    <div class="plan-people">${h.attendees.map(u => personLine(h, u, past)).join("")}</div>
+    ${waiting.length || declined.length ? `<small class="note">${[waiting.length && `Waiting on ${names(waiting)}`,
+                                                                   declined.length && `Can't make it: ${names(declined)}`].filter(Boolean).join(" · ")}</small>` : ""}
+    ${past ? "" : sharingNow(h) ? `<small class="note">📡 Sharing your location with the people going until you get there</small>`
+      : `<small class="note">📡 Locations show on the map from ${SHARE_BEFORE_H} hours before</small>`}
+    ${past ? "" : checkInHtml(h)}
+    <div class="plan-actions">
+      ${h.venue ? `<button class="mini dark" data-show="${esc(h.id)}">${past ? "🗺️ Show on map" : "📍 Where is everyone?"}</button>` : ""}
+      ${past ? "" : `<a class="mini" href="${googleLink(h)}" target="_blank" rel="noopener" title="Add to Google Calendar">${googleCalIcon(20)}</a>
+        <a class="mini" href="${appleFile(h)}" download="hangout.ics" title="Add to Apple Calendar">${appleCalIcon(20, new Date(h.start))}</a>`}
+    </div>
+  </div>`;
+}
+
 function renderHangouts() {
-  const upcoming = hangouts.filter(h => new Date(endOf(h)) > new Date()).sort((a, b) => a.start.localeCompare(b.start));
+  const over = h => new Date(endOf(h)) <= new Date();
+  const upcoming = hangouts.filter(h => !over(h)).sort((a, b) => a.start.localeCompare(b.start));
+  const past = hangouts.filter(over).sort((a, b) => b.start.localeCompare(a.start));  // newest first
   $("hangoutList").innerHTML = upcoming.length
-    ? upcoming.map(h => `<div class="person hang">
-        <div class="who"><b>${esc(h.title)}</b>
-          <small>${esc(whenText(h))}${leaveTime(h) ? ` · you leave ${leaveTime(h)}` : ""}</small>
-          <small>${whoIsComing(h)}</small>
-          ${checkInHtml(h)}</div>
-        <a class="mini" href="${googleLink(h)}" target="_blank" rel="noopener" title="Add to Google Calendar">${googleCalIcon(20)}</a>
-        <a class="mini" href="${appleFile(h)}" download="hangout.ics" title="Add to Apple Calendar">${appleCalIcon(20, new Date(h.start))}</a>
-        ${h.createdBy === me.uid ? `<button class="mini" data-cancel-hangout="${esc(h.id)}" title="Cancel hangout for everyone">✕</button>`
-          : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">✕</button>`}
-      </div>`).join("")
-    : `<div class="nobody">No hangouts yet. Plan one with ⭐ My friends and tap "Send invites".</div>`;
+    ? upcoming.map((h, i) => planCard(h, { next: i === 0 })).join("")
+    : `<div class="nobody">Nothing planned yet. Plan one with your friends and tap "Send invites", or accept an invitation.</div>`;
+  $("pastSection").hidden = !past.length;
+  $("pastList").innerHTML = past.map(h => planCard(h, { past: true })).join("");
 }
 
 function renderInvites() {
@@ -184,6 +221,8 @@ function sortHangouts() {
   renderHangouts(); renderInvites();
   calendarHangouts(hangouts);  // push them straight into Google Calendar if connected
   leaderboardHangouts(hangouts);  // check-ins and the "who's always late" board
+  liveHangouts(hangouts);  // share your location with the group around hangout time
+  window.hangoutsChanged?.(hangoutDocs);  // the map, if it's showing one of them
 }
 
 // the planner calls this when you tap "Send invites": you're going, everyone else gets an invitation
@@ -333,8 +372,13 @@ if (configured) {
     if (b.dataset.decline) await deleteDoc(doc(db, "requests", `${b.dataset.decline}_${me.uid}`));
     if (b.dataset.cancel) await deleteDoc(doc(db, "requests", `${me.uid}_${b.dataset.cancel}`));
   });
-  $("hangoutList").onclick = run(async e => {
-    const b = e.target.closest("button");
+  $("plansBtn").onclick = () => { $("plans").hidden = false; };
+  $("plansClose").onclick = () => { $("plans").hidden = true; };
+  $("plans").onclick = e => { if (e.target.id === "plans") $("plans").hidden = true; };
+  $("pastList").onclick = $("hangoutList").onclick = run(async e => {
+    const b = e.target.closest("button, a");
+    const show = e.target.closest("[data-show]");
+    if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
     if (b?.dataset.cancelHangout && confirm("Cancel this hangout for everyone?")) await deleteDoc(doc(db, "hangouts", b.dataset.cancelHangout));
     if (b?.dataset.leave && confirm("Can't make it? You'll be taken off this hangout.")) await rsvp(b.dataset.leave, "declined");
   });

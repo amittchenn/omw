@@ -227,6 +227,21 @@
     .rsvp { display: flex; gap: 8px; margin-top: 10px; }
     .rsvp .mini { flex: 1; }
     .hang .who small + small { margin-top: 2px; }
+    #hangoutList, #pastList { display: flex; flex-direction: column; gap: 10px; }
+    .plan-card { padding: 14px; border-radius: 20px; background: var(--soft); }
+    .plan-card.next { background: #fff6bf; box-shadow: 0 0 0 2px var(--sun); }
+    .plan-card.past { opacity: .8; }
+    .plan-head { display: flex; align-items: flex-start; gap: 8px; }
+    .plan-head .who { flex: 1; min-width: 0; }
+    .plan-head b { display: block; font-weight: 900; }
+    .plan-head small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .plan-you { margin-top: 10px; padding: 8px 12px; border-radius: 14px; background: #fff; font-size: 14px; font-weight: 900; }
+    .plan-people { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+    .plan-people div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 800; }
+    .plan-people span { color: var(--muted); font-weight: 700; text-align: right; }
+    .plan-card { cursor: pointer; }
+    .plan-card .note { display: block; }
+    .plan-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 
     /* ---------- friends drawer ---------- */
     .drawer { position: fixed; inset: 0; z-index: 1500; background: rgba(15, 15, 30, .35); display: flex; justify-content: flex-start;
@@ -270,7 +285,7 @@
     .person b { display: block; font-weight: 900; }
     .person small { display: block; font-size: 12px; color: var(--muted); font-weight: 700; }
     #friendList { display: flex; flex-direction: column; gap: 8px; }
-        a.mini { display: inline-grid; place-items: center; min-width: 34px; text-decoration: none; color: var(--ink); }
+    a.mini { display: inline-grid; place-items: center; min-width: 34px; text-decoration: none; color: var(--ink); }
     .hang .who small { white-space: normal; }
     .cal-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; height: 50px; border: 2px solid var(--line);
                border-radius: 999px; background: #fff; color: var(--ink); font-weight: 900; font-size: 15px; text-decoration: none; cursor: pointer; }
@@ -285,7 +300,7 @@
     .lock { width: 100%; height: 50px; border: 0; border-radius: 999px; background: var(--green); color: #fff; font-size: 16px;
             font-weight: 900; cursor: pointer; box-shadow: 0 5px 0 #0f9a63, var(--shadow-sm); }
     .lock:disabled { opacity: .75; cursor: default; }
-        .sched { width: 100%; min-height: 84px; padding: 12px 14px; border: 0; border-radius: 16px; background: var(--soft);
+    .sched { width: 100%; min-height: 84px; padding: 12px 14px; border: 0; border-radius: 16px; background: var(--soft);
              font-weight: 700; resize: vertical; outline: none; }
     .sched:focus { box-shadow: 0 0 0 3px var(--sun); }
     #schedChips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -337,8 +352,8 @@
 
     /* ---------- phones: planner becomes a bottom sheet ---------- */
     @media (max-width: 860px) {
-        .brand { display: none; }
-        .search { position: relative; left: auto; transform: none; width: auto; flex: 1; }
+      .brand { display: none; }
+      .search { position: relative; left: auto; transform: none; width: auto; flex: 1; }
       .sheet { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 58vh; border-radius: 30px 30px 0 0;
                padding-bottom: calc(24px + env(safe-area-inset-bottom)); transition: max-height .25s ease; }
       .sheet.collapsed { max-height: 132px; overflow: hidden; }
@@ -373,6 +388,7 @@
       <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M24 12.07C24 5.41 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.5c-1.5 0-1.96.93-1.96 1.89v2.26h3.32l-.53 3.5h-2.8V24C19.62 23.1 24 18.1 24 12.07"/></svg>
       Continue with Facebook
     </button>
+
     <div class="or">OR USE EMAIL</div>
     <div class="tabs">
       <button class="tab on" data-mode="signin" type="button">Sign in</button>
@@ -396,6 +412,10 @@
     <button class="round user-pic" id="userPic" title="Friends & profile"></button>
     <span class="count" id="reqBadge" hidden>0</span>
   </div>
+  <div class="me-btn">
+    <button class="round" id="plansBtn" title="My plans">📅</button>
+    <span class="count" id="planBadge" hidden>0</span>
+  </div>
   <button class="round" id="boardBtn" title="Who's always late?">🏆</button>
   <div class="brand"><img src="/static/logo.svg" alt="">omw</div>
   <div class="search">
@@ -413,9 +433,8 @@
   <div class="hello"><h1>Plan a hangout</h1><span id="userName"></span></div>
   <div class="venue-sub" id="venueSub">No spot yet: search above or tap the map</div>
 
-    <div class="section">
+  <div class="section">
     <div class="label">Who</div>
-    <select id="group"></select>
     <div class="friends" id="friends"></div>
   </div>
 
@@ -448,11 +467,30 @@
   <div class="drawer-card">
     <button class="x" id="boardClose" title="Close">✕</button>
     <h2 class="board-title">🏆 Who's always late?</h2>
-    <select id="boardPick"></select>
     <div id="boardList"></div>
     <div class="note" id="boardNote"></div>
   </div>
 </div>
+
+<div class="drawer" id="plans" hidden>
+  <div class="drawer-card">
+    <button class="x" id="plansClose" title="Close">✕</button>
+    <h2 class="board-title">📅 My plans</h2>
+    <div class="section" id="inviteSection" hidden>
+      <div class="label">Invitations <span id="inviteCount"></span></div>
+      <div id="inviteList"></div>
+    </div>
+    <div class="section">
+      <div class="label">Coming up</div>
+      <div id="hangoutList"></div>
+    </div>
+    <div class="section" id="pastSection" hidden>
+      <div class="label">Past</div>
+      <div id="pastList"></div>
+    </div>
+  </div>
+</div>
+
 <div class="drawer" id="drawer" hidden>
   <div class="drawer-card">
     <button class="x" id="drawerClose" title="Close">✕</button>
@@ -465,14 +503,9 @@
       </div>
     </div>
 
-    <div class="section" id="inviteSection" hidden>
-      <div class="label">Invitations <span id="inviteCount"></span></div>
-      <div id="inviteList"></div>
-    </div>
-
     <div class="section">
       <div class="label">Add a friend</div>
-            <div class="add-row"><input id="addInput" placeholder="Friend ID, e.g. K7P2QX" maxlength="8" autocomplete="off" autocapitalize="characters"><button class="mini dark" id="addBtn">Add</button></div>
+      <div class="add-row"><input id="addInput" placeholder="Friend ID, e.g. K7P2QX" maxlength="8" autocomplete="off" autocapitalize="characters"><button class="mini dark" id="addBtn">Add</button></div>
       <div id="addMsg"></div>
       <div id="requests"></div>
     </div>
@@ -488,11 +521,6 @@
     </div>
 
     <div class="section">
-      <div class="label">Your hangouts</div>
-      <div id="hangoutList"></div>
-    </div>
-
-        <div class="section">
       <div class="label">My weekly schedule</div>
       <textarea class="sched" id="schedText" placeholder="e.g. class MWF 10-11:30am, work Tue/Thu 3-7pm, gym weekdays 7-8am"></textarea>
       <button class="wide" id="readSched" style="margin-top:8px">✨ Read my schedule</button>
@@ -500,6 +528,7 @@
       <div id="schedChips"></div>
       <div class="note">Friends can see when you're busy (not your notes), so plans avoid those times.</div>
     </div>
+
     <div class="section">
       <div class="label">Calendar</div>
       <div class="home-line">Every hangout you're part of goes into your calendar automatically, with your leave-now alert.</div>
@@ -508,10 +537,7 @@
       <a class="cal-btn" id="calApple" href="#"><span id="appleIcon"></span> Subscribe in Apple Calendar</a>
       <div class="note" id="calNote"></div>
       <button class="wide" id="copyCal" style="margin-top:10px">Copy link for other calendar apps</button>
-      <button class="wide" id="copyCal" style="margin-top:8px">Copy link</button>
-      <div class="note" id="calNote"></div>
     </div>
-
 
     <div class="section">
       <div class="label">How you get around</div>
@@ -522,8 +548,9 @@
       <div class="label">Home</div>
       <div class="home-line" id="meHome"></div>
       <button class="wide" id="setHome">📍 Use my current location</button>
-    <button class="wide sign-out" id="signOut">Sign out</button>
     </div>
+
+    <button class="wide sign-out" id="signOut">Sign out</button>
   </div>
 </div>
 
@@ -547,6 +574,7 @@ const MODE = { driving: "🚗 drive", walking: "🚶 walk", cycling: "🚲 bike"
 let modeFor = {};  // someone's way of getting there for this plan, picked on their card
 const $ = id => document.getElementById(id);
 const phone = () => matchMedia("(max-width: 860px)").matches;
+let shown = null;  // the hangout from My plans on the map: { h, where, stop }
 let lastPlan = [], homeMarkers = {}, people = [], colorOf = {}, venue = null, venueName = "", venueAddress = "", venueMarker = null, routes = {};
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -593,6 +621,7 @@ const venueIcon = () => L.divIcon({ className: "", iconSize: [70, 70], iconAncho
   html: `<div class="venue-pin"><div class="glow"></div><div class="bubble">${typeEmoji()}</div></div>` });
 
 function setVenue(latlng, name, address = "") {
+  closeHangout();  // a different spot: stop showing the hangout from My plans
   venue = latlng; venueName = name; venueAddress = address;
   venueMarker?.remove();
   venueMarker = L.marker(latlng, { icon: venueIcon(), zIndexOffset: 1000 }).addTo(map)
@@ -607,6 +636,7 @@ function setVenue(latlng, name, address = "") {
 
 // take the spot back off: pin, routes and results all go, since they were for that spot
 function clearVenue() {
+  closeHangout();
   stopSim();
   venue = null; venueName = venueAddress = "";
   venueMarker?.remove(); venueMarker = null;
@@ -692,44 +722,30 @@ let wxTimer;  // no spot picked yet: follow the map, but only once it stops movi
 map.on("moveend", () => { if (!venue) { clearTimeout(wxTimer); wxTimer = setTimeout(showWeather, 600); } });
 showWeather();
 
-// "Who" choices: your real friends (from friends.js) plus the demo groups
-let demoPeople = [], pickedGroup = false;
+// "Who": you and your friends (from friends.js). Everyone starts picked; tap a face to leave them out.
 const myFriends = () => window.myFriends || [];
-const members = () => $("group").value === "mine" ? myFriends() : demoPeople.filter(p => p.group_id === +$("group").value);
-async function loadPeople() {
-  demoPeople = await (await fetch(`${API}/users`)).json();
-  fillGroups();
-}
-function fillGroups() {
-  const was = $("group").value;
-  const groups = [...new Set(demoPeople.map(p => p.group_id))].sort();
-  $("group").innerHTML = (myFriends().length ? `<option value="mine">⭐ My friends (${myFriends().length - 1})</option>` : "") +
-    groups.map(g => `<option value="${g}">👯 Demo group ${g + 1}</option>`).join("");
-  // keep your choice; until you pick, show real friends once you have some, otherwise the demo group with every persona
-  $("group").value = pickedGroup && [...$("group").options].some(o => o.value === was) ? was : myFriends().length > 1 ? "mine" : "1";
-  showFriends();
-}
-window.addEventListener("friends-changed", () => { if (demoPeople.length) fillGroups(); });
+const leftOut = new Set();
 function showFriends() {
-  const list = members();
-  people = [...demoPeople, ...myFriends()];
+  const list = myFriends();
+  people = list;
   list.forEach((p, i) => colorOf[p.user_id] = COLORS[i % COLORS.length]);
   $("friends").innerHTML = list.map(p =>
-    `<label class="friend" style="--c:${colorOf[p.user_id]}"><input type="checkbox" value="${p.user_id}" checked>${avatar(p)}<small>${esc(p.name)}</small></label>`).join("");
+    `<label class="friend" style="--c:${colorOf[p.user_id]}"><input type="checkbox" value="${p.user_id}" ${leftOut.has(p.user_id) ? "" : "checked"}>${avatar(p)}<small>${esc(p.name)}</small></label>`).join("") +
+    (list.length < 2 ? `<div class="slot-note">Add friends from your profile (top left) to plan with them.</div>` : "");
 }
-$("group").onchange = () => { pickedGroup = true; showFriends(); };
+$("friends").onchange = e => e.target.checked ? leftOut.delete(e.target.value) : leftOut.add(e.target.value);
+window.addEventListener("friends-changed", showFriends);
 
 // ---------- find a time ----------
 const localDate = d => new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
-$("planBtn").onclick = () => runPlan();
-async function runPlan() {
+$("findBtn").onclick = async () => {
   const user_ids = [...document.querySelectorAll("#friends input:checked")].map(i => i.value);
   if (!user_ids.length) return $("slots").innerHTML = `<div class="slot-note">Pick who's coming first 👇</div>`;
   $("findBtn").disabled = true; $("findBtn").textContent = "Checking everyone's week…";
   try {
     const res = await fetch(`${API}/find-times`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_ids, hangout_type: selectedType(), modes: modeFor, utc_offset_min: -new Date().getTimezoneOffset(), from_date: localDate(new Date()),
+      body: JSON.stringify({ user_ids, hangout_type: selectedType(), from_date: localDate(new Date()),
                              now: new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16), venue: here(),
                              guests: myFriends().filter(p => user_ids.includes(p.user_id))
                                .map(({ user_id, name, travel_mode, home, busy }) => ({ user_id, name, travel_mode, home, busy })) }),
@@ -753,13 +769,14 @@ async function runPlan() {
   } finally {
     $("findBtn").disabled = false; $("findBtn").textContent = "✨ Find a time everyone's free";
   }
-}
+};
 
 // ---------- plan ----------
 const fmt = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const minutesBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 6e4);
 
-$("planBtn").onclick = async () => {
+$("planBtn").onclick = () => { closeHangout(); runPlan(); };
+async function runPlan() {
   $("error").textContent = "";
   const user_ids = [...document.querySelectorAll("#friends input:checked")].map(i => i.value);
   if (!venue) return $("error").textContent = "Search for a place or tap the map to choose where to meet.";
@@ -770,7 +787,7 @@ $("planBtn").onclick = async () => {
     const res = await fetch(`${API}/plan`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_ids, venue, start_time: $("start").value,
-                                                          hangout_type: selectedType(),
+                             hangout_type: selectedType(), modes: modeFor, utc_offset_min: -new Date().getTimezoneOffset(),
                              guests: myFriends().filter(p => user_ids.includes(p.user_id))
                                .map(({ user_id, name, travel_mode, home }) => ({ user_id, name, travel_mode, home })) }),
     });
@@ -781,14 +798,14 @@ $("planBtn").onclick = async () => {
   } finally {
     $("planBtn").disabled = false; $("planBtn").textContent = "Plan it ✨";
   }
-};
+}
 
 function showResults(plan) {
   stopSim();
-    plan.forEach(r => {
+  plan.forEach(r => {
     const person = people.find(p => p.user_id === r.user_id);
     r.photo = person?.photo || "";
-    r.real = !!person?.real;  // a signed-in friend (not a demo person)
+    r.real = !!person?.real;  // a signed-in friend
     r.realName = person?.realName || r.name;  // "You" on your screen, your actual name for everyone else
   });
   lastPlan = plan;
@@ -853,7 +870,7 @@ function showResults(plan) {
   });
   map.fitBounds(bounds, viewPadding());
   $("simBtn").onclick = () => startSim();
-    if ($("lockBtn")) $("lockBtn").onclick = () => lockIn(plan);
+  if ($("lockBtn")) $("lockBtn").onclick = () => lockIn(plan);
   // switch how someone gets there: re-plan with Google's time for that way
   document.querySelectorAll(".mode-chip").forEach(b => b.onclick = e => {
     e.stopPropagation();
@@ -864,7 +881,82 @@ function showResults(plan) {
   });
 }
 
-// save the hangout for everyone going; their calendar feeds pick it up automatically
+// tap a plan in My plans: its spot on the map, plus where everyone going is right now (live, around hangout time)
+
+const ago = iso => { const m = Math.round((Date.now() - new Date(iso)) / 6e4); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+const awayText = (a, b) => { const m = map.distance(a, b); return m < 1000 ? `${Math.round(m)} m away` : `${(m / 1000).toFixed(1)} km away`; };
+
+window.showHangout = h => {
+  closeHangout();
+  clearVenue();
+  const t = new Date(h.start);
+  $("start").value = new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+  const type = document.querySelector(`input[name=type][value="${h.type}"]`);
+  if (type) type.checked = true;
+  setVenue(h.venue, h.venueName || "Hangout", h.address || "");
+  shown = { h, where: {}, fitted: false };
+  shown.stop = window.watchHangoutPeople(h.id, where => { if (shown?.h.id === h.id) { shown.where = where; drawHangout(); } });
+  drawHangout();
+  toggleSheet(false);
+};
+window.hangoutsChanged = docs => {  // someone arrived, joined or left: redraw (or close if it was cancelled)
+  if (!shown) return;
+  if (!docs[shown.h.id]) return clearVenue();
+  shown.h = docs[shown.h.id];
+  drawHangout();
+};
+function closeHangout() {
+  if (!shown) return;
+  shown.stop?.(); shown = null;
+  layer.clearLayers(); $("results").innerHTML = ""; $("empty").style.display = "";
+}
+
+function drawHangout() {
+  const { h, where } = shown;
+  layer.clearLayers();
+  const friends = Object.fromEntries(myFriends().map(p => [p.user_id, p]));
+  const shareFrom = new Date(h.start) - 3 * 36e5, over = Date.now() > new Date(h.start).getTime() + (h.durationMin || 120) * 6e4;
+  const rows = h.attendees.map((u, i) => {
+    const p = { user_id: u, name: friends[u]?.name || h.names?.[u] || "Friend", photo: friends[u]?.photo || "",
+                travel_mode: h.modes?.[u] || friends[u]?.travel_mode || "driving" };
+    colorOf[u] ??= COLORS[i % COLORS.length];
+    const live = where[u] && new Date(where[u].at) > shareFrom ? [where[u].lat, where[u].lng] : null;
+    const arrived = h.arrivals?.[u];
+    let spot = null, tag, text;
+    if (arrived) {
+      const angle = (i / h.attendees.length) * 2 * Math.PI;
+      spot = [h.venue[0] + 0.0004 * Math.cos(angle), h.venue[1] + 0.0005 * Math.sin(angle)];
+      const late = Math.round((new Date(arrived) - t0(h)) / 6e4);
+      tag = "✅ here";
+      text = `✅ Arrived ${fmt(arrived)} · ${late < -1 ? `${-late} min early` : late <= 5 ? "on time" : `${late} min late`}`;
+    } else if (live && !over) {
+      spot = live;
+      tag = `📍 ${ago(where[u].at)}`;
+      text = `📍 ${awayText(live, h.venue)} · ${ago(where[u].at)}${h.alerts?.[u] ? ` · leaves ${fmt(h.alerts[u])}` : ""}`;
+    } else {
+      spot = friends[u]?.home || null;
+      tag = "🏠 home";
+      text = over ? "Didn't check in" : Date.now() < shareFrom ? `Shows up here from ${fmt(shareFrom)}${h.alerts?.[u] ? ` · leaves ${fmt(h.alerts[u])}` : ""}`
+                                                               : "Not sharing yet (omw closed or location off)";
+    }
+    const onTheWay = live && !arrived && !over;  // live: show how they're getting there
+    if (spot) L.marker(spot, { icon: pal(p, tag, onTheWay ? "moving" : ""), zIndexOffset: 500 }).addTo(layer)
+      .getElement()?.classList.toggle("faded", !onTheWay && !arrived);
+    return { p, spot, text };
+  });
+  $("empty").style.display = "none";
+  $("results").innerHTML = `<div class="summary">👀 <b>${esc(h.title)}</b> · ${esc(new Date(h.start).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</div>
+    ${rows.map(r => `<div class="card" style="--c:${colorOf[r.p.user_id]}">${avatar(r.p)}<div class="card-main">
+      <div class="name">${esc(r.p.name)}</div><div class="detail">${esc(r.text)}</div></div></div>`).join("")}
+    <div class="note">Live spots are shared only with the people going, from 3 hours before until each person arrives.</div>`;
+  if (!shown.fitted) {  // zoom to everyone once; after that, leave the map where you put it
+    shown.fitted = true;
+    const pts = [h.venue, ...rows.map(r => r.spot).filter(Boolean)];
+    pts.length > 1 ? map.fitBounds(pts, viewPadding()) : map.flyTo(h.venue, 16);
+  }
+}
+const t0 = h => new Date(h.start);
+
 // invite everyone in the plan; you're going, the others accept or decline in their own omw
 async function lockIn(plan) {
   const invited = plan.filter(r => r.real);
@@ -1068,7 +1160,7 @@ $("simPlay").onclick = () => {
 $("simAgain").onclick = () => startSim(((sim?.seed ?? 2) * 31 + 17) % 100000);
 $("simClose").onclick = () => { stopSim(); toggleSheet(false); };
 
-loadPeople();
+showFriends();
 </script>
 <script type="module" src="/static/auth.js"></script>
 <script type="module" src="/static/friends.js"></script>
