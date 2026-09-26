@@ -16,7 +16,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { googleCalIcon, appleCalIcon, calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
-import { liveHangouts, sharingNow, SHARE_BEFORE_H } from "./live.js";
+import { liveHangouts, sharingNow, shareStart } from "./live.js";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -36,10 +36,11 @@ const pic = (p, cls = "") => p.photo
 // tell the planner who's in "My friends" (you + everyone who accepted)
 function publish() {
   const toPerson = (uid, p) => ({ user_id: uid, name: p.name || "Friend", travel_mode: p.travelMode || "driving",
-                                  home: p.home ? [p.home.lat, p.home.lng] : null, photo: p.photo || "", real: true,
+                                  home: p.home ? [p.home.lat, p.home.lng] : null, photo: p.photo || "", real: true, code: p.code || "",
                                   busy: p.busy || [] });
   window.myFriends = me ? [{ ...toPerson(me.uid, profile), name: "You", realName: profile.name || "Me", isMe: true },
                            ...friendIds.filter(id => friends[id]).map(id => toPerson(id, friends[id]))] : [];
+  window.myCategories = profile.categories || [];  // hangout categories you made (emoji + name)
   window.dispatchEvent(new Event("friends-changed"));
 }
 
@@ -167,11 +168,12 @@ function planCard(h, { past = false, next = false } = {}) {
       ${past ? "" : mine ? `<button class="mini" data-cancel-hangout="${esc(h.id)}" title="Cancel for everyone">✕</button>`
                          : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">✕</button>`}</div>
     ${!past && leaveTime(h) ? `<div class="plan-you">🔔 You leave at ${leaveTime(h)}</div>` : ""}
+    ${past ? "" : modeChips(h, myModeFor(h), "data-my-mode")}
     <div class="plan-people">${h.attendees.map(u => personLine(h, u, past)).join("")}</div>
     ${waiting.length || declined.length ? `<small class="note">${[waiting.length && `Waiting on ${names(waiting)}`,
                                                                    declined.length && `Can't make it: ${names(declined)}`].filter(Boolean).join(" · ")}</small>` : ""}
     ${past ? "" : sharingNow(h) ? `<small class="note">📡 Sharing your location with the people going until you get there</small>`
-      : `<small class="note">📡 Locations show on the map from ${SHARE_BEFORE_H} hours before</small>`}
+      : `<small class="note">📡 Your location is shared with the group from ${timeOf(new Date(shareStart(h)).toISOString())} (when you should leave) until you arrive</small>`}
     ${past ? "" : checkInHtml(h)}
     <div class="plan-actions">
       ${h.venue ? `<button class="mini dark" data-show="${esc(h.id)}">${past ? "🗺️ Show on map" : "📍 Where is everyone?"}</button>` : ""}
@@ -179,6 +181,18 @@ function planCard(h, { past = false, next = false } = {}) {
         <a class="mini" href="${appleFile(h)}" download="hangout.ics" title="Add to Apple Calendar">${appleCalIcon(20, new Date(h.start))}</a>`}
     </div>
   </div>`;
+}
+
+// "This week" on the main screen: your plans in the next 7 days, tap one to see it on the map
+function renderWeek(upcoming) {
+  const soon = upcoming.filter(h => new Date(h.start) - Date.now() < 7 * 864e5);
+  const day = h => { const d = new Date(h.start), today = new Date();
+    const diff = Math.round((new Date(d.toDateString()) - new Date(today.toDateString())) / 864e5);
+    return diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : d.toLocaleDateString([], { weekday: "short" }); };
+  $("weekSection").hidden = !soon.length;
+  $("weekList").innerHTML = soon.map(h => `<button class="week-card" data-week="${esc(h.id)}">
+      <b>${esc(h.title)}</b><small>${day(h)} · ${timeOf(h.start)}</small>
+      ${leaveTime(h) ? `<small class="leave">🔔 leave ${leaveTime(h)}</small>` : ""}</button>`).join("");
 }
 
 function renderHangouts() {
@@ -189,6 +203,7 @@ function renderHangouts() {
     ? upcoming.map((h, i) => planCard(h, { next: i === 0 })).join("")
     : `<div class="nobody">Nothing planned yet. Plan one with your friends and tap "Send invites", or accept an invitation.</div>`;
   $("pastSection").hidden = !past.length;
+  renderWeek(upcoming);
   $("pastList").innerHTML = past.map(h => planCard(h, { past: true })).join("");
 }
 
@@ -200,17 +215,45 @@ function renderInvites() {
       <small>${esc(whenText(h))} · from ${esc(h.createdByName || "a friend")}</small>
       <small>${whoIsComing(h)}</small>
       ${leaveTime(h) ? `<small>🔔 Your leave-now alert would be ${leaveTime(h)}</small>` : ""}
+      <small>How are you getting there?</small>${modeChips(h, inviteMode[h.id] || myModeFor(h), "data-inv-mode")}
       <div class="rsvp"><button class="mini yes" data-going="${esc(h.id)}">✓ I'm in</button>
         <button class="mini" data-decline-invite="${esc(h.id)}">Can't make it</button></div>
     </div>`).join("");
   updateBadge();
 }
 
-// accepting adds you to the hangout (your calendar, alerts and the leaderboard follow); declining takes you off
-const rsvp = (id, answer) => updateDoc(doc(db, "hangouts", id), {
+// ---------- how you're getting there (you pick when accepting, and can change it later) ----------
+const inviteMode = {};  // hangout id -> the way you picked on an invitation, before accepting
+const myModeFor = h => h.modes?.[me.uid] || profile.travelMode || "driving";
+const modeChips = (h, current, attr) => `<div class="modes">${Object.entries(MODES).map(([m, label]) =>
+  `<button class="mode-chip ${m === current ? "on" : ""}" ${attr}="${esc(h.id)}" data-mode="${m}">${label}</button>`).join("")}</div>`;
+const localIso = iso => { const d = new Date(iso); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); };
+
+// your leave-now time for this hangout if you go this way (same model and Google trip time as the planner used)
+async function myAlert(h, mode) {
+  const res = await fetch("/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+    user_ids: [me.uid], venue: h.venue, start_time: localIso(h.start), hangout_type: h.type || "food", modes: { [me.uid]: mode },
+    utc_offset_min: -new Date().getTimezoneOffset(),
+    guests: [{ user_id: me.uid, name: profile.name || "Me", travel_mode: mode, home: profile.home ? [profile.home.lat, profile.home.lng] : null }] }) });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+  return new Date((await res.json())[0].alert_time).toISOString();
+}
+async function myWayThere(h, mode) {  // { modes.me, alerts.me } to save; keeps the old alert if the planner can't be reached
+  const update = { [`modes.${me.uid}`]: mode };
+  if (h.venue && (mode !== h.modes?.[me.uid] || !h.alerts?.[me.uid])) {
+    try { update[`alerts.${me.uid}`] = await myAlert(h, mode); } catch { /* keep the planner's alert */ }
+  }
+  return update;
+}
+
+// accepting adds you to the hangout (your calendar, alerts and the leaderboard follow); declining takes you off.
+// Only people who accept are ever added: the planner's invite just lists you under "invited".
+const rsvp = async (id, answer) => updateDoc(doc(db, "hangouts", id), {
   attendees: answer === "going" ? arrayUnion(me.uid) : arrayRemove(me.uid),
   [`rsvp.${me.uid}`]: answer,
+  ...(answer === "going" ? await myWayThere(hangoutDocs[id], inviteMode[id] || myModeFor(hangoutDocs[id])) : {}),
 });
+const changeMode = async (id, mode) => updateDoc(doc(db, "hangouts", id), await myWayThere(hangoutDocs[id], mode));
 
 // both listeners feed this: split into hangouts you're going to and invitations waiting on you
 function sortHangouts() {
@@ -303,6 +346,7 @@ async function removeFriend(id) {
 }
 
 const saveProfile = data => setDoc(doc(db, "users", me.uid), data, { merge: true });
+window.saveCategories = categories => saveProfile({ categories });  // the planner's "＋ New" and ✕ call this
 
 function run(action) {
   return async (...args) => {
@@ -379,13 +423,20 @@ if (configured) {
     const b = e.target.closest("button, a");
     const show = e.target.closest("[data-show]");
     if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
+    if (b?.dataset.myMode && !b.classList.contains("on")) { b.textContent = "…"; await changeMode(b.dataset.myMode, b.dataset.mode); }
     if (b?.dataset.cancelHangout && confirm("Cancel this hangout for everyone?")) await deleteDoc(doc(db, "hangouts", b.dataset.cancelHangout));
     if (b?.dataset.leave && confirm("Can't make it? You'll be taken off this hangout.")) await rsvp(b.dataset.leave, "declined");
   });
+  $("weekList").onclick = e => {
+    const card = e.target.closest("[data-week]");
+    if (card) window.showHangout(hangoutDocs[card.dataset.week]);
+  };
   $("inviteList").onclick = run(async e => {
     const b = e.target.closest("button");
     if (!b) return;
+    if (b.dataset.invMode) { inviteMode[b.dataset.invMode] = b.dataset.mode; return renderInvites(); }
     b.disabled = true;
+    if (b.dataset.going) b.textContent = "Timing your trip…";
     if (b.dataset.going) await rsvp(b.dataset.going, "going");
     if (b.dataset.declineInvite) await rsvp(b.dataset.declineInvite, "declined");
   });

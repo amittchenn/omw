@@ -27,6 +27,11 @@
     .leaflet-tile-pane { filter: saturate(1.35) brightness(1.04); }  /* brighter, more playful map colors */
     .leaflet-control-attribution { font-size: 10px; border-radius: 8px 0 0 0; }
     .leaflet-control-zoom { border: 0 !important; box-shadow: var(--shadow-sm) !important; border-radius: 16px !important; overflow: hidden; }
+    .locate { width: 40px; height: 40px; border: 0; border-radius: 14px; background: #fff; box-shadow: var(--shadow-sm);
+              font-size: 22px; font-weight: 900; color: #1e88ff; cursor: pointer; }
+    .me-dot { width: 22px; height: 22px; border-radius: 50%; background: #1e88ff; border: 4px solid #fff;
+              box-shadow: 0 0 0 0 rgba(30, 136, 255, .6), 0 2px 6px rgba(0,0,0,.3); animation: me-pulse 2s infinite; }
+    @keyframes me-pulse { 70% { box-shadow: 0 0 0 14px rgba(30, 136, 255, 0), 0 2px 6px rgba(0,0,0,.3); } 100% { box-shadow: 0 0 0 0 rgba(30, 136, 255, 0), 0 2px 6px rgba(0,0,0,.3); } }
     .leaflet-control-zoom a { width: 40px !important; height: 40px !important; line-height: 40px !important; font-weight: 900; border: 0 !important; }
 
     /* ---------- floating top bar ---------- */
@@ -99,6 +104,26 @@
                  font-weight: 800; font-size: 14px; white-space: nowrap; cursor: pointer; transition: transform .1s; }
     .type span:active { transform: scale(.95); }
     .type input:checked + span { background: var(--ink); color: #fff; }
+    .type i { margin-left: 2px; font-style: normal; font-size: 11px; opacity: .7; }
+    .type-add { flex: none; height: 40px; padding: 0 14px; border: 2px dashed #c9c5ea; border-radius: 999px; background: none;
+                font-weight: 900; cursor: pointer; white-space: nowrap; }
+    .type-form { margin-top: 8px; padding: 12px; border-radius: 18px; background: var(--soft); }
+    .type-form[hidden] { display: none; }
+    .type-inputs { display: flex; gap: 6px; }
+    .type-inputs input { min-width: 0; height: 40px; padding: 0 12px; border: 0; border-radius: 999px; background: #fff; font-weight: 800; outline: none; }
+    .type-inputs input:focus { box-shadow: 0 0 0 3px var(--sun); }
+    #newEmoji { width: 56px; flex: none; text-align: center; font-size: 20px; padding: 0; }
+    #newName { flex: 1; }
+    .type-inputs .mini { height: 40px; }
+    .emoji-pick { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 8px; }
+    .emoji-pick button { width: 34px; height: 34px; border: 0; border-radius: 10px; background: none; font-size: 20px; cursor: pointer; }
+    .emoji-pick button:hover { background: #fff; }
+    .week { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: none; }
+    .week-card { flex: none; min-width: 150px; max-width: 200px; padding: 10px 12px; border: 0; border-radius: 18px; background: #fff6bf;
+                 box-shadow: 0 0 0 2px var(--sun); text-align: left; cursor: pointer; font: inherit; color: var(--ink); }
+    .week-card b { display: block; font-weight: 900; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .week-card small { display: block; margin-top: 2px; font-size: 12px; font-weight: 800; color: var(--muted); }
+    .week-card .leave { color: var(--ink); }
 
     .friends { display: flex; gap: 12px; overflow-x: auto; padding: 6px 2px 8px; scrollbar-width: none; margin-top: 10px; }
     .friend { flex: none; width: 62px; text-align: center; cursor: pointer; user-select: none; }
@@ -107,6 +132,28 @@
                       filter: grayscale(1); opacity: .45; transition: all .15s; }
     .friend input:checked + .avatar { filter: none; opacity: 1; box-shadow: 0 0 0 3px var(--c), var(--shadow-sm); }
     .friend small { display: block; margin-top: 5px; font-size: 12px; font-weight: 900; }
+    .friend .avatar { position: relative; }
+    .friend.removable::after { content: "✕"; position: relative; top: -70px; left: 22px; display: grid; place-items: center; width: 20px; height: 20px;
+                               margin-bottom: -20px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 10px; font-weight: 900; }
+    .pick-search { position: relative; display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    .pick-search svg { position: absolute; left: 14px; pointer-events: none; }
+    .pick-search input { flex: 1; min-width: 0; height: 42px; padding: 0 12px 0 38px; border: 0; border-radius: 999px; background: var(--soft);
+                         font-weight: 800; outline: none; }
+    .pick-search input:focus { box-shadow: 0 0 0 3px var(--sun); }
+    .pick-all { flex: none; height: 42px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--soft); font-weight: 900; cursor: pointer; }
+    .pick-all:empty { display: none; }
+    .pick-list { display: flex; flex-direction: column; gap: 4px; max-height: 216px; overflow-y: auto; margin-top: 8px; }
+    .pick-list:empty { display: none; }
+    .pick-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 16px; cursor: pointer; user-select: none; }
+    .pick-row:hover { background: var(--soft); }
+    .pick-row .avatar { width: 38px; height: 38px; }
+    .pick-row .who { flex: 1; min-width: 0; }
+    .pick-row b { display: block; font-weight: 900; }
+    .pick-row small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .pick-row .tick { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center;
+                      font-size: 13px; font-weight: 900; color: #fff; }
+    .pick-row.on .tick { background: var(--green); border-color: var(--green); }
+    .pick-empty { padding: 10px; font-size: 13px; font-weight: 700; color: var(--muted); text-align: center; }
 
     .avatar { position: relative; width: 36px; height: 36px; flex: none; border-radius: 50%; overflow: hidden;
               background: color-mix(in srgb, var(--c) 30%, #fff); display: grid; place-items: center; font-weight: 900; color: var(--ink); }
@@ -433,14 +480,34 @@
   <div class="hello"><h1>Plan a hangout</h1><span id="userName"></span></div>
   <div class="venue-sub" id="venueSub">No spot yet: search above or tap the map</div>
 
+  <div class="section" id="weekSection" hidden>
+    <div class="label">This week</div>
+    <div class="week" id="weekList"></div>
+  </div>
+
   <div class="section">
-    <div class="label">Who</div>
+    <div class="label">Who <span id="whoCount"></span></div>
     <div class="friends" id="friends"></div>
+    <div class="pick-search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7a7a86" stroke-width="3" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>
+      <input id="friendSearch" placeholder="Search your friends" autocomplete="off">
+      <button class="pick-all" id="pickAll"></button>
+    </div>
+    <div class="pick-list" id="friendPick"></div>
   </div>
 
   <div class="section">
     <div class="label">What</div>
     <div class="types" id="types"></div>
+    <div class="type-form" id="typeForm" hidden>
+      <div class="type-inputs">
+        <input id="newEmoji" placeholder="🎳" maxlength="8" autocomplete="off" title="Pick an emoji below or type your own">
+        <input id="newName" placeholder="Name it, e.g. Bowling" maxlength="20" autocomplete="off">
+        <button class="mini dark" id="typeSave">Add</button>
+      </div>
+      <div class="emoji-pick" id="emojiPick"></div>
+      <div class="note">Your categories are saved to your profile. Tap ✕ on one of yours to delete it.</div>
+    </div>
   </div>
 
   <div class="section">
@@ -601,7 +668,29 @@ fetch(`${API}/config`).then(r => r.json()).then(({ mapbox_token }) => {
     : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" })
   ).addTo(map);
 });
-navigator.geolocation?.getCurrentPosition(p => map.setView([p.coords.latitude, p.coords.longitude], 14));
+// you: a live blue dot that follows you, like Google Maps. ◎ (bottom right) jumps back to it.
+let myDot = null, myRing = null, myLocation = null, centeredOnMe = false;
+navigator.geolocation?.watchPosition(p => {
+  myLocation = [p.coords.latitude, p.coords.longitude];
+  if (!myDot) {
+    myRing = L.circle(myLocation, { radius: p.coords.accuracy, color: "#1e88ff", weight: 1, fillOpacity: .12, interactive: false }).addTo(map);
+    myDot = L.marker(myLocation, { zIndexOffset: 2000, interactive: false,
+      icon: L.divIcon({ className: "", iconSize: [22, 22], iconAnchor: [11, 11], html: `<div class="me-dot"></div>` }) }).addTo(map);
+  }
+  myDot.setLatLng(myLocation);
+  myRing.setLatLng(myLocation).setRadius(Math.min(p.coords.accuracy, 500));
+  if (!centeredOnMe) { centeredOnMe = true; if (!venue && !shown) map.setView(myLocation, 14); }
+  if (shown) drawHangout();  // keep "You" on a hangout's map in step with the dot
+}, () => {}, { enableHighAccuracy: true, maximumAge: 10000 });
+const Locate = L.Control.extend({ options: { position: "bottomright" }, onAdd() {
+  const b = L.DomUtil.create("button", "locate");
+  b.title = "Show where I am"; b.textContent = "◎";
+  L.DomEvent.disableClickPropagation(b);
+  b.onclick = () => myLocation ? map.flyTo(myLocation, Math.max(map.getZoom(), 16))
+                               : alert("Allow location for this site to see where you are.");
+  return b;
+} });
+new Locate().addTo(map);
 
 // keep the map's focus in the visible area (not under the planner)
 const viewPadding = () => phone() ? { paddingTopLeft: [40, 90], paddingBottomRight: [40, innerHeight * 0.45] }
@@ -616,7 +705,8 @@ function toggleSheet(force) {
 $("handle").onclick = () => toggleSheet();
 document.querySelector(".hello").onclick = () => toggleSheet();
 
-const typeEmoji = () => TYPES.find(t => t[0] === selectedType())[1];
+let forcedEmoji = "";  // a hangout from My plans shows its own emoji, even if it's someone else's category
+const typeEmoji = () => forcedEmoji || allTypes().find(t => t[0] === selectedType())?.[1] || "📍";
 const venueIcon = () => L.divIcon({ className: "", iconSize: [70, 70], iconAnchor: [35, 35],
   html: `<div class="venue-pin"><div class="glow"></div><div class="bubble">${typeEmoji()}</div></div>` });
 
@@ -694,9 +784,46 @@ $("placeInput").onkeydown = e => {
 $("placeInput").onblur = () => setTimeout(hideSuggest, 150);
 
 // ---------- form ----------
-$("types").innerHTML = TYPES.map(([v, e, n], i) =>
-  `<label class="type"><input type="radio" name="type" value="${v}" ${i === 0 ? "checked" : ""}><span>${e} ${n}</span></label>`).join("");
-const selectedType = () => document.querySelector("input[name=type]:checked").value;
+// categories: the defaults plus any you make (saved to your profile by friends.js)
+const allTypes = () => [...TYPES, ...(window.myCategories || []).map(c => [c.id, c.emoji, c.name, true])];
+const EMOJIS = "🍕 🍜 🌮 🍣 🧋 🍦 🥐 🎳 🎬 🎮 🎤 🎸 🎨 🎲 🏀 🏐 🎾 🏋️ 🧗 🏊 🚴 🥾 🏖️ 🛍️ 🎂 🎓 💻 🙏 🐶 🌳".split(" ");
+function renderTypes() {
+  const was = document.querySelector("input[name=type]:checked")?.value || "food", editing = !$("typeForm").hidden;
+  const types = allTypes(), keep = types.some(t => t[0] === was) ? was : "food";
+  $("types").innerHTML = types.map(([v, e, n, mine]) =>
+    `<label class="type"><input type="radio" name="type" value="${esc(v)}" ${v === keep ? "checked" : ""}><span>${esc(e)} ${esc(n)}${
+      mine && editing ? `<i data-del-type="${esc(v)}" title="Delete">✕</i>` : ""}</span></label>`).join("") +
+    `<button class="type-add" id="typeAdd">${editing ? "Done" : "＋ New"}</button>`;
+  $("typeAdd").onclick = () => { $("typeForm").hidden = !$("typeForm").hidden; renderTypes(); if (!$("typeForm").hidden) $("newName").focus(); };
+}
+$("emojiPick").innerHTML = EMOJIS.map(e => `<button type="button">${e}</button>`).join("");
+$("emojiPick").onclick = e => { if (e.target.tagName === "BUTTON") $("newEmoji").value = e.target.textContent; };
+async function addType() {
+  const name = $("newName").value.trim(), emoji = $("newEmoji").value.trim() || "✨";
+  if (!name) return $("newName").focus();
+  if (!window.saveCategories) return alert("Sign in to save your own categories.");
+  const id = "c_" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20) + "-" + Math.random().toString(36).slice(2, 6);
+  await window.saveCategories([...(window.myCategories || []), { id, emoji, name }]);
+  window.myCategories = [...(window.myCategories || []), { id, emoji, name }];  // pick it right away
+  $("newName").value = $("newEmoji").value = "";
+  renderTypes();
+  document.querySelector(`input[name=type][value="${id}"]`).checked = true;
+  venue && setVenue(venue, venueName, venueAddress);
+}
+$("typeSave").onclick = addType;
+$("newName").onkeydown = e => { if (e.key === "Enter") addType(); };
+$("types").onclick = async e => {
+  const del = e.target.closest("[data-del-type]");
+  if (!del) return;
+  e.preventDefault();
+  const id = del.dataset.delType;
+  window.myCategories = (window.myCategories || []).filter(c => c.id !== id);
+  renderTypes();
+  await window.saveCategories?.(window.myCategories);
+};
+window.addEventListener("friends-changed", renderTypes);
+renderTypes();
+const selectedType = () => document.querySelector("input[name=type]:checked")?.value || "food";
 $("types").onchange = () => venue && setVenue(venue, venueName, venueAddress);
 
 const tomorrow = new Date(Date.now() + 864e5);
@@ -722,25 +849,68 @@ let wxTimer;  // no spot picked yet: follow the map, but only once it stops movi
 map.on("moveend", () => { if (!venue) { clearTimeout(wxTimer); wxTimer = setTimeout(showWeather, 600); } });
 showWeather();
 
-// "Who": you and your friends (from friends.js). Everyone starts picked; tap a face to leave them out.
+// "Who": you're always in; search your friends list and tap to add or remove people for this plan
 const myFriends = () => window.myFriends || [];
-const leftOut = new Set();
+const picked = new Set();  // friends chosen for this plan
+const MODE_LABEL = { driving: "🚗 Drives", walking: "🚶 Walks", cycling: "🚲 Bikes", transit: "🚌 Takes transit" };
+const pickedIds = () => myFriends().filter(p => p.isMe || picked.has(p.user_id)).map(p => p.user_id);
 function showFriends() {
-  const list = myFriends();
-  people = list;
-  list.forEach((p, i) => colorOf[p.user_id] = COLORS[i % COLORS.length]);
-  $("friends").innerHTML = list.map(p =>
-    `<label class="friend" style="--c:${colorOf[p.user_id]}"><input type="checkbox" value="${p.user_id}" ${leftOut.has(p.user_id) ? "" : "checked"}>${avatar(p)}<small>${esc(p.name)}</small></label>`).join("") +
-    (list.length < 2 ? `<div class="slot-note">Add friends from your profile (top left) to plan with them.</div>` : "");
+  const everyone = myFriends(), others = everyone.filter(p => !p.isMe);
+  people = everyone;
+  everyone.forEach((p, i) => colorOf[p.user_id] = COLORS[i % COLORS.length]);
+  for (const id of picked) if (!others.some(p => p.user_id === id)) picked.delete(id);  // unfriended
+
+  // who's in: tap a face to take them out again
+  const chosen = everyone.filter(p => p.isMe || picked.has(p.user_id));
+  $("friends").innerHTML = chosen.map(p =>
+    `<label class="friend ${p.isMe ? "" : "removable"}" style="--c:${colorOf[p.user_id]}" ${p.isMe ? "" : `data-unpick="${esc(p.user_id)}"`}
+       title="${p.isMe ? "You're always in" : "Tap to remove"}"><input type="checkbox" checked disabled>${avatar(p)}<small>${esc(p.name)}</small></label>`).join("");
+  $("whoCount").textContent = picked.size ? `· ${picked.size + 1} people` : "";
+
+  // your friends list, filtered by the search box (name or friend ID)
+  const q = $("friendSearch").value.trim().toLowerCase();
+  const match = others.filter(p => !q || p.name.toLowerCase().includes(q) || (p.code || "").toLowerCase().includes(q));
+  $("friendSearch").parentElement.hidden = !others.length;
+  $("pickAll").textContent = others.length > 1 ? (others.every(p => picked.has(p.user_id)) ? "Clear" : "All") : "";
+  $("friendPick").innerHTML = !others.length
+    ? `<div class="pick-empty">No friends yet. Add some from your profile (top left) to plan with them.</div>`
+    : match.length ? match.map(p => `<div class="pick-row ${picked.has(p.user_id) ? "on" : ""}" data-pick="${esc(p.user_id)}">${avatar(p)}
+        <div class="who"><b>${esc(p.name)}</b><small>${MODE_LABEL[p.travel_mode] || ""}${p.home ? "" : " · no home set yet"}</small></div>
+        <div class="tick">${picked.has(p.user_id) ? "✓" : ""}</div></div>`).join("")
+    : `<div class="pick-empty">No friend named “${esc(q)}”</div>`;
 }
-$("friends").onchange = e => e.target.checked ? leftOut.delete(e.target.value) : leftOut.add(e.target.value);
+$("friendPick").onclick = e => {
+  const row = e.target.closest("[data-pick]");
+  if (!row) return;
+  picked.has(row.dataset.pick) ? picked.delete(row.dataset.pick) : picked.add(row.dataset.pick);
+  showFriends();
+};
+$("friends").onclick = e => {
+  const face = e.target.closest("[data-unpick]");
+  if (!face) return;
+  e.preventDefault();
+  picked.delete(face.dataset.unpick);
+  showFriends();
+};
+$("friendSearch").oninput = showFriends;
+$("friendSearch").onkeydown = e => {  // Enter picks the first match
+  if (e.key !== "Enter") return;
+  const first = $("friendPick").querySelector("[data-pick]");
+  if (first) { picked.add(first.dataset.pick); $("friendSearch").value = ""; showFriends(); }
+};
+$("pickAll").onclick = () => {
+  const others = myFriends().filter(p => !p.isMe);
+  const all = others.every(p => picked.has(p.user_id));
+  others.forEach(p => all ? picked.delete(p.user_id) : picked.add(p.user_id));
+  showFriends();
+};
 window.addEventListener("friends-changed", showFriends);
 
 // ---------- find a time ----------
 const localDate = d => new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
 $("findBtn").onclick = async () => {
-  const user_ids = [...document.querySelectorAll("#friends input:checked")].map(i => i.value);
-  if (!user_ids.length) return $("slots").innerHTML = `<div class="slot-note">Pick who's coming first 👇</div>`;
+  const user_ids = pickedIds();
+  if (user_ids.length < 2) return $("slots").innerHTML = `<div class="slot-note">Pick who's coming first: search your friends above 👆</div>`;
   $("findBtn").disabled = true; $("findBtn").textContent = "Checking everyone's week…";
   try {
     const res = await fetch(`${API}/find-times`, {
@@ -778,9 +948,9 @@ const minutesBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 6e4);
 $("planBtn").onclick = () => { closeHangout(); runPlan(); };
 async function runPlan() {
   $("error").textContent = "";
-  const user_ids = [...document.querySelectorAll("#friends input:checked")].map(i => i.value);
+  const user_ids = pickedIds();
   if (!venue) return $("error").textContent = "Search for a place or tap the map to choose where to meet.";
-  if (!user_ids.length) return $("error").textContent = "Pick at least one friend.";
+  if (user_ids.length < 2) return $("error").textContent = "Pick at least one friend: search your friends under Who.";
 
   $("planBtn").disabled = true; $("planBtn").textContent = "Crunching everyone's habits…";
   try {
@@ -893,6 +1063,7 @@ window.showHangout = h => {
   $("start").value = new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
   const type = document.querySelector(`input[name=type][value="${h.type}"]`);
   if (type) type.checked = true;
+  forcedEmoji = h.emoji || [...(h.title || "📍")][0];
   setVenue(h.venue, h.venueName || "Hangout", h.address || "");
   shown = { h, where: {}, fitted: false };
   shown.stop = window.watchHangoutPeople(h.id, where => { if (shown?.h.id === h.id) { shown.where = where; drawHangout(); } });
@@ -907,7 +1078,7 @@ window.hangoutsChanged = docs => {  // someone arrived, joined or left: redraw (
 };
 function closeHangout() {
   if (!shown) return;
-  shown.stop?.(); shown = null;
+  shown.stop?.(); shown = null; forcedEmoji = "";
   layer.clearLayers(); $("results").innerHTML = ""; $("empty").style.display = "";
 }
 
@@ -915,12 +1086,15 @@ function drawHangout() {
   const { h, where } = shown;
   layer.clearLayers();
   const friends = Object.fromEntries(myFriends().map(p => [p.user_id, p]));
-  const shareFrom = new Date(h.start) - 3 * 36e5, over = Date.now() > new Date(h.start).getTime() + (h.durationMin || 120) * 6e4;
+  const over = Date.now() > new Date(h.start).getTime() + (h.durationMin || 120) * 6e4;
   const rows = h.attendees.map((u, i) => {
     const p = { user_id: u, name: friends[u]?.name || h.names?.[u] || "Friend", photo: friends[u]?.photo || "",
                 travel_mode: h.modes?.[u] || friends[u]?.travel_mode || "driving" };
     colorOf[u] ??= COLORS[i % COLORS.length];
-    const live = where[u] && new Date(where[u].at) > shareFrom ? [where[u].lat, where[u].lng] : null;
+    const shareFrom = window.shareStart(h, u);  // everyone's spot shows from when they're supposed to leave
+    const isMe = myFriends().find(f => f.isMe)?.user_id === u;
+    const live = isMe && myLocation ? myLocation  // you always see yourself
+      : where[u] && new Date(where[u].at) >= shareFrom - 6e4 ? [where[u].lat, where[u].lng] : null;
     const arrived = h.arrivals?.[u];
     let spot = null, tag, text;
     if (arrived) {
@@ -931,8 +1105,9 @@ function drawHangout() {
       text = `✅ Arrived ${fmt(arrived)} · ${late < -1 ? `${-late} min early` : late <= 5 ? "on time" : `${late} min late`}`;
     } else if (live && !over) {
       spot = live;
-      tag = `📍 ${ago(where[u].at)}`;
-      text = `📍 ${awayText(live, h.venue)} · ${ago(where[u].at)}${h.alerts?.[u] ? ` · leaves ${fmt(h.alerts[u])}` : ""}`;
+      const seen = isMe ? "live" : ago(where[u].at);
+      tag = `📍 ${seen}`;
+      text = `📍 ${awayText(live, h.venue)} · ${seen}${h.alerts?.[u] ? ` · leaves ${fmt(h.alerts[u])}` : ""}`;
     } else {
       spot = friends[u]?.home || null;
       tag = "🏠 home";
@@ -940,7 +1115,7 @@ function drawHangout() {
                                                                : "Not sharing yet (omw closed or location off)";
     }
     const onTheWay = live && !arrived && !over;  // live: show how they're getting there
-    if (spot) L.marker(spot, { icon: pal(p, tag, onTheWay ? "moving" : ""), zIndexOffset: 500 }).addTo(layer)
+    if (spot && !(isMe && live && !arrived)) L.marker(spot, { icon: pal(p, tag, onTheWay ? "moving" : ""), zIndexOffset: 500 }).addTo(layer)
       .getElement()?.classList.toggle("faded", !onTheWay && !arrived);
     return { p, spot, text };
   });
@@ -948,7 +1123,7 @@ function drawHangout() {
   $("results").innerHTML = `<div class="summary">👀 <b>${esc(h.title)}</b> · ${esc(new Date(h.start).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</div>
     ${rows.map(r => `<div class="card" style="--c:${colorOf[r.p.user_id]}">${avatar(r.p)}<div class="card-main">
       <div class="name">${esc(r.p.name)}</div><div class="detail">${esc(r.text)}</div></div></div>`).join("")}
-    <div class="note">Live spots are shared only with the people going, from 3 hours before until each person arrives.</div>`;
+    <div class="note">Live spots are shared only with the people going, from each person's leave-now time until they arrive.</div>`;
   if (!shown.fitted) {  // zoom to everyone once; after that, leave the map where you put it
     shown.fitted = true;
     const pts = [h.venue, ...rows.map(r => r.spot).filter(Boolean)];
@@ -960,7 +1135,7 @@ const t0 = h => new Date(h.start);
 // invite everyone in the plan; you're going, the others accept or decline in their own omw
 async function lockIn(plan) {
   const invited = plan.filter(r => r.real);
-  const type = TYPES.find(t => t[0] === selectedType());
+  const type = allTypes().find(t => t[0] === selectedType()) || TYPES[0];
   $("lockBtn").disabled = true; $("lockBtn").textContent = "Sending…";
   try {
     await window.lockInHangout({
@@ -968,7 +1143,7 @@ async function lockIn(plan) {
       start: new Date($("start").value).toISOString(),
       durationMin: 120,
       venueName, address: venueAddress, venue,
-      type: type[0],
+      type: type[0], emoji: type[1],
       invited: invited.map(r => r.user_id),
       names: Object.fromEntries(invited.map(r => [r.user_id, r.realName])),
       modes: Object.fromEntries(invited.map(r => [r.user_id, r.travel_mode])),

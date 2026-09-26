@@ -3,22 +3,21 @@ The backend the web app talks to. Run with:  uvicorn server:app --reload
 Then open http://127.0.0.1:8000/docs to try every endpoint in the browser.
 """
 import math
-import random
 import os
+import random
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
-from calendar_feed import build_ics, hangouts_for_token
-
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from calendar_feed import build_ics, hangouts_for_token
+from places import place_name, search_places
 from predictor import HISTORY, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
-from places import place_name, search_places
 from travel import MODES, route, travel_minutes
 from weather import weather_at
 
@@ -27,10 +26,11 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 app.mount("/static", StaticFiles(directory="web"), name="static")  # serves web/auth.js, web/firebase-config.js
 
 
+
 class DepartureRequest(BaseModel):
     user_id: str
     start_time: str                   # e.g. "2026-09-10T19:00"
-    travel_mode: str = "driving"      # driving, walking, cycling
+    travel_mode: str = "driving"      # driving, walking, cycling, transit
     origin: Optional[list[float]] = None   # [lat, lng] where they are now
     venue: Optional[list[float]] = None    # [lat, lng] of the hangout
     travel_minutes: Optional[float] = None  # skip Mapbox by giving this directly
@@ -73,10 +73,12 @@ def demo_home(user_id, mode, venue):
 def home_page():
     return FileResponse("web/index.html")
 
+
 @app.get("/config")
 def config():
     # public Mapbox token (starts with pk.) so the page can draw map tiles
     return {"mapbox_token": os.getenv("MAPBOX_TOKEN", "")}
+
 
 @app.get("/places")
 def places(q: str, lat: float, lng: float):
@@ -89,6 +91,7 @@ def name_of_place(lat: float, lng: float):
     # what's at this spot? used when someone clicks the map
     return place_name(lat, lng)
 
+
 @app.get("/calendar/{token}.ics")
 def calendar(token: str):
     # someone's private calendar feed; Google/Apple Calendar fetch this link on their own schedule
@@ -96,12 +99,14 @@ def calendar(token: str):
         raise HTTPException(404, "No such calendar.")
     try:
         uid, hangouts = hangouts_for_token(token)
-    except RuntimeError as e:
-        raise HTTPException(503, str(e))
+    except Exception as e:  # usually FIREBASE_SERVICE_ACCOUNT_JSON missing or pasted wrong on Render
+        print(f"[calendar] feed failed: {type(e).__name__}: {e}")
+        raise HTTPException(503, f"Calendar feed isn't set up on the server: {type(e).__name__}: {e}")
     if uid is None:
         raise HTTPException(404, "No such calendar.")
     return Response(build_ics(uid, hangouts), media_type="text/calendar; charset=utf-8",
                     headers={"Cache-Control": "no-cache"})
+
 
 @app.get("/weather")
 def weather(lat: float, lng: float, time: str):
@@ -111,9 +116,11 @@ def weather(lat: float, lng: float, time: str):
     except ValueError:
         raise HTTPException(400, "time should look like '2026-09-28T19:00'.")
 
+
 @app.get("/users")
 def users():
     return PEOPLE.to_dict("records")
+
 
 LATE_AFTER_MIN = 5  # arriving more than this many minutes after the start counts as late
 
@@ -133,6 +140,7 @@ def demo_leaderboard(group_id: int):
                       "on_time": int((late <= LATE_AFTER_MIN).sum()), "avg_late_min": round(float(late.mean()), 1),
                       "trend_min": round(float(recent - before), 1)})  # negative = getting better lately
     return sorted(board, key=lambda b: (-b["on_time"] / b["hangouts"], b["avg_late_min"]))
+
 
 @app.post("/predict-departure")
 def predict(req: DepartureRequest):
@@ -167,6 +175,7 @@ class Guest(BaseModel):
     travel_mode: str = "driving"
     home: Optional[list[float]] = None  # [lat, lng]; None if they haven't set one yet
     busy: list[dict] = []               # weekly busy blocks, e.g. {"day": "Mon", "start": "10:00", "end": "11:30"}
+
 
 class PlanRequest(BaseModel):
     user_ids: list[str]
@@ -210,6 +219,7 @@ def plan(req: PlanRequest):
         results.append({**r, "name": name, "label": label, "home": home, "route": path,
                         "travel_mode": mode, "travel_source": source})
     return sorted(results, key=lambda r: r["alert_time"])
+
 
 class ScheduleText(BaseModel):
     text: str
@@ -260,23 +270,3 @@ def suggest_times(req: FindTimesRequest):
     forecast = (lambda t: weather_at(*req.venue, t)) if req.venue and len(req.venue) == 2 else None
     return find_times(people, date.fromisoformat(req.from_date), min(req.days, 14), req.duration_min,
                       req.earliest, req.latest, req.hangout_type, not_before=not_before, weather=forecast)
-
-
-@app.post("/find-times")
-def suggest_times(req: FindTimesRequest):
-    """The best times this week when everyone's free, ranked by how likely the group is to be on time."""
-    guests = {g.user_id: g for g in req.guests}
-    people = []
-    for uid in req.user_ids:
-        if uid in guests:
-            g = guests[uid]
-            people.append({"user_id": uid, "name": g.name, "travel_mode": g.travel_mode, "busy": clean_blocks(g.busy)})
-        elif uid in set(PEOPLE.user_id):
-            person = PEOPLE[PEOPLE.user_id == uid].iloc[0]
-            people.append({"user_id": uid, "name": person["name"], "travel_mode": person.travel_mode, "busy": demo_busy(uid)})
-        else:
-            raise HTTPException(400, f"Unknown person '{uid}'.")
-    if not people:
-        raise HTTPException(400, "Pick at least one person.")
-    return find_times(people, date.fromisoformat(req.from_date), min(req.days, 14), req.duration_min,
-                      req.earliest, req.latest, req.hangout_type)

@@ -25,7 +25,8 @@ def firestore_client():
             cred = credentials.Certificate(os.environ["FIREBASE_SERVICE_ACCOUNT"])
         else:
             raise RuntimeError("Calendar feeds need FIREBASE_SERVICE_ACCOUNT in .env (see setup steps).")
-        firebase_admin.initialize_app(cred)
+        if not firebase_admin._apps:  # a failed earlier try may have got this far
+            firebase_admin.initialize_app(cred)
         _db = firestore.client()
     return _db
 
