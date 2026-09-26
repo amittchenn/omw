@@ -37,18 +37,40 @@ const BGS = ["ffd000", "ffb3c7", "b9a8ff", "8fe3c0", "9fd4ff", "ffc49c", "f1f0f7
 const avatarUrl = a => `https://api.dicebear.com/9.x/${a.style}/svg?seed=${encodeURIComponent(a.seed)}&backgroundColor=${a.bg}`;
 const defaultAvatar = uid => ({ style: "avataaars", seed: uid, bg: "ffd000" });
 // your Google/Facebook photo by default; a cartoon avatar once you pick one (or if you have no photo)
-const usesPhoto = (a, user) => !!user?.photoURL && (a?.style ? !!a.usePhoto : true);
-const photoFor = (a, user) => usesPhoto(a, user) ? user.photoURL : avatarUrl(a?.style ? a : defaultAvatar(user.uid));
+// or a photo you uploaded (shrunk to 256 px and kept on your profile, so it needs no extra storage setup)
+const usesUpload = (a, upload) => !!(a?.useUpload && upload);
+const usesPhoto = (a, user) => !a?.useUpload && !!user?.photoURL && (a?.style ? !!a.usePhoto : true);
+const photoFor = (a, user, upload) => usesUpload(a, upload) ? upload
+  : usesPhoto(a, user) ? user.photoURL : avatarUrl(a?.style ? a : defaultAvatar(user.uid));
+// only real pictures: web links or uploaded images (anything else someone saved could break the page)
+const safePhoto = s => typeof s === "string" && /^(https:\/\/|data:image\/(jpeg|png|webp);base64,)[^"'<>\s]*$/.test(s) ? s : "";
+
+// shrink an uploaded picture to a 256 px square (center crop), as a small JPEG
+function shrinkPhoto(file) {
+  return new Promise((ok, no) => {
+    if (!file.type.startsWith("image/")) return no(new Error("That's not a picture."));
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const side = Math.min(img.width, img.height), canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 256;
+      canvas.getContext("2d").drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 256, 256);
+      URL.revokeObjectURL(url);
+      ok(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error("Couldn't open that picture. Try a JPG or PNG.")); };
+    img.src = url;
+  });
+}
 let looks = [];  // the 8 options shown in the avatar editor
 
-const pic = (p, cls = "") => p.photo
-  ? `<div class="avatar ${cls}" style="background-image:url('${esc(p.photo)}')"></div>`
+const pic = (p, cls = "") => safePhoto(p.photo)
+  ? `<div class="avatar ${cls}" style="background-image:url('${esc(safePhoto(p.photo))}')"></div>`
   : `<div class="avatar ${cls}" style="--c:#ffb000"><span>${esc((p.name || "?").slice(0, 2).toUpperCase())}</span></div>`;
 
 // tell the planner who's in "My friends" (you + everyone who accepted)
 function publish() {
   const toPerson = (uid, p) => ({ user_id: uid, name: p.name || "Friend", travel_mode: p.travelMode || "driving",
-                                  home: p.home ? [p.home.lat, p.home.lng] : null, photo: p.photo || "", real: true, code: p.code || "",
+                                  home: p.home ? [p.home.lat, p.home.lng] : null, photo: safePhoto(p.photo), real: true, code: p.code || "",
                                   busy: p.busy || [],
                                   // how many minutes after their alert they really left, from their check-ins (the model learns from these)
                                   habits: (Array.isArray(p.habits) ? p.habits : []).filter(x => typeof x?.delay === "number").slice(-30).map(x => x.delay) });
@@ -62,7 +84,7 @@ function publish() {
 function renderMe() {
   $("meAvatar").outerHTML = pic(profile, "big").replace('class="avatar', 'id="meAvatar" title="Change your avatar" class="avatar');
   $("meAvatar").onclick = () => { $("avatarEditor").hidden = !$("avatarEditor").hidden; renderAvatarEditor(); };
-  if (profile.photo) { $("userPic").style.backgroundImage = `url("${profile.photo}")`; $("userPic").textContent = ""; }
+  if (safePhoto(profile.photo)) { $("userPic").style.backgroundImage = `url("${safePhoto(profile.photo)}")`; $("userPic").textContent = ""; }
   if (!$("avatarEditor").hidden) renderAvatarEditor();
   if (document.activeElement !== $("meName")) $("meName").value = profile.name || "";
   $("meCode").textContent = profile.code || "······";
@@ -79,22 +101,28 @@ function renderAvatarEditor() {
   const a = profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid);
   if (!looks.length || looks[0].style !== a.style) looks = [a.seed, ...Array.from({ length: 7 }, () => Math.random().toString(36).slice(2, 8))]
     .map(seed => ({ style: a.style, seed }));
-  const accountPhoto = me.photoURL, onPhoto = usesPhoto(profile.avatar, me);
+  const onPhoto = usesPhoto(profile.avatar, me), onUpload = usesUpload(profile.avatar, profile.upload);
+  const cartoon = !onPhoto && !onUpload;
   $("avatarEditor").innerHTML = `
-    <div class="av-styles">${STYLES.map(([s, n]) => `<button class="${s === a.style && !onPhoto ? "on" : ""}" data-style="${s}">
+    <div class="av-mine">
+      ${profile.upload ? `<button class="av-upload ${onUpload ? "on" : ""}" data-use-upload="1" title="Use your photo"><img src="${esc(safePhoto(profile.upload))}" alt=""></button>` : ""}
+      <label class="wide av-pick">📤 ${profile.upload ? "Upload a different photo" : "Upload a photo"}<input type="file" accept="image/*" id="photoFile" hidden></label>
+    </div>
+    <div class="note av-err" id="photoMsg"></div>
+    <div class="av-styles">${STYLES.map(([s, n]) => `<button class="${s === a.style && cartoon ? "on" : ""}" data-style="${s}">
       <img src="${avatarUrl({ style: s, seed: a.seed, bg: a.bg })}" alt=""><small>${n}</small></button>`).join("")}</div>
-    <div class="av-looks">${looks.map(l => `<button class="${l.seed === a.seed && !onPhoto ? "on" : ""}" data-seed="${esc(l.seed)}">
+    <div class="av-looks">${looks.map(l => `<button class="${l.seed === a.seed && cartoon ? "on" : ""}" data-seed="${esc(l.seed)}">
       <img src="${avatarUrl({ ...l, bg: a.bg })}" alt=""></button>`).join("")}</div>
     <div class="av-row"><div class="av-bgs">${BGS.map(c => `<button style="background:#${c}" class="${c === a.bg ? "on" : ""}" data-bg="${c}" title="Background"></button>`).join("")}</div>
       <button class="mini" data-shuffle="1">🎲 More</button></div>
-    ${accountPhoto ? `<button class="wide av-photo ${onPhoto ? "on" : ""}" data-photo="1">📷 ${onPhoto ? "Using" : "Use"} my ${me.providerData.some(p => p.providerId === "facebook.com") && !me.providerData.some(p => p.providerId === "google.com") ? "Facebook" : "Google"} photo</button>` : ""}`;
+    `;
 }
-async function saveAvatar(change) {
-  const avatar = { ...(profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid)), usePhoto: false, ...change };
-  const photo = photoFor(avatar, me);
-  profile = { ...profile, avatar, photo };  // show it right away
+async function saveAvatar(change, upload = profile.upload) {
+  const avatar = { ...(profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid)), usePhoto: false, useUpload: false, ...change };
+  const photo = photoFor(avatar, me, upload);
+  profile = { ...profile, avatar, photo, upload };  // show it right away
   renderMe();
-  await saveProfile({ avatar, photo });
+  await saveProfile({ avatar, photo, ...(upload ? { upload } : {}) });
 }
 
 const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -441,7 +469,12 @@ if (configured) {
     if (b.dataset.bg) await saveAvatar({ bg: b.dataset.bg });
     if (b.dataset.shuffle) { const a = profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid);
       looks = [a.seed, ...Array.from({ length: 7 }, () => Math.random().toString(36).slice(2, 8))].map(seed => ({ style: a.style, seed })); renderAvatarEditor(); }
-    if (b.dataset.photo) await saveAvatar({ usePhoto: !usesPhoto(profile.avatar, me) });
+    if (b.dataset.useUpload) await saveAvatar({ useUpload: true });
+  });
+  $("avatarEditor").addEventListener("change", async e => {  // 📤 picked a picture
+    if (e.target.id !== "photoFile" || !e.target.files[0]) return;
+    try { await saveAvatar({ useUpload: true }, await shrinkPhoto(e.target.files[0])); }
+    catch (err) { $("photoMsg").textContent = err.code === "permission-denied" ? "The database refused that photo." : err.message; }
   });
   $("readSched").onclick = async () => {
     const text = $("schedText").value.trim();
@@ -534,7 +567,7 @@ if (configured) {
       await setDoc(ref, { name: user.displayName || (user.email || "friend").split("@")[0], travelMode: "driving" });
     }
     profile = (await getDoc(ref)).data();
-    const photo = photoFor(profile.avatar, user);  // your omw avatar (or your photo, if you chose that)
+    const photo = photoFor(profile.avatar, user, profile.upload);  // your photo, upload or omw avatar
     if (profile.photo !== photo) await setDoc(ref, { photo }, { merge: true });
     profile = { ...profile, photo };
     await ensureId(user);

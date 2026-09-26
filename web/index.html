@@ -351,6 +351,13 @@
     .av-editor { margin-top: 12px; padding: 12px; border-radius: 22px; background: var(--soft); text-align: left; }
     .av-editor[hidden] { display: none; }
     .av-editor button { border: 0; cursor: pointer; font: inherit; }
+    .av-mine { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .av-upload { flex: none; width: 52px; height: 52px; padding: 3px; border-radius: 50%; background: #fff; }
+    .av-upload img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+    .av-upload.on { box-shadow: 0 0 0 3px var(--ink); }
+    .av-pick { display: flex; align-items: center; justify-content: center; background: #fff !important; cursor: pointer; }
+    .av-err { color: var(--red); margin: -4px 0 6px; }
+    .av-err:empty { display: none; }
     .av-styles { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
     .av-styles button { flex: none; width: 62px; padding: 6px 4px; border-radius: 16px; background: #fff; }
     .av-styles img { display: block; width: 44px; height: 44px; margin: 0 auto; border-radius: 50%; }
@@ -739,7 +746,7 @@ const face = p => p.photo || `https://api.dicebear.com/9.x/avataaars/svg?seed=${
                   `&backgroundColor=${colorOf[p.user_id].slice(1)}`;
 const initials = name => name.slice(0, 2).toUpperCase();
 const avatar = p => `<div class="avatar" style="--c:${colorOf[p.user_id]}"><span>${initials(p.name)}</span>` +
-                    `<img src="${face(p)}" alt="" onerror="this.remove()"></div>`;
+                    `<img src="${esc(face(p))}" alt="" onerror="this.remove()"></div>`;
 const pal = (p, tag, extra = "") => L.divIcon({ className: "", iconSize: [62, 90], iconAnchor: [31, 34],
   html: `<div class="pal ${extra}" style="--c:${colorOf[p.user_id]}">${avatar(p)}` +
         `<div class="mode">${MODE[p.travel_mode].split(" ")[0]}</div><div class="tag">${esc(tag)}</div></div>` });
