@@ -54,6 +54,9 @@
     .count { position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
              background: var(--red); color: #fff; border: 2px solid #fff; font-size: 12px; font-weight: 900; display: grid; place-items: center; }
     .count[hidden] { display: none; }
+    /* on a laptop the buttons sit centered over the planner below them */
+    .top-left { display: flex; align-items: center; justify-content: center; gap: 10px; width: 400px; flex: none; }
+    .top-left > * { pointer-events: auto; }
     .brand { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px 0 6px; border-radius: 999px; background: var(--glass);
              box-shadow: var(--shadow-sm); font-size: 22px; font-weight: 900; letter-spacing: -.05em; }
     .brand img { width: 36px; height: 36px; border-radius: 11px; }
@@ -148,6 +151,8 @@
     .cal-confirm small { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
     .cal-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 10px; }
     .mini.danger { background: #ffe3e8; color: #d0213f; }
+    .person.asking { background: #fff4f5; border-radius: 16px; }
+    .person.asking .who b { color: #d0213f; }
     .fair-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 13px; font-weight: 900; color: var(--muted); }
     .fair-done { margin-top: 8px; padding: 10px 12px; border-radius: 14px; background: #dcfbea; color: #0b8a55; font-size: 13px; font-weight: 800; }
     .fair-done[hidden] { display: none; }
@@ -832,6 +837,7 @@
     /* ---------- phones: planner becomes a bottom sheet ---------- */
     @media (max-width: 860px) {
       .brand { display: none; }
+      .top-left { display: contents; }
       .search { position: relative; left: auto; transform: none; width: auto; flex: 1; }
       .sheet { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 58vh; border-radius: 30px 30px 0 0;
                padding-bottom: calc(24px + env(safe-area-inset-bottom)); transition: max-height .25s ease; }
@@ -922,6 +928,7 @@
 <div id="map"></div>
 
 <header class="topbar">
+  <div class="top-left">
   <div class="me-btn">
     <button class="round user-pic" id="userPic" title="Friends & profile"></button>
     <span class="count" id="reqBadge" hidden>0</span>
@@ -932,6 +939,7 @@
   </div>
   <button class="round" id="boardBtn" title="Who's always late?" data-ic="trophy"></button>
   <div class="brand"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8IS0tIG9tdzogYW4gYWxhcm0gY2xvY2sgcnVubmluZyBsYXRlLCBvbiB0aGUgYXBwJ3MgeWVsbG93IC0tPgogIDxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iMTE2IiBmaWxsPSIjRkZFNjAwIi8+CiAgPGRlZnM+CiAgICA8ZyBpZD0iY2xvY2siPgogICAgICA8Y2lyY2xlIGN4PSIxNDgiIGN5PSIxNTgiIHI9IjU4Ii8+CiAgICAgIDxjaXJjbGUgY3g9IjMyNCIgY3k9IjE1OCIgcj0iNTgiLz4KICAgICAgPHJlY3QgeD0iMTU0IiB5PSIzNzYiIHdpZHRoPSI0NCIgaGVpZ2h0PSI3NCIgcng9IjIyIiB0cmFuc2Zvcm09InJvdGF0ZSgyNCAxNzYgNDAwKSIvPgogICAgICA8cmVjdCB4PSIyNzYiIHk9IjM3NiIgd2lkdGg9IjQ0IiBoZWlnaHQ9Ijc0IiByeD0iMjIiIHRyYW5zZm9ybT0icm90YXRlKC0yNCAyOTggNDAwKSIvPgogICAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjE1MCIvPgogICAgPC9nPgogIDwvZGVmcz4KICA8ZyB0cmFuc2Zvcm09InJvdGF0ZSgtMTYgMjM2IDI3MikgdHJhbnNsYXRlKDQgNikiPgogICAgPCEtLSB3aGl0ZSBzdGlja2VyIGVkZ2UgLS0+CiAgICA8dXNlIGhyZWY9IiNjbG9jayIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjM0IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgICA8IS0tIGJlbGxzLCBsZWdzLCBib2R5IC0tPgogICAgPHVzZSBocmVmPSIjY2xvY2siIGZpbGw9IiMxMTExMTQiLz4KICAgIDxjaXJjbGUgY3g9IjIzNiIgY3k9IjI3MiIgcj0iMTI0IiBmaWxsPSIjZmZmIi8+CiAgICA8IS0tIGhvdXIgbWFya3MgLS0+CiAgICA8ZyBmaWxsPSIjMTExMTE0Ij4KICAgICAgPHJlY3QgeD0iMjI5IiB5PSIxNjAiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzMCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMjI5IiB5PSIzNTQiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzMCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMTI0IiB5PSIyNjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMzE4IiB5PSIyNjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNCIgcng9IjciLz4KICAgIDwvZz4KICAgIDwhLS0gaGFuZHM6IG5lYXJseSBvbiB0aGUgaG91ciwgdGltZSB0byBnbyAtLT4KICAgIDxnIHN0cm9rZT0iIzExMTExNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgICAgPGxpbmUgeDE9IjIzNiIgeTE9IjI3MiIgeDI9IjIyMiIgeTI9IjE4MiIgc3Ryb2tlLXdpZHRoPSIxOCIvPgogICAgICA8bGluZSB4MT0iMjM2IiB5MT0iMjcyIiB4Mj0iMzA0IiB5Mj0iMjU4IiBzdHJva2Utd2lkdGg9IjE4Ii8+CiAgICA8L2c+CiAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjIwIiBmaWxsPSIjMTExMTE0Ii8+CiAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjciIGZpbGw9IiNGRkU2MDAiLz4KICA8L2c+CiAgPCEtLSBzcGVlZCBsaW5lczogb24gbXkgd2F5IC0tPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzExMTExNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik00MDQgMjA2IEM0MzYgMjEyIDQ2MiAyMjYgNDgyIDI1MCIgc3Ryb2tlLXdpZHRoPSIyMCIvPgogICAgPHBhdGggZD0iTTQxMiAyNjggQzQ0MiAyNzggNDY0IDI5NiA0NzggMzIyIiBzdHJva2Utd2lkdGg9IjIwIi8+CiAgICA8cGF0aCBkPSJNNDA0IDMzOCBDNDI0IDM1MCA0MzggMzY2IDQ0NiAzODYiIHN0cm9rZS13aWR0aD0iMTgiLz4KICA8L2c+Cjwvc3ZnPgo=" alt="">omw!</div>
+  </div>
   <div class="search">
     <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a7a86" stroke-width="3" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>
     <input id="placeInput" placeholder="Search places" autocomplete="off">

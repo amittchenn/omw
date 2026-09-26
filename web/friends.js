@@ -401,11 +401,15 @@ function renderRequests() {
         <button class="mini" data-cancel="${esc(r.to)}">Cancel</button></div>`).join("");
 }
 
+let removing = "";  // the friend whose row is asking "Remove them?"
 function renderFriends() {
   $("friendCount").textContent = friendIds.length ? `(${friendIds.length})` : "";
   $("friendList").innerHTML = friendIds.length
     ? friendIds.filter(id => friends[id]).map(id => {
         const f = friends[id];
+        if (removing === id) return `<div class="person asking">${pic(f)}<div class="who"><b>Remove ${esc(f.name)}?</b>
+          <small>You'll both need to add each other again.</small></div>
+          <button class="mini" data-keep="1">Keep</button><button class="mini danger" data-remove-yes="${esc(id)}">Remove</button></div>`;
         return `<div class="person">${pic(f)}<div class="who"><b>${esc(f.name)}</b>
           <small>${icon(MODE_ICON[f.travelMode || "driving"])} ${MODES[f.travelMode || "driving"]} · ${f.home ? "home set" : "no home yet"}</small></div>
           <button class="mini" data-remove="${esc(id)}" title="Remove friend">${icon("x")}</button></div>`;
@@ -651,8 +655,8 @@ async function accept(from) {
   say("You're now friends!", true);
 }
 
-async function removeFriend(id) {
-  if (!confirm(`Remove ${friends[id]?.name || "this friend"}?`)) return;
+async function removeFriend(id) {  // only after they tapped Remove on the "Remove them?" row
+  removing = "";
   const batch = writeBatch(db);
   batch.delete(doc(db, "users", me.uid, "friends", id));
   batch.delete(doc(db, "users", id, "friends", me.uid));
@@ -861,8 +865,11 @@ if (configured) {
     if (b.dataset.declineInvite) await rsvp(b.dataset.declineInvite, "declined");
   });
   $("friendList").onclick = run(async e => {
-    const id = e.target.closest("button")?.dataset.remove;
-    if (id) await removeFriend(id);
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.remove) { removing = b.dataset.remove; renderFriends(); }  // ask first
+    if (b.dataset.keep) { removing = ""; renderFriends(); }
+    if (b.dataset.removeYes) { b.disabled = true; b.textContent = "Removing…"; await removeFriend(b.dataset.removeYes); renderFriends(); }
   });
 
   onAuthStateChanged(getAuth(app), run(async user => {
