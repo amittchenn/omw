@@ -102,6 +102,15 @@
     .muse-msg { margin-top: 6px; font-size: 12px; font-weight: 800; color: #5b45c9; }
     .muse-msg:empty { display: none; }
     .muse-msg.err { color: var(--red); }
+    .muse-confirm { margin-top: 8px; padding: 12px 14px; border-radius: 20px; background: #f1ecff; box-shadow: inset 0 0 0 2px #d9ceff; font-size: 14px; font-weight: 700; }
+    .muse-confirm[hidden] { display: none; }
+    .muse-confirm > b { display: block; margin-bottom: 6px; font-size: 15px; font-weight: 900; }
+    .muse-confirm small { display: block; font-size: 13px; color: var(--muted); }
+    .mc-row { margin: 3px 0; }
+    .mc-note { display: block; margin-top: 8px; font-size: 12px; font-weight: 900; color: #5b45c9; }
+    .mc-note textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 12px; border: 0; border-radius: 14px;
+                        background: #fff; font: inherit; font-size: 14px; font-weight: 700; resize: none; outline: none; }
+    .mc-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
     .fair { margin-top: 8px; }
     .fair[hidden] { display: none; }
     .fair-form { display: flex; gap: 6px; }
@@ -661,6 +670,7 @@
     <button class="mini dark" id="museGo">Go</button>
   </form>
   <div class="muse-msg" id="museMsg"></div>
+  <div class="muse-confirm" id="museConfirm" hidden></div>
 
   <div class="section" id="weekSection" hidden>
     <div class="label">This week</div>
@@ -1343,7 +1353,7 @@ $("museForm").onsubmit = async e => {
   const text = $("museText").value.trim();
   if (!text) return;
   const msg = (t, err = false) => { $("museMsg").textContent = t; $("museMsg").className = "muse-msg" + (err ? " err" : ""); };
-  $("museGo").disabled = true; msg("✨ Muse is reading that…");
+  $("museGo").disabled = true; msg("✨ Muse is reading that…"); $("museConfirm").hidden = true;
   try {
     const c = map.getCenter();
     const res = await fetch(`${API}/ai/plan`, { method: "POST", headers: { "Content-Type": "application/json" },
@@ -1363,10 +1373,47 @@ $("museForm").onsubmit = async e => {
     showWeather();
     msg(`✨ ${d.summary || "Done"}${done.length ? ` (${done.join(" · ")})` : ""}`);
     if (d.find_time) $("findBtn").click();
+    else museConfirm(d.note);
   } catch (err) {
     msg(`Muse couldn't do that: ${err.message}`, true);
   } finally { $("museGo").disabled = false; }
 };
+
+// after Muse fills the plan in: check it, then Muse sends the invites (nothing goes out until you tap Send)
+function museConfirm(note) {
+  const who = myFriends().filter(p => !p.isMe && picked.has(p.user_id));
+  const missing = [!who.length && "who's coming", !venue && "where", !$("start").value && "when"].filter(Boolean);
+  const type = allTypes().find(t => t[0] === selectedType());
+  const when = $("start").value && new Date($("start").value).toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  $("museConfirm").hidden = false;
+  $("museConfirm").innerHTML = missing.length
+    ? `<b>Almost there</b><small>Muse couldn't tell ${missing.join(" or ")}. Fill it in below, then tap “Plan it”.</small>`
+    : `<b>Send this plan?</b>
+       <div class="mc-row">${type ? type[1] : "📍"} ${esc(type ? type[2] : "Hangout")} at <b>${esc(venueName)}</b></div>
+       <div class="mc-row">🗓️ ${esc(when)}</div>
+       <div class="mc-row">👥 You, ${esc(who.map(p => p.name).join(", "))}</div>
+       <label class="mc-note">💬 Message to the group<textarea id="museNote" maxlength="200" rows="2">${esc(note || `${type ? type[2] : "Hang out"} at ${venueName}? 🙌`)}</textarea></label>
+       <div class="mc-actions"><button class="mini" id="museEdit">✏️ Edit first</button>
+         <button class="mini dark" id="museSend">✉️ Send invites</button></div>`;
+  if (missing.length) return;
+  $("museEdit").onclick = () => { $("museConfirm").hidden = true; };
+  $("museSend").onclick = async () => {
+    const text = $("museNote").value.trim();
+    $("museSend").disabled = true; $("museSend").textContent = "Working out everyone's alerts…";
+    try {
+      if (!(await runPlan())) throw new Error($("error").textContent || "Couldn't plan it.");
+      $("museSend").textContent = "Sending…";
+      const id = await lockIn(lastPlan);
+      if (text) await window.sendChat?.(id, text).catch(() => {});
+      $("museConfirm").innerHTML = `<b>✅ Invites sent</b><small>${esc(who.map(p => p.name).join(", "))} will see it in 📅 My plans${text ? ", with your message in the group chat" : ""}.
+        Their leave-now alerts are below.</small>`;
+      $("museText").value = ""; $("museMsg").textContent = "";
+    } catch (err) {
+      $("museSend").disabled = false; $("museSend").textContent = "✉️ Try again";
+      $("museMsg").textContent = `Couldn't send: ${err.message}`; $("museMsg").className = "muse-msg err";
+    }
+  };
+}
 
 // ---------- Muse: a spot that's fair for everyone ----------
 const fairPins = L.layerGroup().addTo(map);
@@ -1431,8 +1478,10 @@ async function runPlan() {
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
     showResults(await res.json());
+    return true;
   } catch (e) {
     $("error").textContent = `Something went wrong: ${e.message}`;
+    return false;
   } finally {
     $("planBtn").disabled = false; $("planBtn").textContent = "Plan it ✨";
   }
@@ -1528,7 +1577,7 @@ function showResults(plan) {
   document.querySelectorAll("#results .card").forEach(bindCard);
   map.fitBounds([venue, ...plan.flatMap(r => r.route)], viewPadding());
   $("simBtn").onclick = () => startSim();
-  if ($("lockBtn")) $("lockBtn").onclick = () => lockIn(lastPlan);
+  if ($("lockBtn")) $("lockBtn").onclick = () => lockIn(lastPlan).catch(() => {});
 }
 
 // switch how one person gets there: only their card, route and dot change (no reloading the whole plan)
@@ -1656,7 +1705,7 @@ async function lockIn(plan) {
   const type = allTypes().find(t => t[0] === selectedType()) || TYPES[0];
   $("lockBtn").disabled = true; $("lockBtn").textContent = "Sending…";
   try {
-    await window.lockInHangout({
+    const id = await window.lockInHangout({
       title: `${type[1]} ${type[2]} at ${venueName}`,
       start: new Date($("start").value).toISOString(),
       durationMin: 120,
@@ -1670,9 +1719,11 @@ async function lockIn(plan) {
     });
     const others = invited.length - 1;
     $("lockBtn").textContent = others > 0 ? `✅ Invites sent to ${others} friend${others === 1 ? "" : "s"}` : "✅ Saved";
+    return id;
   } catch (e) {
     $("lockBtn").disabled = false; $("lockBtn").textContent = "📨 Send invites";
     $("error").textContent = `Couldn't send: ${e.message}`;
+    throw e;
   }
 }
 

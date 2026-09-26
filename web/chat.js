@@ -57,6 +57,9 @@ function notify(id, m) {
   }
 }
 
+// the planner posts Muse's invite note as the first message of a new hangout
+window.sendChat = (id, text) => send({ id }, text);
+
 // ---------- automatic messages ----------
 // you checked in (leaderboard.js): tell the group
 window.addEventListener("checked-in", e => {

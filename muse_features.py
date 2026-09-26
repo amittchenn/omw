@@ -15,7 +15,8 @@ from travel import route
 
 PLAN_PROMPT = """You help friends plan a hangout. Turn their message into JSON only, no other text, in exactly this shape:
 {"who": ["friend id", ...], "type": "category id or null", "place": "what to search on a map, or null",
- "when": "YYYY-MM-DDTHH:MM or null", "find_time": false, "summary": "one short friendly line saying what you set up"}
+ "when": "YYYY-MM-DDTHH:MM or null", "find_time": false, "summary": "one short friendly line saying what you set up",
+ "note": "the invite message to send the group, written as the person inviting, casual, under 140 characters"}
 Rules:
 - who: ids from the friends list for everyone they mention. "everyone" or "all" means every friend. Never include the person writing.
 - type: the closest category id from the list, or null.
@@ -75,7 +76,7 @@ def plan_from_text(text, friends, categories, now, lat, lng):
     return {"who": who, "type": data.get("type") if data.get("type") in cats else None, "when": when,
             "place": place, "place_options": options, "place_query": data.get("place"),
             "find_time": bool(data.get("find_time")) and not when,
-            "summary": str(data.get("summary") or "")[:200], "read_by": source}
+            "summary": str(data.get("summary") or "")[:200], "note": str(data.get("note") or "")[:200], "read_by": source}
 
 
 # ---------- 2. a fair spot for everyone ----------
