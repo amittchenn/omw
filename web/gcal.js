@@ -44,7 +44,7 @@ function eventFor(h) {
   return {
     summary: h.title,
     location: [h.venueName, h.address].filter(Boolean).join(", "),
-    description: [`Planned by ${h.createdByName || "a friend"} in omw.`, others.length && `With ${others.join(", ")}.`,
+    description: [`Planned by ${h.createdByName || "a friend"} on omw!`, others.length && `With ${others.join(", ")}.`,
                   alert && `Leave at ${time(alert)}: timed to your habits, not just the trip.`].filter(Boolean).join(" "),
     start: { dateTime: h.start }, end: { dateTime: endOf(h) },
     // Google rings at your personal leave-now time
@@ -101,7 +101,7 @@ async function connect() {
   } catch (e) {
     status = {
       "auth/popup-closed-by-user": "Google closed before it finished.",
-      "auth/credential-already-in-use": "That Google account belongs to a different omw account.",
+      "auth/credential-already-in-use": "That Google account belongs to a different omw! account.",
       "auth/user-mismatch": "Pick the same Google account you signed in with.",
     }[e.code] || e.message;
     render();

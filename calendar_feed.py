@@ -64,7 +64,7 @@ def _utc(iso):
     return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def build_ics(uid, hangouts, name="omw"):
+def build_ics(uid, hangouts, name="omw!"):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lines = [
         "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Hangout//Hangout planner//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
@@ -78,7 +78,7 @@ def build_ics(uid, hangouts, name="omw"):
         names = h.get("names") or dict(zip(h["attendees"], h.get("attendeeNames", [])))
         others = [names[u] for u in h["attendees"] if u != uid and u in names]
         alert = h.get("alerts", {}).get(uid)
-        about = [f"Planned by {h.get('createdByName', 'a friend')} in omw."]
+        about = [f"Planned by {h.get('createdByName', 'a friend')} on omw!"]
         if others:
             about.append(f"With {', '.join(others)}.")
         if alert:

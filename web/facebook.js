@@ -16,8 +16,8 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const MESSAGES = {
   "auth/account-exists-with-different-credential":
-    "You already have an omw account with this email. Sign in with Google or email, then tap “Connect Facebook” in your profile.",
-  "auth/credential-already-in-use": "That Facebook account is already connected to a different omw account.",
+    "You already have an omw! account with this email. Sign in with Google or email, then tap “Connect Facebook” in your profile.",
+  "auth/credential-already-in-use": "That Facebook account is already connected to a different omw! account.",
   "auth/popup-closed-by-user": "Facebook sign-in was closed before it finished.",
   "auth/cancelled-popup-request": "Facebook sign-in was closed before it finished.",
   "auth/operation-not-allowed": "Facebook sign-in is turned off in Firebase: enable it under Authentication → Sign-in method.",
@@ -58,7 +58,7 @@ function render(note = "") {
   if (!auth.currentUser) return box.innerHTML = "";
   if (!linked()) {
     box.innerHTML = `<button class="wide fb" id="fbConnect">${FB_ICON} Connect Facebook</button>
-      <div class="note">${note || "Find friends who are already on omw, and use your Facebook photo."}</div>`;
+      <div class="note">${note || "Find friends who are already on omw! and use your Facebook photo."}</div>`;
     return $("fbConnect").onclick = () => act(async () => keepToken(await linkWithPopup(auth.currentUser, provider())));
   }
   if (!token) {
@@ -69,12 +69,12 @@ function render(note = "") {
   const mine = myFriendIds();
   box.innerHTML = (found.length
     ? found.map(f => `<div class="person"><div class="avatar" style="background-image:url('${esc(f.photo)}')"></div>
-        <div class="who"><b>${esc(f.name)}</b><small>Facebook friend on omw</small></div>
+        <div class="who"><b>${esc(f.name)}</b><small>Facebook friend on omw!</small></div>
         ${mine.has(f.uid) ? `<span class="mini-note">${icon("check")} Friends</span>`
           : requested.has(f.code) ? `<span class="mini-note">Requested</span>`
           : f.code ? `<button class="mini yes" data-fb-add="${esc(f.code)}">Add</button>`
           : `<span class="mini-note">Still setting up</span>`}</div>`).join("")
-    : `<div class="nobody">None of your Facebook friends are on omw yet. When they sign in with Facebook, they'll show up here.</div>`) +
+    : `<div class="nobody">None of your Facebook friends are on omw! yet. When they sign in with Facebook, they'll show up here.</div>`) +
     (note ? `<div class="note">${note}</div>` : "");
   box.querySelectorAll("[data-fb-add]").forEach(b => b.onclick = () => {
     $("addInput").value = b.dataset.fbAdd;  // same request/accept flow as typing their friend ID

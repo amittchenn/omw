@@ -216,7 +216,7 @@ function renderCalendar() {
 function googleLink(h) {  // one-tap "add this one event" link
   const q = new URLSearchParams({ action: "TEMPLATE", text: h.title, dates: `${icsTime(h.start)}/${icsTime(endOf(h))}`,
                                   location: [h.venueName, h.address].filter(Boolean).join(", "),
-                                  details: `Planned in omw with ${h.attendees.map(u => nameOf(h, u)).join(", ")}.` });
+                                  details: `Planned in omw! with ${h.attendees.map(u => nameOf(h, u)).join(", ")}.` });
   return `https://calendar.google.com/calendar/render?${q}`;
 }
 

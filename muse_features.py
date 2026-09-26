@@ -16,7 +16,7 @@ from travel import route
 PLAN_PROMPT = """You help friends plan a hangout. Turn their message into JSON only, no other text, in exactly this shape:
 {"who": ["friend id", ...], "type": "category id or null", "place": "what to search on a map, or null",
  "when": "YYYY-MM-DDTHH:MM or null", "find_time": false, "summary": "one short friendly line saying what you set up",
- "note": "the invite message to send the group, written as the person inviting, casual, under 140 characters"}
+ "note": "the invite message to send the group, written as the person inviting, casual, under 140 characters, no emojis"}
 Rules:
 - who: ids from the friends list for everyone they mention. "everyone" or "all" means every friend. Never include the person writing.
 - type: the closest category id from the list, or null.
@@ -28,7 +28,7 @@ Rules:
 
 FAIR_PROMPT = """You pick the fairest place for a group to meet. Reply with JSON only: {"pick": <number>, "why": "<one or two short sentences>"}
 Fair means nobody has a much longer trip than the others, and the longest trip is short. Also weigh what they asked for,
-the rating, and whether it's open. In "why", mention the trip times (e.g. "everyone's within 15 minutes") and one reason it fits."""
+the rating, and whether it's open. In "why", mention the trip times (e.g. "everyone's within 15 minutes") and one reason it fits. No emojis."""
 
 
 def _json(reply):

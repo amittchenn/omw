@@ -109,7 +109,7 @@ function renderChat() {
   $("chatList").innerHTML = list.length ? list.map(m => m.kind === "text"
       ? `<div class="msg ${m.from === me.uid ? "mine" : ""}">${m.from === me.uid ? "" : `<small>${esc(m.name)}</small>`}<p>${esc(m.text)}</p><time>${time(m.at)}</time></div>`
       : `<div class="msg-auto ${m.kind}">${icon(m.kind === "arrived" ? "map-pin-check-inside" : m.kind === "late" ? "clock-alert" : "navigation")} <b>${m.from === me.uid ? "You" : esc(m.name)}</b> ${esc(m.from === me.uid ? m.text.replace(/^is /, "are ") : m.text)} <time>${time(m.at)}</time></div>`).join("")
-    : `<div class="nobody">No messages yet. omw posts here when people are on their way, running late or arrive.</div>`;
+    : `<div class="nobody">No messages yet. omw! posts here when people are on their way, running late or arrive.</div>`;
   $("chatList").scrollTop = $("chatList").scrollHeight;
 }
 

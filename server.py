@@ -23,7 +23,7 @@ from schedule import clean_blocks, demo_busy, find_times, parse_schedule
 from travel import MODES, directions, route, travel_minutes
 from weather import hours_around, weather_at, weather_now
 
-app = FastAPI(title="Hangout API")
+app = FastAPI(title="omw! API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory="web"), name="static")  # serves web/auth.js, web/firebase-config.js
 
