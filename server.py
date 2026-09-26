@@ -9,9 +9,10 @@ from datetime import date, datetime, timedelta, timezone
 import re
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
+from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -74,6 +75,35 @@ def demo_home(user_id, mode, venue):
 @app.get("/")
 def home_page():
     return FileResponse("web/index.html")
+
+
+# ---------- Firebase sign-in page, served from omw!'s own address ----------
+# Safari blocks sign-in that runs on a different site (yourproject.firebaseapp.com) and shows
+# "Unable to process request due to missing initial state". auth.js points Firebase at this site instead,
+# and these routes pass /__/auth/... and /__/firebase/... through to Firebase. The project comes from web/firebase-config.js.
+def _firebase_host():
+    try:
+        found = re.search(r'projectId:\s*"([a-z0-9-]+)"', open("web/firebase-config.js").read())
+    except OSError:
+        found = None
+    return f"https://{found.group(1)}.firebaseapp.com" if found and not found.group(1).startswith("PASTE") else None
+
+
+PASS_HEADERS = ("content-type", "cache-control", "location", "expires", "etag", "last-modified", "content-security-policy")
+
+
+@app.api_route("/__/{path:path}", methods=["GET", "POST"], include_in_schema=False)
+async def firebase_auth_page(path: str, request: Request):
+    host = _firebase_host()
+    if not host or not path.startswith(("auth/", "firebase/")):
+        raise HTTPException(404)
+    body = await request.body()
+    headers = {k: v for k, v in request.headers.items() if k.lower() in ("content-type", "accept", "accept-language", "user-agent")}
+    import requests  # only needed here
+    r = await run_in_threadpool(lambda: requests.request(request.method, f"{host}/__/{path}", params=request.query_params,
+                                                         data=body or None, headers=headers, timeout=10, allow_redirects=False))
+    return Response(r.content, status_code=r.status_code,
+                    headers={k: v for k, v in r.headers.items() if k.lower() in PASS_HEADERS})
 
 
 @app.get("/config")
@@ -187,6 +217,29 @@ def places_details(id: str, session: Optional[str] = None):
 def name_of_place(lat: float, lng: float):
     # what's at this spot? used when someone clicks the map
     return place_name(lat, lng)
+
+
+# one hangout as a calendar file, for the Apple Calendar button on each plan. iPhone Safari opens this straight
+# into "Add to Calendar" (a file made inside the page just gets saved to Files). Everything it needs is in the link.
+@app.get("/event.ics")
+def one_event(id: str, title: str, start: str, dur: int = 120, place: str = "", address: str = "", alert: Optional[str] = None,
+              by: str = "", tz: str = "UTC"):
+    try:
+        datetime.fromisoformat(start.replace("Z", "+00:00"))
+        if alert:
+            datetime.fromisoformat(alert.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(400, "Bad date.")
+    h = {"id": re.sub(r"[^A-Za-z0-9_-]", "", id)[:64] or "hangout", "title": title[:200], "start": start, "durationMin": max(15, min(dur, 1440)),
+         "venueName": place[:200], "address": address[:300], "createdByName": by[:100] or "a friend", "attendees": ["me"],
+         "alerts": {"me": alert} if alert else {}, "tz": tz if re.fullmatch(r"[A-Za-z_]+(/[A-Za-z0-9_+-]+)*", tz) else "UTC"}
+    try:
+        ics = build_ics("me", [h])
+    except Exception:  # an unknown time zone name
+        ics = build_ics("me", [{**h, "tz": "UTC"}])
+    # just the event: no calendar name or refresh settings, so it's added to a calendar you pick, not set up as a new one
+    ics = "\r\n".join(l for l in ics.split("\r\n") if not l.startswith(("X-WR-", "REFRESH-INTERVAL", "X-PUBLISHED-TTL")))
+    return Response(ics, media_type="text/calendar; charset=utf-8", headers={"Content-Disposition": 'inline; filename="hangout.ics"'})
 
 
 @app.get("/calendar/{token}.ics")

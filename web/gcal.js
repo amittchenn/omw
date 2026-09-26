@@ -1,14 +1,16 @@
-// Google Calendar, synced directly: once you connect, every hangout you're part of is written straight into your
-// Google Calendar (with a reminder at YOUR leave-now time) within seconds, and changes/cancellations follow while omw is open.
-// Also the Google Calendar and Apple Calendar icons used around the app.
+// Google Calendar, synced directly: connecting adds a separate "omw!" calendar to your Google Calendar, and every hangout
+// you're part of goes into it (with a reminder at YOUR leave-now time) within seconds; changes and cancellations follow
+// while omw! is open. omw! only asks for access to calendars it creates, so it can't see or change your own calendars.
+// Also the Google Calendar icon.
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, reauthenticateWithPopup, linkWithPopup,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-const SCOPE = "https://www.googleapis.com/auth/calendar.events";
-const EVENTS = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const SCOPE = "https://www.googleapis.com/auth/calendar.app.created";  // only calendars omw! makes itself
+const API = "https://www.googleapis.com/calendar/v3";
+const CAL_NAME = "omw!";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const store = { get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
@@ -22,14 +24,8 @@ export const googleCalIcon = (size = 22) => `<svg width="${size}" height="${size
   <path fill="#34A853" d="M10 38h28v10H10z"/><path fill="#EA4335" d="M38 38h10L38 48z"/>
   <text x="24" y="31" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="700" fill="#4285F4">31</text></svg>`;
 
-export const appleCalIcon = (size = 22, day = new Date()) => `<svg width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">
-  <rect x=".5" y=".5" width="47" height="47" rx="11" fill="#fff" stroke="#dcdce2"/>
-  <text x="24" y="15.5" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="9.5" font-weight="700"
-        fill="#FF3B30">${day.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}</text>
-  <text x="24" y="40" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="25" fill="#111">${day.getDate()}</text></svg>`;
-
 // ---------- syncing ----------
-let auth, user = null, hangouts = [], status = "", busy = false;
+let auth, user = null, hangouts = [], status = "", busy = false, pending = false;
 let token = store.get("gcalToken");  // { value, expires }: Google access tokens last an hour
 const hasToken = () => token && token.value && token.expires > Date.now() && token.uid === user?.uid;
 const turnedOn = () => user && store.get(`gcalOn:${user.uid}`);
@@ -52,19 +48,54 @@ function eventFor(h) {
   };
 }
 
+const expired = () => Object.assign(new Error("expired"), { expired: true });
+
 async function call(method, url, body) {
+  if (!token?.value) throw expired();  // Google's permission ran out (or you turned syncing off) partway through
   const res = await fetch(url, { method, headers: { Authorization: `Bearer ${token.value}`, "Content-Type": "application/json" },
                                  body: body && JSON.stringify(body) });
-  if (res.status === 401) { token = null; store.set("gcalToken", null); throw Object.assign(new Error("expired"), { expired: true }); }
+  if (res.status === 401) { token = null; store.set("gcalToken", null); throw expired(); }
   return res;
 }
 
+// the omw! calendar: the one saved on this device, or one omw! made before (another device), or a new one.
+// Only ever one: extra omw! calendars (left by an earlier failed try) are removed, so you're never looking at an empty copy.
+let checked = false;
+async function omwCalendar() {
+  const key = `gcalCal:${user.uid}`, saved = store.get(key);
+  if (checked && saved) return saved;
+  const list = await call("GET", `${API}/users/me/calendarList?minAccessRole=owner`);
+  const ours = list.ok ? ((await list.json()).items || []).filter(c => c.summary === CAL_NAME).map(c => c.id) : [];
+  let id = ours.includes(saved) ? saved : ours[0]
+    || (saved && (await call("GET", `${API}/calendars/${encodeURIComponent(saved)}`)).ok ? saved : null);
+  if (!id) {
+    const made = await call("POST", `${API}/calendars`, { summary: CAL_NAME, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      description: "Hangouts planned with omw!, with a reminder at your leave-now time. Added by omw!; your other calendars aren't touched." });
+    if (!made.ok) throw new Error((await made.json().catch(() => ({}))).error?.message || made.statusText);
+    id = (await made.json()).id;
+    store.set(key, id);  // saved right away, so a hiccup below never makes a second omw! calendar
+    // omw! yellow, so the hangouts stand out. Only a nice-to-have: if Google says no, it doesn't stop the sync
+    await fetch(`${API}/users/me/calendarList/${encodeURIComponent(id)}?colorRgbFormat=true`, { method: "PATCH",
+      headers: { Authorization: `Bearer ${token.value}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ backgroundColor: "#ffe600", foregroundColor: "#000000", selected: true }) }).catch(() => {});
+  }
+  for (const extra of ours.filter(c => c !== id)) {  // Google only lets omw! delete calendars omw! made
+    await call("DELETE", `${API}/calendars/${encodeURIComponent(extra)}`).catch(e => { if (e.expired) throw e; });
+  }
+  if (id !== saved) store.set(`gcalSynced:${user.uid}:${id}`, null);  // new to this device: add everything again
+  store.set(key, id); checked = true;
+  return id;
+}
+
 async function sync() {
-  if (!user || !turnedOn() || !hasToken() || busy) return render();
-  busy = true; status = "Syncing…"; render();
-  const syncedKey = `gcalSynced:${user.uid}`, before = new Set(store.get(syncedKey) || []), now = new Set();
+  if (busy) { pending = true; return; }  // mid-sync: go round once more when it's done, with the newest list
+  if (!user || !turnedOn() || !hasToken()) return render();
+  busy = true; pending = false; status = "Syncing…"; render();
+  const list = hangouts.slice();
   try {
-    for (const h of hangouts.filter(h => new Date(endOf(h)) > new Date())) {
+    const cal = await omwCalendar(), EVENTS = `${API}/calendars/${encodeURIComponent(cal)}/events`;
+    const syncedKey = `gcalSynced:${user.uid}:${cal}`, before = new Set(store.get(syncedKey) || []), now = new Set();
+    for (const h of list.filter(h => new Date(endOf(h)) > new Date())) {
       const id = eventId(h.id), body = eventFor(h);
       let res = await call("PUT", `${EVENTS}/${id}`, body);                                  // update if it's already there
       if (res.status === 404) res = await call("POST", EVENTS, { ...body, id });             // otherwise add it
@@ -75,13 +106,14 @@ async function sync() {
       if (!now.has(id)) await call("DELETE", `${EVENTS}/${id}`);
     }
     store.set(syncedKey, [...now]);
-    status = `${now.size ? `${now.size} hangout${now.size === 1 ? "" : "s"} in your Google Calendar` : "Connected. New hangouts will appear here"} · synced ${time(new Date().toISOString())}`;
+    status = `${now.size ? `${now.size} hangout${now.size === 1 ? "" : "s"} in your omw! calendar` : "Your omw! calendar is ready. New hangouts will appear there"} · synced ${time(new Date().toISOString())}`;
   } catch (e) {
-    status = e.expired ? "" : `Couldn't sync: ${e.message}`;
+    if (turnedOn()) status = e.expired ? "Google needs you to confirm again. Tap Sync Google Calendar." : `Couldn't sync: ${e.message}`;
   } finally {
     busy = false;
   }
   render();
+  if (pending) sync();
 }
 
 async function connect() {
@@ -108,19 +140,43 @@ async function connect() {
   }
 }
 
+// "Turn off" asks first: keep syncing, stop, or stop and delete the omw! calendar (it's omw!'s own; your other calendars are never touched)
+function askTurnOff() {
+  $("gcalBox").innerHTML = `<div class="cal-confirm"><b>Stop syncing to Google Calendar?</b>
+    <small>New hangouts won't be added anymore. You can keep the omw! calendar in Google Calendar, or delete it.</small>
+    <div class="cal-confirm-actions"><button class="mini" id="gcalKeep">Cancel</button>
+      <button class="mini dark" id="gcalStop">Turn off</button>
+      <button class="mini danger" id="gcalStopDelete">Turn off &amp; delete calendar</button></div></div>`;
+  const off = async remove => {
+    const cal = store.get(`gcalCal:${user.uid}`);
+    if (remove && cal && hasToken()) {
+      $("gcalStopDelete").disabled = true; $("gcalStopDelete").textContent = "Deleting…";
+      await call("DELETE", `${API}/calendars/${encodeURIComponent(cal)}`).catch(() => {});
+      store.set(`gcalCal:${user.uid}`, null);
+    }
+    store.set(`gcalOn:${user.uid}`, false); token = null; store.set("gcalToken", null);
+    checked = false;
+    status = remove ? "Turned off, and the omw! calendar was deleted." : "Turned off. Your omw! calendar is still in Google Calendar.";
+    render();
+  };
+  $("gcalKeep").onclick = () => render();
+  $("gcalStop").onclick = () => off(false);
+  $("gcalStopDelete").onclick = () => off(true);
+}
+
 function render() {
   const box = $("gcalBox");
   if (!box || !user) return;
   if (turnedOn() && hasToken()) {
-    box.innerHTML = `<div class="cal-status">${googleCalIcon(28)}<div><b>Google Calendar</b><small>${esc(status || "Connected")}</small></div>
+    box.innerHTML = `<div class="cal-status">${googleCalIcon(28)}<div><b>Google Calendar · omw! calendar</b><small>${esc(status || "Connected")}</small></div>
       <button class="mini" id="gcalOff" title="Stop syncing">Turn off</button></div>`;
-    $("gcalOff").onclick = () => { store.set(`gcalOn:${user.uid}`, false); token = null; store.set("gcalToken", null); status = ""; render(); };
+    $("gcalOff").onclick = askTurnOff;
     return;
   }
   const again = turnedOn();
   box.innerHTML = `<button class="cal-btn" id="gcalConnect">${googleCalIcon(22)} ${again ? "Sync Google Calendar" : "Connect Google Calendar"}</button>
     <div class="note">${esc(status) || (again ? "Google asks you to confirm about once an hour. Tap to add any new hangouts."
-                                             : "Hangouts appear in seconds, with a reminder at your personal leave-now time.")}</div>`;
+      : "Adds a separate omw! calendar to your Google Calendar, so your own calendars stay untouched. Hangouts appear in seconds, with a reminder at your leave-now time.")}</div>`;
   $("gcalConnect").onclick = connect;
 }
 
@@ -132,5 +188,5 @@ export function calendarHangouts(list) {
 
 if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
   auth = getAuth(getApps().length ? getApp() : initializeApp(firebaseConfig));
-  onAuthStateChanged(auth, u => { user = u; hangouts = []; status = ""; render(); });
+  onAuthStateChanged(auth, u => { if (u?.uid !== user?.uid) { hangouts = []; status = ""; checked = false; } user = u; render(); });
 }

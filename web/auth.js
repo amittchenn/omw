@@ -6,6 +6,12 @@ import {
   createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail, signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+// Safari (iPhone and Mac) blocks sign-in that happens on another site, and Firebase's sign-in page lives on
+// yourproject.firebaseapp.com. So on the live site the sign-in page comes from omw!'s own address instead
+// (server.py passes /__/auth/... through to Firebase). On localhost Firebase's own address works fine.
+// This runs before any other file starts Firebase, so every file uses it.
+if (!["localhost", "127.0.0.1"].includes(location.hostname)) firebaseConfig.authDomain = location.host;
+
 const $ = id => document.getElementById(id);
 const MESSAGES = {
   "auth/invalid-credential": "Wrong email or password.",

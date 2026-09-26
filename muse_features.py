@@ -26,9 +26,12 @@ Rules:
 - find_time: true if they ask to find a time that works, or say "when everyone's free".
 """
 
-FAIR_PROMPT = """You pick the fairest place for a group to meet. Reply with JSON only: {"pick": <number>, "why": "<one or two short sentences>"}
+FAIR_PROMPT = """You pick the fairest place for a group to meet. Reply with JSON only:
+{"pick": <number>, "why": "<one or two short sentences>", "note": "<the invite message for the group>"}
 Fair means nobody has a much longer trip than the others, and the longest trip is short. Also weigh what they asked for,
-the rating, and whether it's open. In "why", mention the trip times (e.g. "everyone's within 15 minutes") and one reason it fits. No emojis."""
+the rating, and whether it's open. In "why", mention the trip times (e.g. "everyone's within 15 minutes") and one reason it fits. No emojis.
+"note" is the invite the person sends their friends for the place you picked: casual, written as them, under 140 characters,
+built around what they asked for (e.g. they asked "matcha" -> "Matcha at Glaze Tea Midtown Saturday? It's about 15 min for all of us"). No emojis."""
 
 
 def _json(reply):
@@ -102,10 +105,13 @@ def fair_spot(query, people, lat, lng, max_places=6):
     for place in places:
         t = list(place["times"].values()) or [0]
         place.update(worst=max(t), average=round(sum(t) / len(t)), spread=max(t) - min(t), sources=sorted(place["sources"]))
+    # drop places that are way out of the way (search sometimes finds one hours off)
+    closest = min(p["worst"] for p in places)
+    places = [p for p in places if p["worst"] <= max(60, closest * 2.5)]
 
     # without the AI: the shortest longest-trip, then the most even
     best = min(range(len(places)), key=lambda i: places[i]["worst"] + 0.5 * places[i]["spread"])
-    pick, why, source = best, f"Longest trip is {places[best]['worst']} min, and trips differ by only {places[best]['spread']} min.", None
+    pick, why, source, note = best, f"Longest trip is {places[best]['worst']} min, and trips differ by only {places[best]['spread']} min.", None, None
     try:
         names = {p["id"]: p["name"] for p in homed}
         table = "\n".join(
@@ -116,7 +122,8 @@ def fair_spot(query, people, lat, lng, max_places=6):
         data = _json(reply)
         if isinstance(data.get("pick"), int) and 0 <= data["pick"] < len(places):
             pick, why = data["pick"], str(data.get("why") or why)[:300]
+            note = str(data.get("note") or "")[:200] or None
     except Exception as e:
         print(f"[muse] fair spot fell back to the simple rule: {e}")
-    return {"candidates": places, "pick": pick, "why": why, "read_by": source, "center": [lat, lng],
+    return {"candidates": places, "pick": pick, "why": why, "note": note, "read_by": source, "center": [lat, lng],
             "missing_home": [p["name"] for p in people if p not in homed]}

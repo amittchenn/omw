@@ -14,10 +14,10 @@ import {
   getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, arrayUnion, arrayRemove, collection, query, where, onSnapshot, writeBatch,
   deleteDoc, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { googleCalIcon, appleCalIcon, calendarHangouts } from "./gcal.js";
+import { calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
 import { liveHangouts, sharingNow, shareStart } from "./live.js";
-import { chatHangouts, unreadCount } from "./chat.js";
+import { chatHangouts, unreadCount, postLeft } from "./chat.js";
 import { PARTS, COLOR_PARTS, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
 
 const $ = id => document.getElementById(id);
@@ -200,36 +200,15 @@ function renderFriends() {
 }
 
 // ---------- calendars ----------
-const feedPath = () => `${location.host}/calendar/${calToken}.ics`;
 const icsTime = iso => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 const endOf = h => new Date(new Date(h.start).getTime() + (h.durationMin || 120) * 6e4).toISOString();
 const whenText = h => new Date(h.start).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-
-function renderCalendar() {
-  if (!calToken) return;
-  $("calApple").href = `webcal://${feedPath()}`;
-  $("appleIcon").innerHTML = appleCalIcon(24);
-  $("calNote").textContent = "Apple adds all your hangouts the moment you subscribe, then checks for new ones on its own. "
-    + "On a Mac, set the calendar's Auto-refresh to “Every 5 minutes”.";
-}
 
 function googleLink(h) {  // one-tap "add this one event" link
   const q = new URLSearchParams({ action: "TEMPLATE", text: h.title, dates: `${icsTime(h.start)}/${icsTime(endOf(h))}`,
                                   location: [h.venueName, h.address].filter(Boolean).join(", "),
                                   details: `Planned in omw! with ${h.attendees.map(u => nameOf(h, u)).join(", ")}.` });
   return `https://calendar.google.com/calendar/render?${q}`;
-}
-
-function appleFile(h) {  // a one-event .ics file; opening it on a Mac or iPhone adds it to Apple Calendar
-  const e = s => String(s).replace(/[\\;,]/g, m => "\\" + m);
-  const alert = h.alerts?.[me.uid];
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Hangout//EN", "BEGIN:VEVENT", `UID:${h.id}@hangout`,
-    `DTSTAMP:${icsTime(new Date().toISOString())}`, `DTSTART:${icsTime(h.start)}`, `DTEND:${icsTime(endOf(h))}`,
-    `SUMMARY:${e(h.title)}`, `LOCATION:${e([h.venueName, h.address].filter(Boolean).join(", "))}`,
-    ...(alert ? ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${e("Time to leave for " + h.venueName)}`,
-                 `TRIGGER;VALUE=DATE-TIME:${icsTime(alert)}`, "END:VALARM"] : []),
-    "END:VEVENT", "END:VCALENDAR"];
-  return URL.createObjectURL(new Blob([lines.join("\r\n")], { type: "text/calendar" }));
 }
 
 // names: newer hangouts keep a {uid: name} map; older ones kept a list next to attendees
@@ -265,12 +244,11 @@ function planCard(h, { past = false, next = false } = {}) {
   const declined = invited.filter(u => rsvp[u] === "declined");
   const names = us => us.map(u => esc(nameOf(h, u))).join(", ");
   const mine = h.createdBy === me.uid;
-  return `<div class="plan-card ${past ? "past" : ""} ${next ? "next" : ""}" data-show="${esc(h.id)}" title="Tap to see it on the map">
+  return `<div class="plan-card ${past ? "past" : ""} ${next ? "next" : ""}" data-show="${esc(h.id)}">
     <div class="plan-head"><div class="who"><b>${esc(h.title)}</b>
         <small>${esc(whenText(h))}${h.address ? ` · ${esc(h.address)}` : ""}</small>
         <small>Planned by ${mine ? "you" : esc(h.createdByName || "a friend")}</small></div>
-      ${past ? "" : mine ? `<button class="mini" data-cancel-hangout="${esc(h.id)}" title="Cancel for everyone">${icon("x")}</button>`
-                         : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">${icon("x")}</button>`}</div>
+      ${past ? "" : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">${icon("x")}</button>`}</div>
     ${!past && leaveTime(h) ? `<div class="plan-you">${icon("bell")} You leave at ${leaveTime(h)}</div>` : ""}
     ${past ? "" : modeChips(h, myModeFor(h), "data-my-mode")}
     <div class="plan-people">${h.attendees.map(u => personLine(h, u, past)).join("")}</div>
@@ -283,11 +261,8 @@ function planCard(h, { past = false, next = false } = {}) {
       ${!past && h.venue ? act("route", "Directions", `data-dir="${esc(h.id)}"`, "primary") : ""}
       ${h.venue ? act(past ? "map" : "map-pinned", past ? "Map" : "Live map", `data-show="${esc(h.id)}"`) : ""}
       ${act("message-circle", "Chat", `data-chat="${esc(h.id)}"`, "", unreadCount(h.id))}
-      ${past ? "" : act("calendar-plus", "Calendar", `data-cal="${esc(h.id)}"`)}
+      ${past ? "" : act("calendar-plus", "Calendar", `data-cal="${esc(h.id)}" title="Add to Google Calendar"`)}
     </div>
-    ${past ? "" : `<div class="cal-menu" data-cal-menu="${esc(h.id)}" hidden>
-      <a href="${googleLink(h)}" target="_blank" rel="noopener">${googleCalIcon(18)}<span>Google Calendar</span></a>
-      <a href="${appleFile(h)}" download="hangout.ics">${appleCalIcon(18, new Date(h.start))}<span>Apple Calendar</span></a></div>`}
   </div>`;
 }
 
@@ -366,6 +341,19 @@ const rsvp = async (id, answer) => updateDoc(doc(db, "hangouts", id), {
   [`rsvp.${me.uid}`]: answer,
   ...(answer === "going" ? await myWayThere(hangoutDocs[id], inviteMode[id] || myModeFor(hangoutDocs[id])) : {}),
 });
+// can't make it: only you come off the hangout; the others keep it and get told in the chat.
+// If you were the last one going (and nobody's still deciding), there's nothing left, so it's removed.
+async function cantMakeIt(h) {
+  const others = h.attendees.filter(u => u !== me.uid);
+  const deciding = (h.invited || []).filter(u => u !== me.uid && !h.attendees.includes(u) && !h.rsvp?.[u]);
+  if (!others.length && !deciding.length) {  // only the planner may delete it (Firestore rules); anyone else just steps off
+    if (!confirm("Cancel this hangout? Nobody else is going.")) return;
+    return h.createdBy === me.uid ? deleteDoc(doc(db, "hangouts", h.id)) : rsvp(h.id, "declined");
+  }
+  if (!confirm(`Can't make it to ${h.title}? You'll be taken off it, and the others will get a message that you can't come.`)) return;
+  await postLeft(h).catch(() => {});  // while you're still in the group, so you're allowed to post
+  await rsvp(h.id, "declined");
+}
 const changeMode = async (id, mode) => updateDoc(doc(db, "hangouts", id), await myWayThere(hangoutDocs[id], mode));
 
 // both listeners feed this: split into hangouts you're going to and invitations waiting on you
@@ -419,7 +407,6 @@ async function ensureCalToken(user) {
     calToken = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
     await setDoc(ref, { calToken });
   }
-  renderCalendar();
 }
 
 // ---------- actions ----------
@@ -597,13 +584,21 @@ if (configured) {
     const show = e.target.closest("[data-show]");
     if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
     if (b?.dataset.chat) { $("plans").hidden = true; return window.openChat(b.dataset.chat); }
-    if (b?.dataset.cal) { const m = b.closest(".plan-card").querySelector(`[data-cal-menu]`); m.hidden = !m.hidden; b.classList.toggle("on", !m.hidden); return; }
+    if (b?.dataset.cal) return window.open(googleLink(hangoutDocs[b.dataset.cal]), "_blank", "noopener");
     if (b?.dataset.dir) { const h = hangoutDocs[b.dataset.dir]; $("plans").hidden = true;
       const d = new Date(h.start);
       return window.openDirections({ venue: h.venue, name: h.venueName || h.title, start: new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16), mode: myModeFor(h) }); }
-    if (b?.dataset.myMode && !b.classList.contains("on")) { b.textContent = "…"; await changeMode(b.dataset.myMode, b.dataset.mode); }
-    if (b?.dataset.cancelHangout && confirm("Cancel this hangout for everyone?")) await deleteDoc(doc(db, "hangouts", b.dataset.cancelHangout));
-    if (b?.dataset.leave && confirm("Can't make it? You'll be taken off this hangout.")) await rsvp(b.dataset.leave, "declined");
+    if (b?.dataset.myMode && !b.classList.contains("on")) {
+      // light up the new way right away; the leave time updates when the save comes back
+      const row = b.parentElement, was = row.querySelector(".on");
+      if (row.classList.contains("busy")) return;
+      row.querySelectorAll(".mode-chip").forEach(x => x.classList.toggle("on", x === b));
+      row.classList.add("busy");
+      try { await changeMode(b.dataset.myMode, b.dataset.mode); }
+      catch (err) { row.querySelectorAll(".mode-chip").forEach(x => x.classList.toggle("on", x === was)); throw err; }
+      finally { row.classList.remove("busy"); }
+    }
+    if (b?.dataset.leave) await cantMakeIt(hangoutDocs[b.dataset.leave]);
   });
   $("weekList").onclick = e => {
     const card = e.target.closest("[data-week]");
@@ -618,11 +613,6 @@ if (configured) {
     if (b.dataset.going) await rsvp(b.dataset.going, "going");
     if (b.dataset.declineInvite) await rsvp(b.dataset.declineInvite, "declined");
   });
-  $("copyCal").onclick = () => {
-    navigator.clipboard?.writeText(`${location.protocol}//${feedPath()}`);
-    $("copyCal").textContent = "Copied!";
-    setTimeout(() => ($("copyCal").textContent = "Copy link"), 1500);
-  };
   $("friendList").onclick = run(async e => {
     const id = e.target.closest("button")?.dataset.remove;
     if (id) await removeFriend(id);

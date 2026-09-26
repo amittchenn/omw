@@ -139,6 +139,14 @@
     .fair[hidden] { display: none; }
     .fair-form { display: flex; gap: 6px; }
     .fair-form input { flex: 1; min-width: 0; height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--soft); font: inherit; font-size: 14px; font-weight: 700; outline: none; }
+    .cal-confirm { padding: 12px 14px; border-radius: 16px; background: var(--soft); }
+    .cal-confirm b { display: block; font-size: 15px; font-weight: 900; }
+    .cal-confirm small { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .cal-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+    .mini.danger { background: #ffe3e8; color: #d0213f; }
+    .fair-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 13px; font-weight: 900; color: var(--muted); }
+    .fair-done { margin-top: 8px; padding: 10px 12px; border-radius: 14px; background: #dcfbea; color: #0b8a55; font-size: 13px; font-weight: 800; }
+    .fair-done[hidden] { display: none; }
     .fair-card { margin-top: 8px; padding: 12px; border-radius: 18px; background: var(--soft); }
     .fair-card.pick { background: #f1ecff; box-shadow: inset 0 0 0 2px #b9a8ff; }
     .fair-card b { font-size: 15px; }
@@ -360,14 +368,29 @@
     .name { font-weight: 900; font-size: 16px; }
     .chip { display: inline-block; font-size: 11px; font-weight: 900; padding: 2px 9px; border-radius: 999px; margin-top: 2px;
             background: color-mix(in srgb, var(--c) 18%, #fff); color: color-mix(in srgb, var(--c) 70%, #000); }
-    .time { font-size: 20px; font-weight: 900; white-space: nowrap; }
+    .time { font-size: 20px; font-weight: 900; white-space: nowrap; text-align: right; line-height: 1.1; }
+    .time small { display: block; font-size: 10.5px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+    .card-top .who { min-width: 0; }
+    .card .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
+    .card .detail { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 13px; color: var(--ink); }
+    .card .detail .ic { margin: 0; }
+    .card .compare { margin-top: 3px; font-size: 12px; }
+    .dir-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 38px; margin-top: 8px; border: 0; border-radius: 12px;
+               background: #e8f0fe; color: #1a73e8; font: inherit; font-size: 14px; font-weight: 900; cursor: pointer; }
+    .dir-btn:hover { background: #d7e5fd; }
+    .dir-btn .ic { margin: 0; }
     .compare { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--muted); }
     .badge { font-size: 12px; font-weight: 900; padding: 3px 9px; border-radius: 999px; background: #fff0db; color: #c25e00; }
     .badge.ok { background: #dcfbea; color: #0b8a55; }
     .detail { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 6px; }
-    .modes { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
-    .mode-chip { height: 28px; padding: 0 8px; border: 0; border-radius: 999px; background: var(--soft); font-size: 11.5px; font-weight: 800; cursor: pointer; white-space: nowrap; }
-    .mode-chip.on { background: var(--ink); color: #fff; cursor: default; }
+    .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-top: 10px; padding: 3px; border-radius: 12px; background: var(--soft); }
+    .mode-chip { display: flex; align-items: center; justify-content: center; gap: 3px; min-width: 0; height: 30px; padding: 0 2px; border: 0; border-radius: 9px;
+                 background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap; text-transform: capitalize; }
+    .mode-chip .ic { width: 14px; height: 14px; margin: 0; }
+    .mode-chip.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .14); cursor: default; }
+    .mode-chip { transition: background .2s, color .2s, box-shadow .2s; }
+    .modes.busy .mode-chip.on { animation: modePulse .9s ease-in-out infinite; }
+    @keyframes modePulse { 50% { opacity: .55; } }
     .status { margin-top: 8px; font-size: 13px; font-weight: 900; padding: 7px 11px; border-radius: 12px; background: var(--soft); }
     .status:empty { display: none; }
     .status.warn { background: #fff0db; color: #c25e00; }
@@ -455,6 +478,7 @@
                 font-size: 13px; font-weight: 700; text-align: center; }
     .msg-auto.late { background: #fff0db; color: #b25400; }
     .msg-auto.omw { background: #e6f1ff; color: #0a5cb8; }
+    .msg-auto.left { background: #ffe8e8; color: #c62828; }
     .msg-auto time { display: inline; margin-left: 4px; }
     .chat-quick { display: flex; gap: 6px; padding-top: 8px; }
     .chat-send { display: flex; gap: 6px; padding-top: 8px; }
@@ -495,11 +519,6 @@
     .act:hover .act-ic, .act.on .act-ic { background: #e8f0fe; }
     .act.primary .act-ic { background: #1a73e8; color: #fff; box-shadow: none; }
     .act .unread { position: absolute; top: -3px; right: -5px; margin: 0; }
-    .cal-menu { display: flex; gap: 6px; margin-top: 10px; }
-    .cal-menu[hidden] { display: none; }
-    .cal-menu a { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 10px; border-radius: 14px;
-                  background: var(--soft); color: var(--ink); font-size: 13px; font-weight: 800; text-decoration: none; }
-    .cal-menu a svg { flex: none; }
 
     /* ---------- friends drawer ---------- */
     .drawer { position: fixed; inset: 0; z-index: 1500; background: rgba(15, 15, 30, .45); display: flex; justify-content: flex-start;
@@ -792,6 +811,7 @@
       <div id="fairList"></div>
       <div class="muse-confirm" id="fairConfirm" hidden></div>
     </div>
+    <div class="fair-done" id="fairDone" hidden></div>
   </div>
 
   <div class="section">
@@ -914,12 +934,8 @@
 
     <div class="section">
       <div class="label">Calendar</div>
-      <div class="home-line">Every hangout you're part of goes into your calendar automatically, with your leave-now alert.</div>
+      <div class="home-line">Every hangout you're part of goes into your Google Calendar automatically, with your leave-now alert.</div>
       <div id="gcalBox"></div>
-      <div class="cal-gap"></div>
-      <a class="cal-btn" id="calApple" href="#"><span id="appleIcon"></span> Subscribe in Apple Calendar</a>
-      <div class="note" id="calNote"></div>
-      <button class="wide" id="copyCal" style="margin-top:10px">Copy link for other calendar apps</button>
     </div>
 
     <div class="section">
@@ -1739,6 +1755,7 @@ function museConfirm(note, boxId = "museConfirm", options) {
       box.innerHTML = `<b>${icon("circle-check")} Invites sent</b><small>${esc(who.map(p => p.name).join(", "))} will see it in My plans${text ? ", with your message in the group chat" : ""}.
         It goes on their schedule once they tap Going. Their leave-now alerts are below.</small>`;
       if (boxId === "museConfirm") { $("museText").value = ""; $("museMsg").textContent = ""; }
+      box._onSent?.();
     } catch (err) {
       sendBtn.disabled = false; sendBtn.textContent = "Try again";
       q(".mc-err")?.remove();
@@ -1749,9 +1766,13 @@ function museConfirm(note, boxId = "museConfirm", options) {
 
 // ---------- Muse: a spot that's fair for everyone ----------
 const fairPins = L.layerGroup().addTo(map);
+function closeFair() {  // Cancel, or after the invites go out: put the options away
+  $("fair").hidden = true; $("fairList").innerHTML = ""; $("fairConfirm").hidden = true; fairPins.clearLayers();
+}
 $("fairBtn").onclick = () => {
-  $("fair").hidden = !$("fair").hidden;
-  if (!$("fair").hidden && !$("fairText").value) $("fairText").value = allTypes().find(t => t[0] === selectedType())?.[2] || "";
+  if (!$("fair").hidden) return closeFair();
+  $("fair").hidden = false; $("fairDone").hidden = true;
+  if (!$("fairText").value) $("fairText").value = allTypes().find(t => t[0] === selectedType())?.[2] || "";
   if (!$("fair").hidden) $("fairText").focus();
 };
 $("fairForm").onsubmit = async e => {
@@ -1761,7 +1782,7 @@ $("fairForm").onsubmit = async e => {
   if (ids.length < 2) return $("fairList").innerHTML = `<div class="note">Pick at least one friend under Who first.</div>`;
   const people = myFriends().filter(p => ids.includes(p.user_id))
     .map(p => ({ id: p.user_id, name: p.isMe ? "You" : p.name, home: p.home || (p.isMe ? window.myFix?.here : null) || null, mode: modeFor[p.user_id] || p.travel_mode }));
-  $("fairConfirm").hidden = true;
+  $("fairConfirm").hidden = true; $("fairDone").hidden = true;
   $("fairList").innerHTML = `<div class="note">Checking everyone's trip to each place…</div>`;
   try {
     const c = map.getCenter();
@@ -1777,7 +1798,8 @@ $("fairForm").onsubmit = async e => {
       html: `<div class="result-pin" ${i === d.pick ? 'style="background:#7b61ff"' : ""}><span>${i === d.pick ? icon("sparkles") : order.indexOf(i) + 1}</span></div>` }) })
       .bindTooltip(esc(p.name), { direction: "top", offset: [0, -28] }).addTo(fairPins));
     map.fitBounds(L.latLngBounds([...d.candidates.map(p => [p.lat, p.lng]), ...people.filter(p => p.home).map(p => p.home)]).pad(0.15), viewPadding());
-    $("fairList").innerHTML = order.map((i, n) => { const p = d.candidates[i];
+    $("fairList").innerHTML = `<div class="fair-head"><span>${d.candidates.length} place${d.candidates.length === 1 ? "" : "s"} for “${esc(query)}”</span>
+        <button class="mini fair-cancel" type="button">Cancel</button></div>` + order.map((i, n) => { const p = d.candidates[i];
       return `<div class="fair-card ${i === d.pick ? "pick" : ""}">
         <b>${i === d.pick ? icon("sparkles") + " " : `${n + 1}. `}${esc(p.name)}</b>
         ${i === d.pick ? `<div class="why">${esc(d.why)}</div>` : ""}
@@ -1787,18 +1809,26 @@ $("fairForm").onsubmit = async e => {
       + (d.missing_home?.length ? `<div class="note">No home set for ${esc(d.missing_home.join(", "))}, so their trip isn't counted.</div>` : "")
       + (d.read_by ? `<div class="note">Picked by ${esc(d.read_by)} from real ${d.candidates[0].sources.includes("google") ? "Google Maps" : ""} trip times.</div>` : "");
     // Meet here: sets the spot, then asks before sending anyone anything
-    $("fairList").onclick = ev => { const b = ev.target.closest("[data-meet]"); if (!b) return;
-      const i = +b.dataset.meet, p = d.candidates[i], type = allTypes().find(t => t[0] === selectedType());
+    $("fairList").onclick = ev => {
+      if (ev.target.closest(".fair-cancel")) return closeFair();
+      const b = ev.target.closest("[data-meet]"); if (!b) return;
+      const i = +b.dataset.meet, p = d.candidates[i];
       setVenue([p.lat, p.lng], p.name, p.address); map.flyTo([p.lat, p.lng], 15);
       $("fairList").querySelectorAll(".fair-card").forEach(c => c.classList.toggle("chosen", c.contains(b)));
-      const reason = i === d.pick ? ` ${d.why}` : ` Everyone's within ${p.worst} min.`;
-      museConfirm(`${type ? type[2] : "Hang out"} at ${p.name}? It's fair for everyone:${reason}`.slice(0, 200), "fairConfirm", d.candidates);
+      // the invite uses what you searched for: Muse writes it for its pick, the others get a simple one
+      const what = query[0].toUpperCase() + query.slice(1);
+      const note = i === d.pick && d.note ? d.note : `${what} at ${p.name}? It's about ${p.worst} min for everyone.`;
+      $("fairConfirm")._onSent = () => { closeFair(); $("fairDone").hidden = false;
+        $("fairDone").innerHTML = `${icon("circle-check")} Invites sent for <b>${esc(p.name)}</b>. Everyone's leave-now alerts are below.`; };
+      $("fairConfirm").innerHTML = "";  // a new place gets its own message
+      museConfirm(note.slice(0, 200), "fairConfirm", d.candidates);
       $("fairConfirm").scrollIntoView({ behavior: "smooth", block: "nearest" }); };
   } catch (err) { $("fairList").innerHTML = `<div class="note">Couldn't pick a spot: ${esc(err.message)}</div>`; }
 };
 
 $("planBtn").onclick = () => { closeHangout(); runPlan(); };
 async function runPlan() {
+  closeHangout();  // stop showing a saved plan; its live updates would redraw over these results
   $("error").textContent = "";
   const user_ids = pickedIds();
   if (!venue) return $("error").textContent = "Search for a place or tap the map to choose where to meet.";
@@ -1858,22 +1888,24 @@ function placeDots(plan) {
 }
 
 function cardHtml(r) {
-  const earlier = minutesBetween(r.alert_time, r.maps_only_alert_time);
+  const earlier = minutesBetween(r.alert_time, r.maps_only_alert_time), mine = r.user_id === myId();
+  const how = MODE[r.travel_mode] || "drive";
   return `<div class="card" style="--c:${colorOf[r.user_id]}" data-user="${r.user_id}">
     ${avatar(r)}
     <div class="card-main">
       <div class="card-top">
-        <div><div class="name">${esc(r.name)}</div><span class="chip">${esc(r.label)}</span></div>
-        <div class="time">${icon("bell")} ${fmt(r.alert_time)}</div>
+        <div class="who"><div class="name">${esc(r.name)}</div><span class="chip" title="${esc(r.label)}">${esc(r.learning ? "Learning" : r.label)}</span></div>
+        <div class="time"><small>Leave at</small>${fmt(r.alert_time)}</div>
       </div>
-      <div class="compare">${r.learning ? `Same as Maps for now: learns ${r.user_id === myId() ? "your" : esc(r.name) + "'s"} habits after the first check-in`
+      <div class="detail">${icon(MODE_ICON[r.travel_mode] || "car")} ${how[0].toUpperCase() + how.slice(1)} · ${Math.round(r.travel_minutes)} min${
+        r.travel_source === "google" ? " · Google Maps" : r.travel_source === "estimate" ? " · rough estimate" : ""}</div>
+      <div class="compare">${r.learning ? `Uses the Maps time until ${mine ? "your" : esc(r.name) + "'s"} first check-in`
         : `Maps says ${fmt(r.maps_only_alert_time)}
-        <span class="badge ${earlier > 2 ? "" : "ok"}">${earlier > 2 ? `${earlier} min earlier` : "right on time"}</span>`}</div>
-      <div class="detail">${modeHtml(r.travel_mode)} · ${Math.round(r.travel_minutes)} min${r.travel_source === "google" ? " (Google Maps)" : r.travel_source === "estimate" ? " (rough estimate)" : ""}${r.learning ? ""
-        : ` · usually leaves ${Math.max(0, Math.round(r.typical_delay_min))} min after the alert (up to ${Math.max(0, Math.round(r.bad_day_delay_min))})`}</div>
+        <span class="badge ${earlier > 2 ? "" : "ok"}">${earlier > 2 ? `${earlier} min earlier` : "right on time"}</span>
+        <span>· usually leaves ${Math.max(0, Math.round(r.typical_delay_min))} min after the alert (up to ${Math.max(0, Math.round(r.bad_day_delay_min))})</span>`}</div>
       <div class="modes">${Object.entries(MODE).map(([m, label]) =>
-        `<button class="mode-chip ${m === r.travel_mode ? "on" : ""}" data-user="${r.user_id}" data-mode="${m}" title="${label}">${modeHtml(m)}</button>`).join("")}</div>
-      ${r.user_id === myId() ? `<button class="mini dark dir-btn" data-dir="1">${icon("route")} Directions</button>` : ""}
+        `<button class="mode-chip ${m === r.travel_mode ? "on" : ""}" data-user="${r.user_id}" data-mode="${m}" title="${label}">${icon(MODE_ICON[m])}${label}</button>`).join("")}</div>
+      ${mine ? `<button class="dir-btn" data-dir="1">${icon("route")} Directions</button>` : ""}
       <div class="status" id="st-${r.user_id}"></div>
     </div>
   </div>`;
@@ -2041,7 +2073,8 @@ const t0 = h => new Date(h.start);
 async function lockIn(plan) {
   const invited = plan.filter(r => r.real);
   const type = allTypes().find(t => t[0] === selectedType()) || TYPES[0];
-  $("lockBtn").disabled = true; $("lockBtn").textContent = "Sending…";
+  const btn = $("lockBtn") || {};  // the planner's button (the Muse card sends without it)
+  btn.disabled = true; btn.textContent = "Sending…";
   try {
     const id = await window.lockInHangout({
       title: `${type[2]} at ${venueName}`,
@@ -2056,10 +2089,10 @@ async function lockIn(plan) {
       travel: Object.fromEntries(invited.map(r => [r.user_id, Math.round(r.travel_minutes * 10) / 10])),  // to learn from check-ins
     });
     const others = invited.length - 1;
-    $("lockBtn").innerHTML = `${icon("circle-check")} ${others > 0 ? `Invites sent to ${others} friend${others === 1 ? "" : "s"}` : "Saved"}`;
+    if ($("lockBtn")) $("lockBtn").innerHTML = `${icon("circle-check")} ${others > 0 ? `Invites sent to ${others} friend${others === 1 ? "" : "s"}` : "Saved"}`;
     return id;
   } catch (e) {
-    $("lockBtn").disabled = false; $("lockBtn").innerHTML = `${icon("send")} Send invites`;
+    if ($("lockBtn")) { $("lockBtn").disabled = false; $("lockBtn").innerHTML = `${icon("send")} Send invites`; }
     $("error").textContent = `Couldn't send: ${e.message}`;
     throw e;
   }
