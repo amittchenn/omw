@@ -30,13 +30,61 @@ let hangoutDocs = {};  // every hangout you're invited to or going to, by id
 const say = (text, ok = false) => { $("addMsg").textContent = text; $("addMsg").className = ok ? "ok" : ""; };
 const randomId = () => Array.from(crypto.getRandomValues(new Uint32Array(6)), n => ID_CHARS[n % ID_CHARS.length]).join("");
 const cleanId = v => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
-// ---------- avatars: everyone gets a cartoon avatar they can restyle (like Snap Map), or their own photo ----------
-const STYLES = [["avataaars", "Classic"], ["adventurer", "Adventurer"], ["lorelei", "Lorelei"], ["notionists", "Sketch"],
-                ["micah", "Micah"], ["big-smile", "Smiley"], ["fun-emoji", "Emoji"], ["pixel-art", "Pixel"]];
+// ---------- avatars: build your own character (like a Bitmoji on Snap Map), or use your own photo ----------
+// A character is a list of parts (skin, hair, eyes, outfit...). DiceBear draws it, so it's just a picture link everyone can load.
 const BGS = ["ffd000", "ffb3c7", "b9a8ff", "8fe3c0", "9fd4ff", "ffc49c", "f1f0f7", "2b2b3a"];
-const avatarUrl = a => `https://api.dicebear.com/9.x/${a.style}/svg?seed=${encodeURIComponent(a.seed)}&backgroundColor=${a.bg}`;
-const defaultAvatar = uid => ({ style: "avataaars", seed: uid, bg: "ffd000" });
-// your Google/Facebook photo by default; a cartoon avatar once you pick one (or if you have no photo)
+const SKINS = ["ffdbb4", "edb98a", "f8d25c", "fd9841", "d08b5b", "ae5d29", "614335"];
+const HAIR_COLORS = ["2c1b18", "4a312c", "724133", "a55728", "b58143", "d6b370", "ecdcbf", "e8e1e1", "c93305", "f59797"];
+const OUTFIT_COLORS = ["262e33", "3c4f5c", "25557c", "5199e4", "65c9ff", "a7ffc4", "ffffb1", "ffdeb5", "ffafb9", "ff488e", "ff5c5c", "e6e6e6", "ffffff"];
+const PARTS = {  // tab -> [label, options] ("none" = go without)
+  top: ["💇 Hair", ["shortFlat", "shortRound", "shortWaved", "shortCurly", "theCaesar", "theCaesarAndSidePart", "sides", "shavedSides",
+                   "frizzle", "shaggy", "shaggyMullet", "dreads01", "dreads02", "fro", "froBand", "curly", "curvy", "bob", "bun", "bigHair",
+                   "straight01", "straight02", "straightAndStrand", "longButNotTooLong", "miaWallace", "frida", "dreads", "none",
+                   "hat", "winterHat1", "winterHat02", "winterHat03", "winterHat04", "hijab", "turban"]],
+  eyes: ["👀 Eyes", ["default", "happy", "wink", "squint", "side", "surprised", "eyeRoll", "hearts", "winkWacky", "closed", "cry", "xDizzy"]],
+  eyebrows: ["🤨 Brows", ["default", "defaultNatural", "flatNatural", "raisedExcited", "raisedExcitedNatural", "upDown", "upDownNatural",
+                          "angry", "angryNatural", "frownNatural", "sadConcerned", "sadConcernedNatural", "unibrowNatural"]],
+  mouth: ["👄 Mouth", ["smile", "default", "twinkle", "tongue", "eating", "serious", "concerned", "disbelief", "grimace", "sad", "screamOpen", "vomit"]],
+  facialHair: ["🧔 Beard", ["none", "beardLight", "beardMedium", "beardMajestic", "moustacheFancy", "moustacheMagnum"]],
+  accessories: ["👓 Glasses", ["none", "prescription01", "prescription02", "round", "wayfarers", "sunglasses", "kurt", "eyepatch"]],
+  clothing: ["👕 Outfit", ["hoodie", "shirtCrewNeck", "shirtVNeck", "shirtScoopNeck", "graphicShirt", "collarAndSweater", "blazerAndShirt", "blazerAndSweater", "overall"]],
+};
+const COLORS = { skin: ["🎨 Skin", SKINS], hair: ["🖌️ Hair color", HAIR_COLORS], clothes: ["🎽 Outfit color", OUTFIT_COLORS], bg: ["🟡 Background", BGS] };
+const TABS = ["skin", "top", "hair", "eyes", "eyebrows", "mouth", "facialHair", "accessories", "clothing", "clothes", "bg"];
+const FACE_TABS = ["eyes", "eyebrows", "mouth", "facialHair", "accessories"];  // zoom in on the face for these
+
+const hash = s => { let h = 2166136261; for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
+// a random (or, from your user id, a fixed) starting character
+function randomLook(seed = Math.random().toString(36)) {
+  const one = (k, list) => list[hash(seed + k) % list.length], roll = k => hash(seed + k) % 100;
+  return { skin: one("s", SKINS), top: one("t", PARTS.top[1].slice(0, 27)), hair: one("h", HAIR_COLORS.slice(0, 7)),
+           eyes: one("e", ["default", "happy", "wink", "squint", "side"]), eyebrows: one("b", ["default", "defaultNatural", "raisedExcited", "flatNatural"]),
+           mouth: one("m", ["smile", "default", "twinkle", "tongue"]),
+           facialHair: roll("f") < 20 ? one("F", PARTS.facialHair[1].slice(1)) : "none",
+           accessories: roll("a") < 25 ? one("A", ["prescription01", "prescription02", "round", "wayfarers"]) : "none",
+           clothing: one("c", PARTS.clothing[1]), clothes: one("C", OUTFIT_COLORS) };
+}
+// only known parts and colors make it into the picture link
+const clean = l => ({ ...Object.fromEntries(Object.entries(PARTS).map(([k, [, opts]]) => [k, opts.includes(l?.[k]) ? l[k] : opts[0]])),
+                      skin: SKINS.includes(l?.skin) ? l.skin : SKINS[1], hair: HAIR_COLORS.includes(l?.hair) ? l.hair : HAIR_COLORS[0],
+                      clothes: OUTFIT_COLORS.includes(l?.clothes) ? l.clothes : OUTFIT_COLORS[3] });
+function lookUrl(look, bg) {
+  const l = clean(look), q = { seed: "omw", backgroundColor: BGS.includes(bg) ? bg : BGS[0], skinColor: l.skin,
+    top: l.top, topProbability: 100, hairColor: l.hair, hatColor: l.clothes, eyes: l.eyes, eyebrows: l.eyebrows, mouth: l.mouth,
+    facialHair: l.facialHair, facialHairProbability: 100, facialHairColor: l.hair,
+    accessories: l.accessories, accessoriesProbability: 100, clothing: l.clothing, clothesColor: l.clothes, clothingGraphic: "pizza" };
+  for (const [k, p] of [["top", "topProbability"], ["facialHair", "facialHairProbability"], ["accessories", "accessoriesProbability"]])
+    if (q[k] === "none") { delete q[k]; q[p] = 0; }
+  return `https://api.dicebear.com/9.x/avataaars/svg?${new URLSearchParams(q)}`;
+}
+// older omw avatars were ready-made styles; they keep working until you build a character
+const avatarUrl = a => a.style === "character" ? lookUrl(a.look, a.bg)
+  : `https://api.dicebear.com/9.x/${a.style}/svg?seed=${encodeURIComponent(a.seed)}&backgroundColor=${a.bg}`;
+const defaultAvatar = uid => ({ style: "character", look: randomLook(uid), bg: "ffd000" });
+// the character you're editing (an older avatar turns into a character the first time you open the editor)
+const myCharacter = () => profile.avatar?.style === "character" ? { ...profile.avatar, look: clean(profile.avatar.look) }
+  : { style: "character", look: randomLook(profile.avatar?.seed || me.uid), bg: BGS.includes(profile.avatar?.bg) ? profile.avatar.bg : "ffd000" };
+// your Google/Facebook photo by default; your character once you make one (or if you have no photo)
 // or a photo you uploaded (shrunk to 256 px and kept on your profile, so it needs no extra storage setup)
 const usesUpload = (a, upload) => !!(a?.useUpload && upload);
 const usesPhoto = (a, user) => !a?.useUpload && !!user?.photoURL && (a?.style ? !!a.usePhoto : true);
@@ -61,7 +109,7 @@ function shrinkPhoto(file) {
     img.src = url;
   });
 }
-let looks = [];  // the 8 options shown in the avatar editor
+let ccTab = "top";  // which part of your character you're changing
 
 const pic = (p, cls = "") => safePhoto(p.photo)
   ? `<div class="avatar ${cls}" style="background-image:url('${esc(safePhoto(p.photo))}')"></div>`
@@ -97,28 +145,34 @@ function renderMe() {
   renderBusy(profile.busy || []);
 }
 
+const nice = v => v === "none" ? "None" : v.replace(/([a-z])([A-Z0-9])/g, "$1 $2").replace(/^./, c => c.toUpperCase());
 function renderAvatarEditor() {
-  const a = profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid);
-  if (!looks.length || looks[0].style !== a.style) looks = [a.seed, ...Array.from({ length: 7 }, () => Math.random().toString(36).slice(2, 8))]
-    .map(seed => ({ style: a.style, seed }));
-  const onPhoto = usesPhoto(profile.avatar, me), onUpload = usesUpload(profile.avatar, profile.upload);
-  const cartoon = !onPhoto && !onUpload;
+  const a = myCharacter(), onPhoto = usesPhoto(profile.avatar, me), onUpload = usesUpload(profile.avatar, profile.upload);
+  const cartoon = !onPhoto && !onUpload, isColor = !!COLORS[ccTab], [, opts] = PARTS[ccTab] || COLORS[ccTab];
+  const value = ccTab === "bg" ? a.bg : a.look[ccTab];
+  // keep your place in the scrolling rows while the editor redraws
+  const keep = { tabs: document.querySelector(".cc-tabs")?.scrollLeft || 0, opts: document.querySelector(".cc-opts")?.scrollTop || 0 };
   $("avatarEditor").innerHTML = `
     <div class="av-mine">
       ${profile.upload ? `<button class="av-upload ${onUpload ? "on" : ""}" data-use-upload="1" title="Use your photo"><img src="${esc(safePhoto(profile.upload))}" alt=""></button>` : ""}
       <label class="wide av-pick">📤 ${profile.upload ? "Upload a different photo" : "Upload a photo"}<input type="file" accept="image/*" id="photoFile" hidden></label>
     </div>
     <div class="note av-err" id="photoMsg"></div>
-    <div class="av-styles">${STYLES.map(([s, n]) => `<button class="${s === a.style && cartoon ? "on" : ""}" data-style="${s}">
-      <img src="${avatarUrl({ style: s, seed: a.seed, bg: a.bg })}" alt=""><small>${n}</small></button>`).join("")}</div>
-    <div class="av-looks">${looks.map(l => `<button class="${l.seed === a.seed && cartoon ? "on" : ""}" data-seed="${esc(l.seed)}">
-      <img src="${avatarUrl({ ...l, bg: a.bg })}" alt=""></button>`).join("")}</div>
-    <div class="av-row"><div class="av-bgs">${BGS.map(c => `<button style="background:#${c}" class="${c === a.bg ? "on" : ""}" data-bg="${c}" title="Background"></button>`).join("")}</div>
-      <button class="mini" data-shuffle="1">🎲 More</button></div>
-    `;
+    <div class="cc-top">
+      <button class="cc-preview ${cartoon ? "on" : ""}" data-use-char="1" title="Use my character"><img src="${esc(lookUrl(a.look, a.bg))}" alt="Your character"></button>
+      <div><b>Your character</b><small>${cartoon ? "This is your picture on omw." : "Change anything, or tap it to use it instead of your photo."}</small>
+        <div class="cc-actions"><button data-random="1">🎲 Surprise me</button></div></div>
+    </div>
+    <div class="cc-tabs">${TABS.map(t => `<button class="${t === ccTab ? "on" : ""}" data-tab="${t}">${(PARTS[t] || COLORS[t])[0]}</button>`).join("")}</div>
+    <div class="cc-opts ${isColor ? "colors" : ""} ${FACE_TABS.includes(ccTab) ? "face" : ""} ${ccTab === "top" ? "head" : ""}">${isColor
+      ? opts.map(c => `<button class="${c === value ? "on" : ""}" style="background:#${c}" data-set="${ccTab}" data-val="${c}" title="${ccTab === "bg" ? "Background" : "Color"}"></button>`).join("")
+      : opts.map(v => `<button class="${v === value ? "on" : ""}" data-set="${ccTab}" data-val="${v}" title="${nice(v)}">
+          <img loading="lazy" src="${esc(lookUrl({ ...a.look, [ccTab]: v }, a.bg))}" alt="${nice(v)}">${v === "none" ? "<small>None</small>" : ""}</button>`).join("")}</div>`;
+  document.querySelector(".cc-tabs").scrollLeft = keep.tabs;
+  document.querySelector(".cc-opts").scrollTop = keep.opts;
 }
 async function saveAvatar(change, upload = profile.upload) {
-  const avatar = { ...(profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid)), usePhoto: false, useUpload: false, ...change };
+  const avatar = { ...(change.useUpload ? profile.avatar || {} : myCharacter()), usePhoto: false, useUpload: false, ...change };
   const photo = photoFor(avatar, me, upload);
   profile = { ...profile, avatar, photo, upload };  // show it right away
   renderMe();
@@ -464,11 +518,11 @@ if (configured) {
   $("avatarEditor").onclick = run(async e => {
     const b = e.target.closest("button");
     if (!b) return;
-    if (b.dataset.style) { looks = []; await saveAvatar({ style: b.dataset.style }); }
-    if (b.dataset.seed) await saveAvatar({ seed: b.dataset.seed });
-    if (b.dataset.bg) await saveAvatar({ bg: b.dataset.bg });
-    if (b.dataset.shuffle) { const a = profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid);
-      looks = [a.seed, ...Array.from({ length: 7 }, () => Math.random().toString(36).slice(2, 8))].map(seed => ({ style: a.style, seed })); renderAvatarEditor(); }
+    if (b.dataset.tab) { ccTab = b.dataset.tab; document.querySelector(".cc-opts").scrollTop = 0; renderAvatarEditor(); }
+    if (b.dataset.set === "bg") await saveAvatar({ bg: b.dataset.val });
+    else if (b.dataset.set) await saveAvatar({ look: { ...myCharacter().look, [b.dataset.set]: b.dataset.val } });
+    if (b.dataset.random) await saveAvatar({ look: randomLook() });
+    if (b.dataset.useChar) await saveAvatar({});
     if (b.dataset.useUpload) await saveAvatar({ useUpload: true });
   });
   $("avatarEditor").addEventListener("change", async e => {  // 📤 picked a picture
