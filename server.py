@@ -2,6 +2,7 @@
 The backend the web app talks to. Run with:  uvicorn server:app --reload
 Then open http://127.0.0.1:8000/docs to try every endpoint in the browser.
 """
+import base64
 import math
 import os
 import random
@@ -16,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from avatar_ai import TooMany, make_avatar, ready as avatars_ready
 from calendar_feed import build_ics, hangouts_for_token
 from muse_features import fair_spot, plan_from_text
 from places import details, place_name, search, search_places, suggest
@@ -173,6 +175,44 @@ def ai_plan(req: AIPlanRequest):
         return plan_from_text(req.text[:500], friends, cats, req.now, req.lat, req.lng)
     except Exception as e:
         raise HTTPException(502, f"Muse couldn't read that: {e}")
+
+
+class AvatarRequest(BaseModel):
+    traits: dict = {}              # {"skin", "hair", "hairColor", "hat", "glasses", "face", "extras": [...]}: only what was picked
+    extra: str = ""                # "anything else", in their own words
+    selfie: Optional[str] = None   # optional photo to base it on, "data:image/jpeg;base64,..."
+    base: Optional[str] = None     # an avatar they already have, to change (traits/extra are then the changes)
+
+
+@app.get("/ai/avatar")
+def ai_avatar_ready():
+    return {"ready": avatars_ready()}
+
+
+@app.post("/ai/avatar")
+async def ai_avatar(req: AvatarRequest, request: Request):
+    """Draws a 3D cartoon avatar from the editor's choices (and a selfie if given), in the style of the ready-made ones."""
+    selfie = None
+    if req.selfie:
+        if not req.selfie.startswith("data:image/jpeg;base64,") or len(req.selfie) > 1_500_000:
+            raise HTTPException(400, "That photo didn't work. Try another one.")
+        selfie = req.selfie.split(",", 1)[1]
+    base = None
+    if req.base:
+        m = re.match(r"^data:(image/(?:png|webp|jpeg));base64,([A-Za-z0-9+/=]+)$", req.base)
+        if not m or len(req.base) > 2_000_000:
+            raise HTTPException(400, "Couldn't read that avatar. Make a new one instead.")
+        base = (base64.b64decode(m.group(2)), m.group(1))
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    try:
+        png = await run_in_threadpool(make_avatar, req.traits, req.extra, selfie, ip, base)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except TooMany as e:
+        raise HTTPException(429, str(e))
+    except Exception as e:
+        raise HTTPException(502, str(e))
+    return {"image": "data:image/png;base64," + png}
 
 
 class FairSpotRequest(BaseModel):
