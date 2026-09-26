@@ -3,7 +3,7 @@
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, updateDoc, setDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const LATE_AFTER_MIN = 5;           // more than 5 minutes after the start counts as late
 const AUTO_NEAR_M = 150, TAP_NEAR_M = 300;
@@ -34,7 +34,17 @@ export function checkInHtml(h) {
   return "";
 }
 
-const record = h => updateDoc(doc(db, "hangouts", h.id), { [`arrivals.${uid}`]: new Date().toISOString() });
+// checking in saves your arrival on the hangout, and one more data point on your profile for the model to learn from:
+// how many minutes after your leave-now alert you actually left (arrival − trip time − alert)
+async function record(h) {
+  const now = new Date();
+  await updateDoc(doc(db, "hangouts", h.id), { [`arrivals.${uid}`]: now.toISOString() });
+  const alert = h.alerts?.[uid], travel = h.travel?.[uid];
+  const habit = { id: h.id, late: Math.round(minutesLate(h, now) * 10) / 10 };
+  if (alert && typeof travel === "number") habit.delay = Math.round(((now - new Date(alert)) / 6e4 - travel) * 10) / 10;
+  await setDoc(doc(db, "users", uid), { habits: arrayUnion(habit) }, { merge: true }).catch(() => {});
+  window.dispatchEvent(new CustomEvent("checked-in", { detail: { h, late: habit.late } }));  // the group chat announces it
+}
 
 async function checkIn(button) {
   const h = hangouts.find(x => x.id === button.dataset.checkin);

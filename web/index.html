@@ -198,6 +198,14 @@
     .timeline .tick { position: absolute; top: 54px; font-size: 11px; color: var(--muted); font-weight: 900; }
     .card { display: flex; gap: 12px; padding: 14px; border-radius: 22px; background: #fff; box-shadow: var(--shadow-sm); transition: transform .12s; }
     .card:hover { transform: translateY(-2px); }
+    .card.busy .card-top, .card.busy .compare, .card.busy .detail { opacity: .45; transition: opacity .2s; }
+    .card.busy .time::after { content: ""; display: inline-block; width: 14px; height: 14px; margin-left: 8px; vertical-align: middle;
+                              border: 3px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .card.changed .time, .card.changed .detail { animation: freshen .6s ease-out; }
+    @keyframes freshen { from { opacity: 0; transform: translateY(-4px); } }
+    .timeline .dot { transition: left .5s cubic-bezier(.3, 1.3, .5, 1); }
+    .mode-chip { transition: background .15s, color .15s; }
     .card > .avatar { width: 52px; height: 52px; border: 3px solid #fff; box-shadow: 0 0 0 3px var(--c); }
     .card-main { flex: 1; min-width: 0; }
     .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
@@ -279,6 +287,30 @@
     .rank-row .pct small { font-size: 11px; font-weight: 800; color: var(--muted); }
     .checkin { margin-top: 6px; }
     .arrived { color: #138a4f !important; font-weight: 800; }
+
+    /* ---------- group chat ---------- */
+    .chat-card { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+    .chat-card .board-title { margin-right: 44px; margin-bottom: 2px; font-size: 22px; }
+    .chat-sub { font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 8px; }
+    #chatNotify .wide { margin-bottom: 8px; background: #fff6bf; }
+    .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 2px; }
+    .msg { align-self: flex-start; max-width: 80%; padding: 8px 12px; border-radius: 18px 18px 18px 6px; background: var(--soft); }
+    .msg.mine { align-self: flex-end; border-radius: 18px 18px 6px 18px; background: var(--ink); color: #fff; }
+    .msg small { display: block; font-size: 11px; font-weight: 900; color: var(--muted); }
+    .msg p { margin: 0; font-weight: 700; white-space: pre-wrap; word-break: break-word; }
+    .msg time, .msg-auto time { display: block; font-size: 10px; font-weight: 800; opacity: .6; margin-top: 2px; }
+    .msg-auto { align-self: center; max-width: 92%; padding: 6px 12px; border-radius: 999px; background: #dcfbea; color: #0b6b45;
+                font-size: 13px; font-weight: 700; text-align: center; }
+    .msg-auto.late { background: #fff0db; color: #b25400; }
+    .msg-auto.omw { background: #e6f1ff; color: #0a5cb8; }
+    .msg-auto time { display: inline; margin-left: 4px; }
+    .chat-quick { display: flex; gap: 6px; padding-top: 8px; }
+    .chat-send { display: flex; gap: 6px; padding-top: 8px; }
+    .chat-send input { flex: 1; min-width: 0; height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--soft); font-weight: 700; outline: none; }
+    .chat-send input:focus { box-shadow: 0 0 0 3px var(--sun); }
+    .chat-send .mini { height: 44px; padding: 0 18px; }
+    .unread { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 2px; border-radius: 999px;
+              background: var(--red); color: #fff; font-size: 11px; }
 
     /* ---------- invitations ---------- */
     #inviteList { display: flex; flex-direction: column; gap: 8px; }
@@ -600,6 +632,18 @@
   </div>
 </div>
 
+<div class="drawer" id="chat" hidden>
+  <div class="drawer-card chat-card">
+    <button class="x" id="chatClose" title="Close">✕</button>
+    <h2 class="board-title" id="chatTitle">💬 Chat</h2>
+    <div class="chat-sub" id="chatSub"></div>
+    <div id="chatNotify"></div>
+    <div class="chat-list" id="chatList"></div>
+    <div class="chat-quick" id="chatQuick"><button class="mini" data-quick="omw">🏃 On my way</button><button class="mini" data-quick="late">⏰ Running late</button></div>
+    <form class="chat-send" id="chatForm"><input id="chatInput" placeholder="Message the group" maxlength="500" autocomplete="off"><button class="mini dark">Send</button></form>
+  </div>
+</div>
+
 <div class="drawer" id="drawer" hidden>
   <div class="drawer-card">
     <button class="x" id="drawerClose" title="Close">✕</button>
@@ -911,6 +955,7 @@ showWeather();
 
 // "Who": you're always in; search your friends list and tap to add or remove people for this plan
 const myFriends = () => window.myFriends || [];
+const myId = () => myFriends().find(p => p.isMe)?.user_id;
 const picked = new Set();  // friends chosen for this plan
 const MODE_LABEL = { driving: "🚗 Drives", walking: "🚶 Walks", cycling: "🚲 Bikes", transit: "🚌 Takes transit" };
 const pickedIds = () => myFriends().filter(p => p.isMe || picked.has(p.user_id)).map(p => p.user_id);
@@ -978,7 +1023,7 @@ $("findBtn").onclick = async () => {
       body: JSON.stringify({ user_ids, hangout_type: selectedType(), from_date: localDate(new Date()),
                              now: new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16), venue: here(),
                              guests: myFriends().filter(p => user_ids.includes(p.user_id))
-                               .map(({ user_id, name, travel_mode, home, busy }) => ({ user_id, name, travel_mode, home, busy })) }),
+                               .map(({ user_id, name, travel_mode, home, busy, habits }) => ({ user_id, name, travel_mode, home, busy, habits })) }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || res.statusText);
@@ -1019,7 +1064,7 @@ async function runPlan() {
       body: JSON.stringify({ user_ids, venue, start_time: $("start").value,
                              hangout_type: selectedType(), modes: modeFor, utc_offset_min: -new Date().getTimezoneOffset(),
                              guests: myFriends().filter(p => user_ids.includes(p.user_id))
-                               .map(({ user_id, name, travel_mode, home }) => ({ user_id, name, travel_mode, home })) }),
+                               .map(({ user_id, name, travel_mode, home, habits }) => ({ user_id, name, travel_mode, home, habits })) }),
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
     showResults(await res.json());
@@ -1030,85 +1075,131 @@ async function runPlan() {
   }
 }
 
+let routeCasing = {};  // the white outline under each route line
+const enrich = r => {
+  const person = people.find(p => p.user_id === r.user_id);
+  r.photo = person?.photo || "";
+  r.real = !!person?.real;  // a signed-in friend
+  r.realName = person?.realName || r.name;  // "You" on your screen, your actual name for everyone else
+  return r;
+};
+
+function summaryInner(plan) {
+  const wouldBeLate = plan.filter(r => r.typical_delay_min >= 3).length, learning = plan.filter(r => r.learning).length;
+  return learning === plan.length
+    ? `🌱 omw is still learning this group. Alerts use Maps times until each person's first check-in, then get tuned to their habits.`
+    : `😬 With Maps alone, <strong>${wouldBeLate} of ${plan.length} friends</strong> would probably show up late.
+       These alerts get everyone to <strong>${esc(venueName)}</strong> by <strong>${fmt(new Date($("start").value))}</strong>.`;
+}
+
+// the leave-time line: dots slide to their new spot when someone switches how they're getting there
+function timelineHtml(plan) {
+  return `<div class="bar"></div>${plan.map(r => `<div class="dot" data-user="${r.user_id}">${avatar(r)}</div>`).join("")}
+    <div class="end">🎯</div><div class="tick" id="tickFirst" style="left:0"></div><div class="tick" style="right:0">${fmt(new Date($("start").value))}</div>`;
+}
+function placeDots(plan) {
+  const start = new Date($("start").value), first = new Date(Math.min(...plan.map(r => +new Date(r.alert_time))));
+  const span = Math.max(start - first, 6e4);
+  plan.forEach(r => {
+    const dot = document.querySelector(`.timeline .dot[data-user="${r.user_id}"]`);
+    if (dot) { dot.style.left = `${((new Date(r.alert_time) - first) / span) * 92 + 2}%`; dot.title = `${r.name} ${fmt(r.alert_time)}`; }
+  });
+  if ($("tickFirst")) $("tickFirst").textContent = fmt(first);
+}
+
+function cardHtml(r) {
+  const earlier = minutesBetween(r.alert_time, r.maps_only_alert_time);
+  return `<div class="card" style="--c:${colorOf[r.user_id]}" data-user="${r.user_id}">
+    ${avatar(r)}
+    <div class="card-main">
+      <div class="card-top">
+        <div><div class="name">${esc(r.name)}</div><span class="chip">${esc(r.label)}</span></div>
+        <div class="time">🔔 ${fmt(r.alert_time)}</div>
+      </div>
+      <div class="compare">${r.learning ? `Same as Maps for now: learns ${r.user_id === myId() ? "your" : esc(r.name) + "'s"} habits after the first check-in`
+        : `Maps says ${fmt(r.maps_only_alert_time)}
+        <span class="badge ${earlier > 2 ? "" : "ok"}">${earlier > 2 ? `${earlier} min earlier` : "right on time"}</span>`}</div>
+      <div class="detail">${MODE[r.travel_mode]} · ${Math.round(r.travel_minutes)} min${r.travel_source === "google" ? " (Google Maps)" : r.travel_source === "estimate" ? " (rough estimate)" : ""}${r.learning ? ""
+        : ` · usually leaves ${Math.max(0, Math.round(r.typical_delay_min))} min after the alert (up to ${Math.max(0, Math.round(r.bad_day_delay_min))})`}</div>
+      <div class="modes">${Object.entries(MODE).map(([m, label]) =>
+        `<button class="mode-chip ${m === r.travel_mode ? "on" : ""}" data-user="${r.user_id}" data-mode="${m}" title="${label}">${label}</button>`).join("")}</div>
+      <div class="status" id="st-${r.user_id}"></div>
+    </div>
+  </div>`;
+}
+
+function bindCard(card) {
+  const uid = card.dataset.user;
+  // hover a card to highlight that friend's route
+  card.onmouseenter = () => { routes[uid]?.setStyle({ weight: 10, dashArray: null }); routes[uid]?.bringToFront(); };
+  card.onmouseleave = () => routes[uid]?.setStyle({ weight: 6, dashArray: "1 10" });
+  card.querySelectorAll(".mode-chip").forEach(b => b.onclick = e => { e.stopPropagation(); switchMode(uid, b.dataset.mode, card); });
+}
+
+function drawRoute(r) {
+  routeCasing[r.user_id] = L.polyline(r.route, { color: "#fff", weight: 10, opacity: .95 }).addTo(layer);
+  routes[r.user_id] = L.polyline(r.route, { color: colorOf[r.user_id], weight: 6, opacity: .95, lineCap: "round", dashArray: "1 10" }).addTo(layer);
+  homeMarkers[r.user_id] = L.marker(r.home, { icon: pal(r, `🔔 ${fmt(r.alert_time)}`) }).addTo(layer);
+}
+
 function showResults(plan) {
   stopSim();
-  plan.forEach(r => {
-    const person = people.find(p => p.user_id === r.user_id);
-    r.photo = person?.photo || "";
-    r.real = !!person?.real;  // a signed-in friend
-    r.realName = person?.realName || r.name;  // "You" on your screen, your actual name for everyone else
-  });
+  plan.forEach(enrich);
   lastPlan = plan;
-  layer.clearLayers(); routes = {}; homeMarkers = {};
+  layer.clearLayers(); routes = {}; homeMarkers = {}; routeCasing = {};
   $("empty").style.display = "none";
-  const bounds = [venue];
-
-  plan.forEach(r => {
-    const c = colorOf[r.user_id];
-    bounds.push(...r.route);
-    L.polyline(r.route, { color: "#fff", weight: 10, opacity: .95 }).addTo(layer);
-    routes[r.user_id] = L.polyline(r.route, { color: c, weight: 6, opacity: .95, lineCap: "round", dashArray: "1 10" }).addTo(layer);
-    homeMarkers[r.user_id] = L.marker(r.home, { icon: pal(r, `🔔 ${fmt(r.alert_time)}`) }).addTo(layer);
-  });
-
-  // headline: how many would be late if we only trusted Maps
-  const wouldBeLate = plan.filter(r => r.typical_delay_min >= 3).length;
-  const start = new Date($("start").value);
-  const first = new Date(plan[0].alert_time);
-  const span = Math.max(start - first, 6e4);
-  const pos = iso => ((new Date(iso) - first) / span) * 92 + 2;
+  plan.forEach(drawRoute);
 
   $("results").innerHTML = `
-    <div class="summary">😬 With Maps alone, <strong>${wouldBeLate} of ${plan.length} friends</strong> would probably show up late.
-      These alerts get everyone to <strong>${esc(venueName)}</strong> by <strong>${fmt(start)}</strong>.</div>
+    <div class="summary" id="planSummary">${summaryInner(plan)}</div>
     ${plan.some(r => r.real) ? `<button class="lock" id="lockBtn">📨 Send invites</button>
       <div class="note">Everyone gets an invite in omw. It's saved to the calendar of whoever accepts.</div>` : ""}
     <button class="sim-btn" id="simBtn">▶ Watch hangout day</button>
-    <div class="timeline">
-      <div class="bar"></div>
-      ${plan.map(r => `<div class="dot" style="left:${pos(r.alert_time)}%" title="${esc(r.name)} ${fmt(r.alert_time)}">${avatar(r)}</div>`).join("")}
-      <div class="end">🎯</div>
-      <div class="tick" style="left:0">${fmt(first)}</div>
-      <div class="tick" style="right:0">${fmt(start)}</div>
-    </div>
-    ${plan.map(r => {
-      const earlier = minutesBetween(r.alert_time, r.maps_only_alert_time);
-      return `
-      <div class="card" style="--c:${colorOf[r.user_id]}" data-user="${r.user_id}">
-        ${avatar(r)}
-        <div class="card-main">
-          <div class="card-top">
-            <div><div class="name">${esc(r.name)}</div><span class="chip">${esc(r.label)}</span></div>
-            <div class="time">🔔 ${fmt(r.alert_time)}</div>
-          </div>
-          <div class="compare">Maps says ${fmt(r.maps_only_alert_time)}
-            <span class="badge ${earlier > 2 ? "" : "ok"}">${earlier > 2 ? `${earlier} min earlier` : "right on time"}</span></div>
-          <div class="detail">${MODE[r.travel_mode]} · ${Math.round(r.travel_minutes)} min${r.travel_source === "google" ? " (Google Maps)" : r.travel_source === "estimate" ? " (rough estimate)" : ""} ·
-            usually leaves ${Math.max(0, Math.round(r.typical_delay_min))} min after the alert (up to ${Math.max(0, Math.round(r.bad_day_delay_min))})</div>
-          <div class="modes">${Object.entries(MODE).map(([m, label]) =>
-            `<button class="mode-chip ${m === r.travel_mode ? "on" : ""}" data-user="${r.user_id}" data-mode="${m}" title="${label}">${label}</button>`).join("")}</div>
-          <div class="status" id="st-${r.user_id}"></div>
-        </div>
-      </div>`;
-    }).join("")}`;
-
-  // hover a card to highlight that friend's route
-  document.querySelectorAll(".card").forEach(card => {
-    const line = routes[card.dataset.user];
-    card.onmouseenter = () => { line.setStyle({ weight: 10, dashArray: null }); line.bringToFront(); };
-    card.onmouseleave = () => line.setStyle({ weight: 6, dashArray: "1 10" });
-  });
-  map.fitBounds(bounds, viewPadding());
+    <div class="timeline" id="timeline">${timelineHtml(plan)}</div>
+    ${plan.map(cardHtml).join("")}`;
+  placeDots(plan);
+  document.querySelectorAll("#results .card").forEach(bindCard);
+  map.fitBounds([venue, ...plan.flatMap(r => r.route)], viewPadding());
   $("simBtn").onclick = () => startSim();
-  if ($("lockBtn")) $("lockBtn").onclick = () => lockIn(plan);
-  // switch how someone gets there: re-plan with Google's time for that way
-  document.querySelectorAll(".mode-chip").forEach(b => b.onclick = e => {
-    e.stopPropagation();
-    if (b.classList.contains("on")) return;
-    modeFor[b.dataset.user] = b.dataset.mode;
-    b.textContent = "…";
-    runPlan();
-  });
+  if ($("lockBtn")) $("lockBtn").onclick = () => lockIn(lastPlan);
+}
+
+// switch how one person gets there: only their card, route and dot change (no reloading the whole plan)
+async function switchMode(uid, mode, card) {
+  const old = lastPlan.find(r => r.user_id === uid);
+  if (!old || old.travel_mode === mode || card.classList.contains("busy")) return;
+  stopSim();
+  card.classList.add("busy");
+  card.querySelectorAll(".mode-chip").forEach(x => x.classList.toggle("on", x.dataset.mode === mode));  // feels instant
+  $(`st-${uid}`).textContent = "";
+  try {
+    const guest = myFriends().find(p => p.user_id === uid);
+    const res = await fetch(`${API}/plan`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_ids: [uid], group_size: lastPlan.length, venue, start_time: $("start").value,
+                             hangout_type: selectedType(), modes: { [uid]: mode }, utc_offset_min: -new Date().getTimezoneOffset(),
+                             guests: guest ? [{ user_id: uid, name: guest.name, travel_mode: guest.travel_mode, home: guest.home, habits: guest.habits }] : [] }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+    const r = enrich((await res.json())[0]);
+    modeFor[uid] = mode;
+    lastPlan = lastPlan.map(x => x.user_id === uid ? r : x);
+    routes[uid].setLatLngs(r.route); routeCasing[uid].setLatLngs(r.route);
+    homeMarkers[uid].setIcon(pal(r, `🔔 ${fmt(r.alert_time)}`));
+    const fresh = document.createElement("div");
+    fresh.innerHTML = cardHtml(r);
+    const next = fresh.firstElementChild;
+    next.classList.add("changed");
+    card.replaceWith(next);
+    bindCard(next);
+    placeDots(lastPlan);
+    $("planSummary").innerHTML = summaryInner(lastPlan);
+  } catch (e) {
+    card.classList.remove("busy");
+    card.querySelectorAll(".mode-chip").forEach(x => x.classList.toggle("on", x.dataset.mode === old.travel_mode));
+    $(`st-${uid}`).className = "status warn";
+    $(`st-${uid}`).textContent = `Couldn't get a ${MODE[mode].split(" ")[1]} route: ${e.message}`;
+  }
 }
 
 // tap a plan in My plans: its spot on the map, plus where everyone going is right now (live, around hangout time)
@@ -1208,6 +1299,7 @@ async function lockIn(plan) {
       names: Object.fromEntries(invited.map(r => [r.user_id, r.realName])),
       modes: Object.fromEntries(invited.map(r => [r.user_id, r.travel_mode])),
       alerts: Object.fromEntries(invited.map(r => [r.user_id, new Date(r.alert_time).toISOString()])),
+      travel: Object.fromEntries(invited.map(r => [r.user_id, Math.round(r.travel_minutes * 10) / 10])),  // to learn from check-ins
     });
     const others = invited.length - 1;
     $("lockBtn").textContent = others > 0 ? `✅ Invites sent to ${others} friend${others === 1 ? "" : "s"}` : "✅ Saved";

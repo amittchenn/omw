@@ -3,15 +3,15 @@ Finding a time everyone's free.
 
 1. parse_schedule: the AI (Muse, or OpenAI as backup) turns "class MWF 10-11:30, work Tue/Thu 3-7pm"
    into busy blocks like {"day": "Mon", "start": "10:00", "end": "11:30", "label": "Class"}.
-2. find_times: checks everyone's busy blocks over the next week, then ranks the free slots with the
-   lateness model, so the top picks are the times this group is most likely to show up on time.
+2. find_times: checks everyone's busy blocks over the next week, then scores the free slots with the
+   lateness model (including the rain forecast) and suggests the soonest ones the group is likely to be on time for.
 """
 import json
 import random
 import re
 from datetime import datetime, timedelta
 
-from predictor import predict_many
+from predictor import LEARN_K, predict_many
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -112,6 +112,10 @@ def find_times(people, first_day, days=7, duration_min=120, earliest="09:00", la
     # how late is each person likely to be at each free time? (the lateness model, one batch per person)
     delays = {p["user_id"]: predict_many(p["user_id"], free, travel_mode=p.get("travel_mode", "driving"),
                                          hangout_type=hangout_type, group_size=len(people), raining=raining) for p in people}
+    for p in people:  # real people: nothing until their first check-in, then their own record blends in
+        if "habits" in p:
+            n, total = len(p["habits"]), sum(p["habits"])
+            delays[p["user_id"]] = [0.0 if not n else (total + LEARN_K * float(d)) / (n + LEARN_K) for d in delays[p["user_id"]]]
     scored = []
     for i, t in enumerate(free):
         per_person = {p["name"]: float(delays[p["user_id"]][i]) for p in people}
@@ -137,6 +141,7 @@ def find_times(people, first_day, days=7, duration_min=120, earliest="09:00", la
     worst_overall = max(scored, key=lambda s: s["avg_delay_min"])
     return {"slots": picks, "checked": len(candidates), "free": len(free),
             "worst_free": worst_overall}  # the free time this group would most likely be late to, for contrast
+
 
 if __name__ == "__main__":
     # quick check with demo people, including the one who struggles with mornings

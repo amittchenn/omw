@@ -74,6 +74,23 @@ def predict_departure(user_id, start_time, travel_minutes, travel_mode="driving"
     }
 
 
+LEARN_K = 5  # how many of your own check-ins it takes before they count as much as the model's starting guess
+
+
+def learn_from(habits, model_p50, model_p90):
+    """A real person's (typical, bad-day) delay after their alert, in minutes.
+    habits: how many minutes after their alert they actually left, one per check-in (newest last).
+    No check-ins yet -> (0, 0): we don't guess, their alert is just the Maps time until they've used omw once.
+    Then their own record takes over gradually: after 5 check-ins it's weighted as much as the model."""
+    n = len(habits)
+    if n == 0:
+        return 0.0, 0.0
+    p50 = (sum(habits) + LEARN_K * model_p50) / (n + LEARN_K)
+    worst = sorted(habits)[min(n - 1, int(0.9 * n))]  # their own bad day so far
+    p90 = max(p50 + max(model_p90 - model_p50, 2.0) * LEARN_K / (n + LEARN_K), (n * worst + LEARN_K * model_p90) / (n + LEARN_K), p50)
+    return p50, p90
+
+
 def predict_many(user_id, starts, travel_minutes=15, travel_mode="driving", hangout_type="food", group_size=4, raining=None):
     """Typical delay (minutes) for one person at many possible start times, e.g. to compare time slots.
     Their history is summarized once; only the time, day and rain forecast change, so this is fast."""

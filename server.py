@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from calendar_feed import build_ics, hangouts_for_token
 from places import place_name, search_places
-from predictor import HISTORY, predict_departure
+from predictor import HISTORY, learn_from, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
 from travel import MODES, route, travel_minutes
 from weather import hours_around, weather_at, weather_now
@@ -176,6 +176,7 @@ class Guest(BaseModel):
     travel_mode: str = "driving"
     home: Optional[list[float]] = None  # [lat, lng]; None if they haven't set one yet
     busy: list[dict] = []               # weekly busy blocks, e.g. {"day": "Mon", "start": "10:00", "end": "11:30"}
+    habits: list[float] = []            # minutes after their alert they actually left, from their check-ins in omw
 
 
 class PlanRequest(BaseModel):
@@ -187,6 +188,7 @@ class PlanRequest(BaseModel):
     guests: list[Guest] = []
     modes: dict[str, str] = {}      # someone's way of getting there for THIS plan, e.g. {"u05": "transit"}
     utc_offset_min: Optional[int] = None  # the planner's time zone, so transit can find buses that arrive in time
+    group_size: Optional[int] = None  # re-planning one person: how many are in the whole group
 
 
 @app.post("/plan")
@@ -216,7 +218,16 @@ def plan(req: PlanRequest):
         mode = req.modes.get(uid) if req.modes.get(uid) in MODES else usual  # picked for this plan, or how they usually go
         minutes, path, source = route(tuple(home), tuple(req.venue), mode, arrive_by)
         r = predict_departure(uid, req.start_time, minutes, mode, req.hangout_type,
-                              raining, group_size=len(req.user_ids))
+                              raining, group_size=req.group_size or len(req.user_ids))
+        if uid in guests:
+            # a real person: no guessing until they've checked in once, then their own habits take over
+            habits = guests[uid].habits[-30:]
+            p50, p90 = learn_from(habits, r["typical_delay_min"], r["bad_day_delay_min"])
+            start = datetime.fromisoformat(req.start_time)
+            r.update(typical_delay_min=round(p50, 1), bad_day_delay_min=round(p90, 1), hangouts_in_history=len(habits),
+                     learning=not habits,
+                     alert_time=(start - timedelta(minutes=minutes + max(p90, 0))).isoformat(timespec="minutes"))
+            label = "Learning · Maps time for now" if not habits else f"Learned from {len(habits)} check-in{'s' * (len(habits) > 1)}"
         results.append({**r, "name": name, "label": label, "home": home, "route": path,
                         "travel_mode": mode, "travel_source": source})
     return sorted(results, key=lambda r: r["alert_time"])
@@ -259,7 +270,8 @@ def suggest_times(req: FindTimesRequest):
     for uid in req.user_ids:
         if uid in guests:
             g = guests[uid]
-            people.append({"user_id": uid, "name": g.name, "travel_mode": g.travel_mode, "busy": clean_blocks(g.busy)})
+            people.append({"user_id": uid, "name": g.name, "travel_mode": g.travel_mode, "busy": clean_blocks(g.busy),
+                           "habits": g.habits[-30:]})
         elif uid in set(PEOPLE.user_id):
             person = PEOPLE[PEOPLE.user_id == uid].iloc[0]
             people.append({"user_id": uid, "name": person["name"], "travel_mode": person.travel_mode, "busy": demo_busy(uid)})

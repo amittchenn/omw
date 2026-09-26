@@ -17,6 +17,7 @@ import {
 import { googleCalIcon, appleCalIcon, calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
 import { liveHangouts, sharingNow, shareStart } from "./live.js";
+import { chatHangouts, unreadCount } from "./chat.js";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -35,7 +36,9 @@ const STYLES = [["avataaars", "Classic"], ["adventurer", "Adventurer"], ["lorele
 const BGS = ["ffd000", "ffb3c7", "b9a8ff", "8fe3c0", "9fd4ff", "ffc49c", "f1f0f7", "2b2b3a"];
 const avatarUrl = a => `https://api.dicebear.com/9.x/${a.style}/svg?seed=${encodeURIComponent(a.seed)}&backgroundColor=${a.bg}`;
 const defaultAvatar = uid => ({ style: "avataaars", seed: uid, bg: "ffd000" });
-const photoFor = (a, user) => a?.usePhoto && user?.photoURL ? user.photoURL : avatarUrl(a?.style ? a : defaultAvatar(user.uid));
+// your Google/Facebook photo by default; a cartoon avatar once you pick one (or if you have no photo)
+const usesPhoto = (a, user) => !!user?.photoURL && (a?.style ? !!a.usePhoto : true);
+const photoFor = (a, user) => usesPhoto(a, user) ? user.photoURL : avatarUrl(a?.style ? a : defaultAvatar(user.uid));
 let looks = [];  // the 8 options shown in the avatar editor
 
 const pic = (p, cls = "") => p.photo
@@ -46,7 +49,9 @@ const pic = (p, cls = "") => p.photo
 function publish() {
   const toPerson = (uid, p) => ({ user_id: uid, name: p.name || "Friend", travel_mode: p.travelMode || "driving",
                                   home: p.home ? [p.home.lat, p.home.lng] : null, photo: p.photo || "", real: true, code: p.code || "",
-                                  busy: p.busy || [] });
+                                  busy: p.busy || [],
+                                  // how many minutes after their alert they really left, from their check-ins (the model learns from these)
+                                  habits: (Array.isArray(p.habits) ? p.habits : []).filter(x => typeof x?.delay === "number").slice(-30).map(x => x.delay) });
   window.myFriends = me ? [{ ...toPerson(me.uid, profile), name: "You", realName: profile.name || "Me", isMe: true },
                            ...friendIds.filter(id => friends[id]).map(id => toPerson(id, friends[id]))] : [];
   window.myCategories = profile.categories || [];  // hangout categories you made (emoji + name)
@@ -74,15 +79,15 @@ function renderAvatarEditor() {
   const a = profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid);
   if (!looks.length || looks[0].style !== a.style) looks = [a.seed, ...Array.from({ length: 7 }, () => Math.random().toString(36).slice(2, 8))]
     .map(seed => ({ style: a.style, seed }));
-  const accountPhoto = me.photoURL;
+  const accountPhoto = me.photoURL, onPhoto = usesPhoto(profile.avatar, me);
   $("avatarEditor").innerHTML = `
-    <div class="av-styles">${STYLES.map(([s, n]) => `<button class="${s === a.style && !profile.avatar?.usePhoto ? "on" : ""}" data-style="${s}">
+    <div class="av-styles">${STYLES.map(([s, n]) => `<button class="${s === a.style && !onPhoto ? "on" : ""}" data-style="${s}">
       <img src="${avatarUrl({ style: s, seed: a.seed, bg: a.bg })}" alt=""><small>${n}</small></button>`).join("")}</div>
-    <div class="av-looks">${looks.map(l => `<button class="${l.seed === a.seed && !profile.avatar?.usePhoto ? "on" : ""}" data-seed="${esc(l.seed)}">
+    <div class="av-looks">${looks.map(l => `<button class="${l.seed === a.seed && !onPhoto ? "on" : ""}" data-seed="${esc(l.seed)}">
       <img src="${avatarUrl({ ...l, bg: a.bg })}" alt=""></button>`).join("")}</div>
     <div class="av-row"><div class="av-bgs">${BGS.map(c => `<button style="background:#${c}" class="${c === a.bg ? "on" : ""}" data-bg="${c}" title="Background"></button>`).join("")}</div>
       <button class="mini" data-shuffle="1">🎲 More</button></div>
-    ${accountPhoto ? `<button class="wide av-photo ${profile.avatar?.usePhoto ? "on" : ""}" data-photo="1">📷 Use my ${me.providerData.some(p => p.providerId === "facebook.com") ? "Facebook" : "Google"} photo instead</button>` : ""}`;
+    ${accountPhoto ? `<button class="wide av-photo ${onPhoto ? "on" : ""}" data-photo="1">📷 ${onPhoto ? "Using" : "Use"} my ${me.providerData.some(p => p.providerId === "facebook.com") && !me.providerData.some(p => p.providerId === "google.com") ? "Facebook" : "Google"} photo</button>` : ""}`;
 }
 async function saveAvatar(change) {
   const avatar = { ...(profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid)), usePhoto: false, ...change };
@@ -104,8 +109,9 @@ function renderBusy(blocks) {
 function updateBadge() {  // friend requests on your avatar, hangout invitations on 📅
   $("reqBadge").textContent = incoming.length;
   $("reqBadge").hidden = !incoming.length;
-  $("planBadge").textContent = invites.length;
-  $("planBadge").hidden = !invites.length;
+  const n = invites.length + hangouts.reduce((sum, h) => sum + unreadCount(h.id), 0);  // invitations + unread chat messages
+  $("planBadge").textContent = n;
+  $("planBadge").hidden = !n;
 }
 
 function renderRequests() {
@@ -212,6 +218,7 @@ function planCard(h, { past = false, next = false } = {}) {
     ${past ? "" : checkInHtml(h)}
     <div class="plan-actions">
       ${h.venue ? `<button class="mini dark" data-show="${esc(h.id)}">${past ? "🗺️ Show on map" : "📍 Where is everyone?"}</button>` : ""}
+      <button class="mini" data-chat="${esc(h.id)}">💬 Chat${unreadCount(h.id) ? ` <span class="unread">${unreadCount(h.id)}</span>` : ""}</button>
       ${past ? "" : `<a class="mini" href="${googleLink(h)}" target="_blank" rel="noopener" title="Add to Google Calendar">${googleCalIcon(20)}</a>
         <a class="mini" href="${appleFile(h)}" download="hangout.ics" title="Add to Apple Calendar">${appleCalIcon(20, new Date(h.start))}</a>`}
     </div>
@@ -269,14 +276,19 @@ async function myAlert(h, mode) {
   const res = await fetch("/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
     user_ids: [me.uid], venue: h.venue, start_time: localIso(h.start), hangout_type: h.type || "food", modes: { [me.uid]: mode },
     utc_offset_min: -new Date().getTimezoneOffset(),
-    guests: [{ user_id: me.uid, name: profile.name || "Me", travel_mode: mode, home: profile.home ? [profile.home.lat, profile.home.lng] : null }] }) });
+    guests: [{ user_id: me.uid, name: profile.name || "Me", travel_mode: mode, home: profile.home ? [profile.home.lat, profile.home.lng] : null,
+               habits: window.myFriends?.find(p => p.isMe)?.habits || [] }] }) });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
-  return new Date((await res.json())[0].alert_time).toISOString();
+  const [r] = await res.json();
+  return { alert: new Date(r.alert_time).toISOString(), travel: Math.round(r.travel_minutes * 10) / 10 };
 }
 async function myWayThere(h, mode) {  // { modes.me, alerts.me } to save; keeps the old alert if the planner can't be reached
   const update = { [`modes.${me.uid}`]: mode };
   if (h.venue && (mode !== h.modes?.[me.uid] || !h.alerts?.[me.uid])) {
-    try { update[`alerts.${me.uid}`] = await myAlert(h, mode); } catch { /* keep the planner's alert */ }
+    try {
+      const { alert, travel } = await myAlert(h, mode);
+      update[`alerts.${me.uid}`] = alert; update[`travel.${me.uid}`] = travel;
+    } catch { /* keep the planner's alert */ }
   }
   return update;
 }
@@ -300,6 +312,7 @@ function sortHangouts() {
   calendarHangouts(hangouts);  // push them straight into Google Calendar if connected
   leaderboardHangouts(hangouts);  // check-ins and the "who's always late" board
   liveHangouts(hangouts);  // share your location with the group around hangout time
+  chatHangouts(hangouts, profile.name);  // the group chat for each one (arrivals get announced there)
   window.hangoutsChanged?.(hangoutDocs);  // the map, if it's showing one of them
 }
 
@@ -399,6 +412,7 @@ let db;
 const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE");
 
 $("userPic").onclick = () => { $("drawer").hidden = false; };
+window.addEventListener("chat-changed", () => { if (me) { renderHangouts(); updateBadge(); } });
 $("drawerClose").onclick = () => { $("drawer").hidden = true; };
 $("drawer").onclick = e => { if (e.target.id === "drawer") $("drawer").hidden = true; };
 
@@ -427,7 +441,7 @@ if (configured) {
     if (b.dataset.bg) await saveAvatar({ bg: b.dataset.bg });
     if (b.dataset.shuffle) { const a = profile.avatar?.style ? profile.avatar : defaultAvatar(me.uid);
       looks = [a.seed, ...Array.from({ length: 7 }, () => Math.random().toString(36).slice(2, 8))].map(seed => ({ style: a.style, seed })); renderAvatarEditor(); }
-    if (b.dataset.photo) await saveAvatar({ usePhoto: !profile.avatar?.usePhoto });
+    if (b.dataset.photo) await saveAvatar({ usePhoto: !usesPhoto(profile.avatar, me) });
   });
   $("readSched").onclick = async () => {
     const text = $("schedText").value.trim();
@@ -479,6 +493,7 @@ if (configured) {
     const b = e.target.closest("button, a");
     const show = e.target.closest("[data-show]");
     if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
+    if (b?.dataset.chat) { $("plans").hidden = true; return window.openChat(b.dataset.chat); }
     if (b?.dataset.myMode && !b.classList.contains("on")) { b.textContent = "…"; await changeMode(b.dataset.myMode, b.dataset.mode); }
     if (b?.dataset.cancelHangout && confirm("Cancel this hangout for everyone?")) await deleteDoc(doc(db, "hangouts", b.dataset.cancelHangout));
     if (b?.dataset.leave && confirm("Can't make it? You'll be taken off this hangout.")) await rsvp(b.dataset.leave, "declined");

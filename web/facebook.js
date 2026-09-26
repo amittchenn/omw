@@ -100,7 +100,8 @@ async function sync() {
     if (photo && !me.picture.data.is_silhouette && (!user.photoURL || /facebook|fbcdn|fbsbx/.test(user.photoURL))) {
       await updateProfile(user, { photoURL: photo });
       // your omw avatar stays unless you picked "Use my photo" in your profile
-      if ((await getDoc(doc(db, "users", user.uid))).data()?.avatar?.usePhoto) {
+      const avatar = (await getDoc(doc(db, "users", user.uid))).data()?.avatar;
+      if (!avatar?.style || avatar.usePhoto) {
         await setDoc(doc(db, "users", user.uid), { photo }, { merge: true });
       }
     }
