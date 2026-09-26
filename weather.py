@@ -12,13 +12,13 @@ RAIN_CHANCE = 50   # % chance at which we treat the hangout as rainy
 RAIN_MM = 0.3      # or this much rain expected in that hour
 _cache = {}        # (lat, lng) rounded -> (fetched_at, {"hours": {hour: (chance, mm, code, temp_c)}, "now": {...}})
 
-ICONS = [((0,), "☀️", "Clear"), ((1, 2), "🌤️", "Mostly sunny"), ((3,), "☁️", "Cloudy"), ((45, 48), "🌫️", "Foggy"),
-         (range(51, 68), "🌧️", "Rain"), (range(71, 78), "❄️", "Snow"), (range(80, 83), "🌦️", "Showers"),
-         (range(85, 87), "❄️", "Snow showers"), (range(95, 100), "⛈️", "Storms")]
+ICONS = [((0,), "sun", "Clear"), ((1, 2), "cloud-sun", "Mostly sunny"), ((3,), "cloud", "Cloudy"), ((45, 48), "cloud-fog", "Foggy"),
+         (range(51, 68), "cloud-rain", "Rain"), (range(71, 78), "snowflake", "Snow"), (range(80, 83), "cloud-drizzle", "Showers"),
+         (range(85, 87), "snowflake", "Snow showers"), (range(95, 100), "cloud-lightning", "Storms")]
 
 
 def _look(code):
-    return next(((i, l) for codes, i, l in ICONS if code in codes), ("🌡️", "Weather"))
+    return next(((i, l) for codes, i, l in ICONS if code in codes), ("thermometer", "Weather"))
 
 
 def _get(lat, lng):
@@ -52,7 +52,7 @@ def weather_at(lat, lng, when):
     except Exception:
         chance = mm = code = temp = None
     if chance is None and code is None:
-        return {"known": False, "raining": False, "rain_chance": None, "icon": "🌡️", "label": "No forecast yet", "temp_c": None}
+        return {"known": False, "raining": False, "rain_chance": None, "icon": "thermometer", "label": "No forecast yet", "temp_c": None}
     icon, label = _look(code)
     return {"known": True, "raining": (chance or 0) >= RAIN_CHANCE or (mm or 0) >= RAIN_MM,
             "rain_chance": chance, "icon": icon, "label": label, "temp_c": temp}

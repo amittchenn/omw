@@ -105,7 +105,7 @@ def build_ics(uid, hangouts, name="omw"):
 
 if __name__ == "__main__":
     # quick check with a made-up hangout
-    demo = [{"id": "abc123", "title": "🍔 Food at Klaus Advanced Computing Building", "start": "2026-09-27T23:00:00.000Z",
+    demo = [{"id": "abc123", "title": "Food at Klaus Advanced Computing Building", "start": "2026-09-27T23:00:00.000Z",
              "venueName": "Klaus Advanced Computing Building", "address": "266 Ferst Dr NW, Atlanta, GA 30332",
              "venue": [33.7771, -84.3963], "attendees": ["me", "priya"], "attendeeNames": ["Amitt", "Priya"],
              "createdByName": "Priya", "alerts": {"me": "2026-09-27T22:20:00.000Z"}, "tz": "America/New_York"}]

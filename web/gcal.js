@@ -75,7 +75,7 @@ async function sync() {
       if (!now.has(id)) await call("DELETE", `${EVENTS}/${id}`);
     }
     store.set(syncedKey, [...now]);
-    status = `✓ ${now.size ? `${now.size} hangout${now.size === 1 ? "" : "s"} in your Google Calendar` : "Connected. New hangouts will appear here"} · synced ${time(new Date().toISOString())}`;
+    status = `${now.size ? `${now.size} hangout${now.size === 1 ? "" : "s"} in your Google Calendar` : "Connected. New hangouts will appear here"} · synced ${time(new Date().toISOString())}`;
   } catch (e) {
     status = e.expired ? "" : `Couldn't sync: ${e.message}`;
   } finally {

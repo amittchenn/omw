@@ -70,7 +70,7 @@ function render(note = "") {
   box.innerHTML = (found.length
     ? found.map(f => `<div class="person"><div class="avatar" style="background-image:url('${esc(f.photo)}')"></div>
         <div class="who"><b>${esc(f.name)}</b><small>Facebook friend on omw</small></div>
-        ${mine.has(f.uid) ? `<span class="mini-note">Friends ✓</span>`
+        ${mine.has(f.uid) ? `<span class="mini-note">${icon("check")} Friends</span>`
           : requested.has(f.code) ? `<span class="mini-note">Requested</span>`
           : f.code ? `<button class="mini yes" data-fb-add="${esc(f.code)}">Add</button>`
           : `<span class="mini-note">Still setting up</span>`}</div>`).join("")

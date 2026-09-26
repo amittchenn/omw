@@ -22,7 +22,8 @@ import { PARTS, COLOR_PARTS, cleanLook, randomLook, withGender, characterSrc, re
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const MODES = { driving: "🚗 Drive", walking: "🚶 Walk", cycling: "🚲 Bike", transit: "🚌 Transit" };
+const MODES = { driving: "Drive", walking: "Walk", cycling: "Bike", transit: "Transit" };
+const MODE_ICON = { driving: "car", walking: "footprints", cycling: "bike", transit: "bus" };
 const ID_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";  // no 0/O or 1/I/L, so IDs are easy to read out loud
 
 let me = null, profile = {}, friendIds = [], friends = {}, incoming = [], outgoing = [], hangouts = [], invites = [], calToken = "", stop = [];
@@ -97,16 +98,16 @@ function renderMe() {
   $("meCode").textContent = profile.code || "······";
   $("meModes").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === (profile.travelMode || "driving")));
   $("meHome").innerHTML = profile.home
-    ? `✅ <b>${esc(profile.homeName || "Home set")}</b>${profile.homeAddress ? `<small>${esc(profile.homeAddress)}</small>` : ""}`
-    : `⚠️ Not set yet. The planner needs it to time your alerts.`;
-  if ($("setHome").dataset.busy !== "1") $("setHome").textContent = profile.home ? "📍 Update to where I am now" : "📍 Use my current location";
+    ? `${icon("circle-check")} <b>${esc(profile.homeName || "Home set")}</b>${profile.homeAddress ? `<small>${esc(profile.homeAddress)}</small>` : ""}`
+    : `${icon("triangle-alert")} Not set yet. The planner needs it to time your alerts.`;
+  if ($("setHome").dataset.busy !== "1") $("setHome").textContent = profile.home ? "Update to where I am now" : "Use my current location";
   if (document.activeElement !== $("schedText")) $("schedText").value = profile.scheduleText || "";
   renderBusy(profile.busy || []);
 }
 
-const TABS = { gender: "🧑 Gender", skin: "🎨 Skin", face: "🙂 Face", hair: "💇 Hair", hairColor: "🖌️ Hair color", eyes: "👀 Eyes", eyeColor: "🔵 Eye color",
-               brows: "🤨 Brows", nose: "👃 Nose", mouth: "👄 Mouth", beard: "🧔 Beard", glasses: "👓 Glasses", outfit: "👕 Outfit",
-               outfitColor: "🎽 Outfit color", bg: "🟡 Background" };
+const TABS = { gender: "Gender", skin: "Skin", face: "Face", hair: "Hair", hairColor: "Hair color", eyes: "Eyes", eyeColor: "Eye color",
+               brows: "Brows", nose: "Nose", mouth: "Mouth", beard: "Beard", glasses: "Glasses", outfit: "Outfit",
+               outfitColor: "Outfit color", bg: "Background" };
 const ZOOM = { face: "head", hair: "head", eyes: "face", eyeColor: "face", brows: "face", nose: "face", mouth: "face", beard: "head", glasses: "face" };
 const GENDERS = { man: "Man", woman: "Woman", nonbinary: "Non-binary" };
 const nice = v => GENDERS[v] || (v === "none" ? "None" : v.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase()));
@@ -127,10 +128,10 @@ function renderAvatarEditor() {
       <div><b>${draft.mode === "character" ? "Your character" : draft.mode === "upload" ? "Your photo" : "Your account photo"}</b>
         <small>${draft.mode === "character" ? "Try things on below, then tap Save." : "Change anything below to use your character instead."}</small>
         <div class="cc-actions">
-          <button data-random="1">🎲 Surprise me</button>
-          ${draft.mode !== "character" ? `<button data-use-char="1">🧑 Use my character</button>` : ""}
-          ${draft.upload && draft.mode !== "upload" ? `<button data-use-upload="1">🖼️ Use my photo</button>` : ""}
-          <label class="cc-upload">📤 Upload<input type="file" accept="image/*" id="photoFile" hidden></label>
+          <button data-random="1">${icon("shuffle")} Surprise me</button>
+          ${draft.mode !== "character" ? `<button data-use-char="1">${icon("user")} Use my character</button>` : ""}
+          ${draft.upload && draft.mode !== "upload" ? `<button data-use-upload="1">${icon("image")} Use my photo</button>` : ""}
+          <label class="cc-upload">${icon("upload")} Upload<input type="file" accept="image/*" id="photoFile" hidden></label>
         </div></div>
     </div>
     <div class="note av-err" id="photoMsg"></div>
@@ -166,7 +167,7 @@ function renderBusy(blocks) {
     : `<div class="note">No busy times saved yet, so the planner assumes you're always free.</div>`;
 }
 
-function updateBadge() {  // friend requests on your avatar, hangout invitations on 📅
+function updateBadge() {  // friend requests on your avatar, hangout invitations on the calendar button
   $("reqBadge").textContent = incoming.length;
   $("reqBadge").hidden = !incoming.length;
   const n = invites.length + hangouts.reduce((sum, h) => sum + unreadCount(h.id), 0);  // invitations + unread chat messages
@@ -180,7 +181,7 @@ function renderRequests() {
     incoming.map(r => `<div class="person">${pic({ name: r.fromName, photo: r.fromPhoto })}
         <div class="who"><b>${esc(r.fromName)}</b><small>wants to be friends</small></div>
         <button class="mini yes" data-accept="${esc(r.from)}">Accept</button>
-        <button class="mini" data-decline="${esc(r.from)}" title="Decline">✕</button></div>`).join("") +
+        <button class="mini" data-decline="${esc(r.from)}" title="Decline">${icon("x")}</button></div>`).join("") +
     outgoing.map(r => `<div class="person">${pic({ name: r.toName })}
         <div class="who"><b>${esc(r.toName)}</b><small>waiting for them to accept</small></div>
         <button class="mini" data-cancel="${esc(r.to)}">Cancel</button></div>`).join("");
@@ -192,10 +193,10 @@ function renderFriends() {
     ? friendIds.filter(id => friends[id]).map(id => {
         const f = friends[id];
         return `<div class="person">${pic(f)}<div class="who"><b>${esc(f.name)}</b>
-          <small>${MODES[f.travelMode || "driving"]} · ${f.home ? "home set" : "no home yet"}</small></div>
-          <button class="mini" data-remove="${esc(id)}" title="Remove friend">✕</button></div>`;
+          <small>${icon(MODE_ICON[f.travelMode || "driving"])} ${MODES[f.travelMode || "driving"]} · ${f.home ? "home set" : "no home yet"}</small></div>
+          <button class="mini" data-remove="${esc(id)}" title="Remove friend">${icon("x")}</button></div>`;
       }).join("")
-    : `<div class="nobody">No friends yet. Share your ID or add someone's 👆</div>`;
+    : `<div class="nobody">No friends yet. Share your ID or add someone's above.</div>`;
 }
 
 // ---------- calendars ----------
@@ -245,17 +246,19 @@ function whoIsComing(h) {  // "Going: You, Priya · Waiting: Sam · Can't: Leo"
 
 // ---------- My plans: every hangout you said yes to stays here, coming up and past ----------
 const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-const MODE_ICON = { driving: "🚗", walking: "🚶", cycling: "🚲", transit: "🚌" };
 function arrivedText(h, u) {
   const t = h.arrivals?.[u];
   if (!t) return "";
   const late = Math.round((new Date(t) - new Date(h.start)) / 6e4);
   return late < -1 ? `arrived ${-late} min early` : late <= 5 ? "arrived on time" : `arrived ${late} min late`;
 }
-function personLine(h, u, past) {  // "🚗 Priya · leaves 6:40pm" (or how it went, once it's over)
+function personLine(h, u, past) {  // "(car) Priya · leaves 6:40pm" (or how it went, once it's over)
   const status = arrivedText(h, u) || (past ? "no check-in" : h.alerts?.[u] ? `leaves ${timeOf(h.alerts[u])}` : "");
-  return `<div><b>${MODE_ICON[h.modes?.[u]] || ""} ${esc(nameOf(h, u))}</b><span>${esc(status)}</span></div>`;
+  return `<div><b>${h.modes?.[u] ? icon(MODE_ICON[h.modes[u]]) : ""} ${esc(nameOf(h, u))}</b><span>${esc(status)}</span></div>`;
 }
+// a row of round buttons with a label under each, like the action row on a Google Maps place
+const act = (ic, label, attrs, cls = "", badge = 0) =>
+  `<button class="act ${cls}" ${attrs}><span class="act-ic">${icon(ic)}${badge ? `<span class="unread">${badge}</span>` : ""}</span><span>${label}</span></button>`;
 function planCard(h, { past = false, next = false } = {}) {
   const invited = h.invited || h.attendees, rsvp = h.rsvp || {};
   const waiting = invited.filter(u => !h.attendees.includes(u) && rsvp[u] !== "declined");
@@ -266,23 +269,25 @@ function planCard(h, { past = false, next = false } = {}) {
     <div class="plan-head"><div class="who"><b>${esc(h.title)}</b>
         <small>${esc(whenText(h))}${h.address ? ` · ${esc(h.address)}` : ""}</small>
         <small>Planned by ${mine ? "you" : esc(h.createdByName || "a friend")}</small></div>
-      ${past ? "" : mine ? `<button class="mini" data-cancel-hangout="${esc(h.id)}" title="Cancel for everyone">✕</button>`
-                         : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">✕</button>`}</div>
-    ${!past && leaveTime(h) ? `<div class="plan-you">🔔 You leave at ${leaveTime(h)}</div>` : ""}
+      ${past ? "" : mine ? `<button class="mini" data-cancel-hangout="${esc(h.id)}" title="Cancel for everyone">${icon("x")}</button>`
+                         : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">${icon("x")}</button>`}</div>
+    ${!past && leaveTime(h) ? `<div class="plan-you">${icon("bell")} You leave at ${leaveTime(h)}</div>` : ""}
     ${past ? "" : modeChips(h, myModeFor(h), "data-my-mode")}
     <div class="plan-people">${h.attendees.map(u => personLine(h, u, past)).join("")}</div>
     ${waiting.length || declined.length ? `<small class="note">${[waiting.length && `Waiting on ${names(waiting)}`,
                                                                    declined.length && `Can't make it: ${names(declined)}`].filter(Boolean).join(" · ")}</small>` : ""}
-    ${past ? "" : sharingNow(h) ? `<small class="note">📡 Sharing your location with the people going until you get there</small>`
-      : `<small class="note">📡 Your location is shared with the group from ${timeOf(new Date(shareStart(h)).toISOString())} (when you should leave) until you arrive</small>`}
+    ${past ? "" : sharingNow(h) ? `<small class="note">${icon("radio")} Sharing your location with the people going until you get there</small>`
+      : `<small class="note">${icon("radio")} Your location is shared with the group from ${timeOf(new Date(shareStart(h)).toISOString())} (when you should leave) until you arrive</small>`}
     ${past ? "" : checkInHtml(h)}
     <div class="plan-actions">
-      ${h.venue ? `<button class="mini dark" data-show="${esc(h.id)}">${past ? "🗺️ Show on map" : "📍 Where is everyone?"}</button>` : ""}
-      ${!past && h.venue ? `<button class="mini" data-dir="${esc(h.id)}">🧭 Directions</button>` : ""}
-      <button class="mini" data-chat="${esc(h.id)}">💬 Chat${unreadCount(h.id) ? ` <span class="unread">${unreadCount(h.id)}</span>` : ""}</button>
-      ${past ? "" : `<a class="mini" href="${googleLink(h)}" target="_blank" rel="noopener" title="Add to Google Calendar">${googleCalIcon(20)}</a>
-        <a class="mini" href="${appleFile(h)}" download="hangout.ics" title="Add to Apple Calendar">${appleCalIcon(20, new Date(h.start))}</a>`}
+      ${!past && h.venue ? act("route", "Directions", `data-dir="${esc(h.id)}"`, "primary") : ""}
+      ${h.venue ? act(past ? "map" : "map-pinned", past ? "Map" : "Live map", `data-show="${esc(h.id)}"`) : ""}
+      ${act("message-circle", "Chat", `data-chat="${esc(h.id)}"`, "", unreadCount(h.id))}
+      ${past ? "" : act("calendar-plus", "Calendar", `data-cal="${esc(h.id)}"`)}
     </div>
+    ${past ? "" : `<div class="cal-menu" data-cal-menu="${esc(h.id)}" hidden>
+      <a href="${googleLink(h)}" target="_blank" rel="noopener">${googleCalIcon(18)}<span>Google Calendar</span></a>
+      <a href="${appleFile(h)}" download="hangout.ics">${appleCalIcon(18, new Date(h.start))}<span>Apple Calendar</span></a></div>`}
   </div>`;
 }
 
@@ -295,7 +300,7 @@ function renderWeek(upcoming) {
   $("weekSection").hidden = !soon.length;
   $("weekList").innerHTML = soon.map(h => `<button class="week-card" data-week="${esc(h.id)}">
       <b>${esc(h.title)}</b><small>${day(h)} · ${timeOf(h.start)}</small>
-      ${leaveTime(h) ? `<small class="leave">🔔 leave ${leaveTime(h)}</small>` : ""}</button>`).join("");
+      ${leaveTime(h) ? `<small class="leave">${icon("bell")} leave ${leaveTime(h)}</small>` : ""}</button>`).join("");
 }
 
 function renderHangouts() {
@@ -317,9 +322,9 @@ function renderInvites() {
       <b>${esc(h.title)}</b>
       <small>${esc(whenText(h))} · from ${esc(h.createdByName || "a friend")}</small>
       <small>${whoIsComing(h)}</small>
-      ${leaveTime(h) ? `<small>🔔 Your leave-now alert would be ${leaveTime(h)}</small>` : ""}
+      ${leaveTime(h) ? `<small>${icon("bell")} Your leave-now alert would be ${leaveTime(h)}</small>` : ""}
       <small>How are you getting there?</small>${modeChips(h, inviteMode[h.id] || myModeFor(h), "data-inv-mode")}
-      <div class="rsvp"><button class="mini yes" data-going="${esc(h.id)}">✓ I'm in</button>
+      <div class="rsvp"><button class="mini yes" data-going="${esc(h.id)}">${icon("check")} I'm in</button>
         <button class="mini" data-decline-invite="${esc(h.id)}">Can't make it</button></div>
     </div>`).join("");
   updateBadge();
@@ -329,7 +334,7 @@ function renderInvites() {
 const inviteMode = {};  // hangout id -> the way you picked on an invitation, before accepting
 const myModeFor = h => h.modes?.[me.uid] || profile.travelMode || "driving";
 const modeChips = (h, current, attr) => `<div class="modes">${Object.entries(MODES).map(([m, label]) =>
-  `<button class="mode-chip ${m === current ? "on" : ""}" ${attr}="${esc(h.id)}" data-mode="${m}">${label}</button>`).join("")}</div>`;
+  `<button class="mode-chip ${m === current ? "on" : ""}" ${attr}="${esc(h.id)}" data-mode="${m}">${icon(MODE_ICON[m])} ${label}</button>`).join("")}</div>`;
 const localIso = iso => { const d = new Date(iso); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); };
 
 // your leave-now time for this hangout if you go this way (same model and Google trip time as the planner used)
@@ -421,18 +426,18 @@ async function ensureCalToken(user) {
 async function sendRequest() {
   const code = cleanId($("addInput").value);
   if (code.length !== 6) return say("Friend IDs are 6 characters, like K7P2QX.");
-  if (code === profile.code) return say("That's your own ID! 😄");
+  if (code === profile.code) return say("That's your own ID!");
   const owner = await getDoc(doc(db, "codes", code));
   if (!owner.exists()) return say("No one has that ID. Double-check it with your friend.");
   const { uid, name } = owner.data();
   if (friendIds.includes(uid)) return say(`You're already friends with ${name}.`);
   if (outgoing.some(r => r.to === uid)) return say(`You already asked ${name}. Waiting for them to accept.`);
-  if (incoming.some(r => r.from === uid)) return say(`${name} already sent you a request. Accept it below 👇`);
+  if (incoming.some(r => r.from === uid)) return say(`${name} already sent you a request. Accept it below.`);
   await setDoc(doc(db, "requests", `${me.uid}_${uid}`), {
     from: me.uid, to: uid, fromName: profile.name, fromPhoto: profile.photo || "", toName: name, createdAt: serverTimestamp(),
   });
   $("addInput").value = "";
-  say(`Request sent to ${name} ✨ You'll be friends once they accept.`, true);
+  say(`Request sent to ${name}. You'll be friends once they accept.`, true);
 }
 
 async function accept(from) {
@@ -442,7 +447,7 @@ async function accept(from) {
   batch.set(doc(db, "users", from, "friends", me.uid), { since: serverTimestamp() });
   batch.delete(doc(db, "requests", `${from}_${me.uid}`));
   await batch.commit();
-  say("You're now friends 🎉", true);
+  say("You're now friends!", true);
 }
 
 async function removeFriend(id) {
@@ -455,7 +460,7 @@ async function removeFriend(id) {
 }
 
 const saveProfile = data => setDoc(doc(db, "users", me.uid), data, { merge: true });
-window.saveCategories = categories => saveProfile({ categories });  // the planner's "＋ New" and ✕ call this
+window.saveCategories = categories => saveProfile({ categories });  // the planner's "New" and delete buttons call this
 
 function run(action) {
   return async (...args) => {
@@ -508,7 +513,7 @@ if (configured) {
     if (b.dataset.save) { b.disabled = true; b.textContent = "Saving…"; return saveAvatar(); }
     renderAvatarEditor();
   });
-  $("avatarEditor").addEventListener("change", async e => {  // 📤 picked a picture: try it on, Save keeps it
+  $("avatarEditor").addEventListener("change", async e => {  // picked a picture: try it on, Save keeps it
     if (e.target.id !== "photoFile" || !e.target.files[0]) return;
     try { draft = { ...draft, mode: "upload", upload: await shrinkPhoto(e.target.files[0]) }; renderAvatarEditor(); }
     catch (err) { $("photoMsg").textContent = err.message; }
@@ -522,12 +527,12 @@ if (configured) {
       if (!res.ok) throw new Error(data.detail || res.statusText);
       await saveProfile({ busy: data.blocks, scheduleText: text });
       const by = data.read_by ? ` (read by ${data.read_by})` : "";
-      $("schedMsg").textContent = data.blocks.length ? `✅ Saved ${data.blocks.length} busy times${by}. Friends' planners will work around them.` : `✅ Saved: no busy times found${by}.`;
+      $("schedMsg").textContent = data.blocks.length ? `Saved ${data.blocks.length} busy times${by}. Friends' planners will work around them.` : `Saved: no busy times found${by}.`;
       $("schedMsg").className = "ok";
     } catch (e) {
       $("schedMsg").textContent = e.message; $("schedMsg").className = "";
     } finally {
-      $("readSched").disabled = false; $("readSched").textContent = "✨ Read my schedule";
+      $("readSched").disabled = false; $("readSched").innerHTML = `${icon("sparkles")} Read my schedule`;
     }
   };
   $("setHome").onclick = () => {
@@ -562,7 +567,7 @@ if (configured) {
       if ($("homeInput").value.trim() !== q) return;
       homeFound = list.filter(p => p.kind === "place");
       $("homeSuggest").innerHTML = homeFound.length
-        ? homeFound.map((p, i) => `<div class="opt" data-home="${i}"><i>🏠</i><div><b>${esc(p.name)}</b><span>${esc(p.address)}</span></div></div>`).join("")
+        ? homeFound.map((p, i) => `<div class="opt" data-home="${i}"><i>${icon("house")}</i><div><b>${esc(p.name)}</b><span>${esc(p.address)}</span></div></div>`).join("")
         : `<div class="none">No matches yet. Keep typing the street and city.</div>`;
     }, 250);
   };
@@ -592,6 +597,7 @@ if (configured) {
     const show = e.target.closest("[data-show]");
     if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
     if (b?.dataset.chat) { $("plans").hidden = true; return window.openChat(b.dataset.chat); }
+    if (b?.dataset.cal) { const m = b.closest(".plan-card").querySelector(`[data-cal-menu]`); m.hidden = !m.hidden; b.classList.toggle("on", !m.hidden); return; }
     if (b?.dataset.dir) { const h = hangoutDocs[b.dataset.dir]; $("plans").hidden = true;
       const d = new Date(h.start);
       return window.openDirections({ venue: h.venue, name: h.venueName || h.title, start: new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16), mode: myModeFor(h) }); }
@@ -668,7 +674,10 @@ if (configured) {
     for (const field of Object.keys(seenBy)) {
       stop.push(onSnapshot(query(collection(db, "hangouts"), where(field, "array-contains", user.uid)), s => {
         seenBy[field] = new Set(s.docs.map(d => d.id));
-        s.docs.forEach(d => (hangoutDocs[d.id] = { ...d.data(), id: d.id }));
+        // older hangouts started their title with an emoji ("🍔 Food at ..."): show it without
+        s.docs.forEach(d => { const h = { ...d.data(), id: d.id };
+          h.title = String(h.title || "Hangout").replace(/^(\p{Extended_Pictographic}|\uFE0F|\u200D|\s)+/u, "");
+          hangoutDocs[d.id] = h; });
         for (const id in hangoutDocs) {  // cancelled: gone from both lists
           if (!seenBy.attendees.has(id) && !seenBy.invited.has(id)) delete hangoutDocs[id];
         }

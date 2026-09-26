@@ -1,6 +1,6 @@
 // Group chat for each hangout, only for the people going. omw posts in it by itself too:
-//   📍 "Peggy arrived · 2 min early"   when someone checks in (automatically once they're within 150 m, or "I'm here")
-//   ⏰ "Peggy is running late · 1.2 km away"   if someone isn't there 5 minutes after the start
+//   "Peggy arrived · 2 min early"   when someone checks in (automatically once they're within 150 m, or "I'm here")
+//   "Peggy is running late · 1.2 km away"   if someone isn't there 5 minutes after the start
 // New messages pop up in omw, and as phone/computer notifications if you allow them.
 // Stored at hangouts/{id}/messages/{auto id} = { from, name, text, kind, at }.
 import { firebaseConfig } from "./firebase-config.js";
@@ -52,7 +52,7 @@ function notify(id, m) {
   window.toast?.({ user_id: m.from, name: m.name, photo: window.myFriends?.find(p => p.user_id === m.from)?.photo || "" },
                  `<b>${esc(h.title)}</b><br>${esc(text)}`, m.kind === "late");
   if ("Notification" in window && Notification.permission === "granted" && (document.hidden || !document.hasFocus())) {
-    const n = new Notification(h.title, { body: text, tag: `${id}:${m.id}`, icon: "/static/logo.svg?v=2" });
+    const n = new Notification(h.title, { body: text, tag: `${id}:${m.id}`, icon: document.getElementById("favicon")?.href });
     n.onclick = () => { window.focus(); openChat(id); n.close(); };
   }
 }
@@ -65,7 +65,7 @@ window.sendChat = (id, text) => send({ id }, text);
 window.addEventListener("checked-in", e => {
   const { h, late } = e.detail;
   const how = late < -1 ? `${Math.round(-late)} min early` : late <= LATE_AFTER_MIN ? "right on time" : `${Math.round(late)} min late`;
-  send(h, `arrived at ${h.venueName || "the spot"} · ${how} 🎉`, "arrived").catch(() => {});
+  send(h, `arrived at ${h.venueName || "the spot"} · ${how}`, "arrived").catch(() => {});
 });
 
 // not there 5 minutes after the start? your own omw lets the group know how far away you are (once per hangout)
@@ -100,15 +100,15 @@ function renderChat() {
   const list = messages[openId] || [];
   store.set(`chatSeen:${me.uid}:${openId}`, Date.now());
   window.dispatchEvent(new Event("chat-changed"));
-  $("chatTitle").textContent = `💬 ${h.title}`;
+  $("chatTitle").textContent = h.title;
   $("chatSub").textContent = `${new Date(h.start).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })} · ` +
     h.attendees.map(u => u === me.uid ? "You" : h.names?.[u] || "Friend").join(", ");
   const canAsk = "Notification" in window && Notification.permission === "default";
-  $("chatNotify").innerHTML = canAsk ? `<button class="wide" id="notifyBtn">🔔 Notify me when people arrive or message</button>` : "";
+  $("chatNotify").innerHTML = canAsk ? `<button class="wide" id="notifyBtn">${icon("bell")} Notify me when people arrive or message</button>` : "";
   if (canAsk) $("notifyBtn").onclick = async () => { await Notification.requestPermission(); renderChat(); };
   $("chatList").innerHTML = list.length ? list.map(m => m.kind === "text"
       ? `<div class="msg ${m.from === me.uid ? "mine" : ""}">${m.from === me.uid ? "" : `<small>${esc(m.name)}</small>`}<p>${esc(m.text)}</p><time>${time(m.at)}</time></div>`
-      : `<div class="msg-auto ${m.kind}">${m.kind === "arrived" ? "📍" : m.kind === "late" ? "⏰" : "🏃"} <b>${m.from === me.uid ? "You" : esc(m.name)}</b> ${esc(m.from === me.uid ? m.text.replace(/^is /, "are ") : m.text)} <time>${time(m.at)}</time></div>`).join("")
+      : `<div class="msg-auto ${m.kind}">${icon(m.kind === "arrived" ? "map-pin-check-inside" : m.kind === "late" ? "clock-alert" : "navigation")} <b>${m.from === me.uid ? "You" : esc(m.name)}</b> ${esc(m.from === me.uid ? m.text.replace(/^is /, "are ") : m.text)} <time>${time(m.at)}</time></div>`).join("")
     : `<div class="nobody">No messages yet. omw posts here when people are on their way, running late or arrive.</div>`;
   $("chatList").scrollTop = $("chatList").scrollHeight;
 }

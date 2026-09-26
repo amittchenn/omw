@@ -78,8 +78,11 @@ def home_page():
 
 @app.get("/config")
 def config():
-    # public Mapbox token (starts with pk.) so the page can draw map tiles
-    return {"mapbox_token": os.getenv("MAPBOX_TOKEN", "")}
+    # public Mapbox token (starts with pk.) so the page can draw map tiles.
+    # google_maps_key shows the Google map inside the directions panel. Everyone who opens the page can see it,
+    # so use a second key limited to your websites (GOOGLE_MAPS_BROWSER_KEY); the server key is only the fallback.
+    return {"mapbox_token": os.getenv("MAPBOX_TOKEN", ""),
+            "google_maps_key": os.getenv("GOOGLE_MAPS_BROWSER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY", "")}
 
 
 @app.get("/places")

@@ -1,10 +1,12 @@
 """
 Travel time and the route line for each person.
-Google Maps (Routes API) first, then Mapbox, then a rough straight-line estimate so the app never breaks.
+Google Maps (Routes API, then the older Directions API) first, then Mapbox, then a rough straight-line estimate so the app never breaks.
 Ways to get there: driving, walking, cycling, transit (transit needs Google; Mapbox has no bus/train routes).
 """
+import html
 import math
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -99,6 +101,45 @@ def _google_step(s):
     return step
 
 
+LEGACY_MODE = {"driving": "driving", "walking": "walking", "cycling": "bicycling", "transit": "transit"}
+
+
+def _google_legacy(origin, dest, mode, arrive_by, steps=False):
+    """Google's older Directions API: used when the Routes API isn't turned on for the key."""
+    params = {"origin": f"{origin[0]},{origin[1]}", "destination": f"{dest[0]},{dest[1]}", "mode": LEGACY_MODE[mode], "key": GOOGLE_KEY}
+    if mode == "driving":
+        params["departure_time"] = "now"  # traffic-aware time
+    if mode == "transit" and arrive_by and arrive_by > datetime.now(timezone.utc):
+        params["arrival_time"] = int(arrive_by.timestamp())
+    r = requests.get("https://maps.googleapis.com/maps/api/directions/json", params=params, timeout=8)
+    r.raise_for_status()
+    data = r.json()
+    if data.get("status") != "OK" or not data.get("routes"):
+        raise ValueError(f"Directions API: {data.get('status')} {data.get('error_message', '')}".strip())
+    best = data["routes"][0]
+    leg = best["legs"][0]
+    minutes = (leg.get("duration_in_traffic") or leg["duration"])["value"] / 60
+    path = decode_polyline(best["overview_polyline"]["points"])
+    if not steps:
+        return minutes, path
+    return minutes, path, leg["distance"]["value"], [_legacy_step(s) for s in leg["steps"]]
+
+
+def _legacy_step(s):
+    text = re.sub(r"<[^>]+>", " ", s.get("html_instructions", ""))
+    step = {"text": re.sub(r"\s+", " ", html.unescape(text)).strip(), "maneuver": s.get("maneuver", ""),
+            "distance_m": s["distance"]["value"], "minutes": s["duration"]["value"] / 60}
+    t = s.get("transit_details")
+    if t:
+        line = t.get("line", {})
+        step["transit"] = {"line": line.get("short_name") or line.get("name", ""), "vehicle": line.get("vehicle", {}).get("name", "Transit"),
+                           "color": line.get("color", ""), "text_color": line.get("text_color", ""), "headsign": t.get("headsign", ""),
+                           "from": t.get("departure_stop", {}).get("name", ""), "to": t.get("arrival_stop", {}).get("name", ""),
+                           "departs": t.get("departure_time", {}).get("text", ""), "arrives": t.get("arrival_time", {}).get("text", ""),
+                           "stops": t.get("num_stops")}
+    return step
+
+
 def _mapbox(origin, dest, mode, steps=False):
     coords = f"{origin[1]},{origin[0]};{dest[1]},{dest[0]}"  # Mapbox wants lng,lat
     r = requests.get(f"https://api.mapbox.com/directions/v5/mapbox/{MAPBOX_MODE[mode]}/{coords}",
@@ -122,6 +163,10 @@ def route(origin, dest, mode="driving", arrive_by=None):
             return (*_google(origin, dest, mode, arrive_by), "google")
         except Exception as e:
             print(f"[travel] Google {mode} failed: {e}")
+        try:
+            return (*_google_legacy(origin, dest, mode, arrive_by), "google")
+        except Exception as e:
+            print(f"[travel] Google Directions API {mode} failed: {e}")
     if TOKEN and mode in MAPBOX_MODE:
         try:
             return (*_mapbox(origin, dest, mode), "mapbox")
@@ -140,6 +185,11 @@ def directions(origin, dest, mode="driving", arrive_by=None):
             return {"minutes": minutes, "distance_m": meters, "path": path, "steps": steps, "source": "google"}
         except Exception as e:
             print(f"[travel] Google {mode} directions failed: {e}")
+        try:
+            minutes, path, meters, steps = _google_legacy(origin, dest, mode, arrive_by, steps=True)
+            return {"minutes": minutes, "distance_m": meters, "path": path, "steps": steps, "source": "google"}
+        except Exception as e:
+            print(f"[travel] Google Directions API {mode} directions failed: {e}")
     if TOKEN and mode in MAPBOX_MODE:
         try:
             minutes, path, meters, steps = _mapbox(origin, dest, mode, steps=True)

@@ -30,8 +30,8 @@ function metersBetween([lat1, lng1], [lat2, lng2]) {
 // friends.js puts this under each hangout in "Your hangouts"
 export function checkInHtml(h) {
   const t = h.arrivals?.[uid];
-  if (t) return `<small class="arrived">✅ Arrived ${time(t)} · ${lateText(minutesLate(h, t))}</small>`;
-  if (checkInOpen(h) && h.venue) return `<button class="mini yes checkin" data-checkin="${esc(h.id)}">📍 I'm here</button>`;
+  if (t) return `<small class="arrived">${icon("circle-check")} Arrived ${time(t)} · ${lateText(minutesLate(h, t))}</small>`;
+  if (checkInOpen(h) && h.venue) return `<button class="mini yes checkin" data-checkin="${esc(h.id)}">${icon("map-pin-check-inside")} I'm here</button>`;
   return "";
 }
 
@@ -54,7 +54,7 @@ async function record(h) {
 async function checkIn(button) {
   const h = hangouts.find(x => x.id === button.dataset.checkin);
   if (!h) return;
-  const reset = text => { button.textContent = text; setTimeout(() => (button.textContent = "📍 I'm here"), 3500); };
+  const reset = text => { button.textContent = text; setTimeout(() => (button.innerHTML = `${icon("map-pin-check-inside")} I'm here`), 3500); };
   button.textContent = "Finding you…";
   try {
     // reuse the auto check-in's latest location if it's fresh; otherwise ask for one
@@ -142,13 +142,13 @@ function rows(board) {
     if (!b.hangouts) return `<div class="rank-row quiet"><div class="rank">·</div>${face(b, i)}
       <div class="who"><b>${esc(b.name)}</b><small>No check-ins yet</small></div></div>`;
     const pct = Math.round(100 * b.on_time / b.hangouts), last = i === ranked.length - 1 && ranked.length > 1;
-    const badge = i === 0 && pct >= 50 ? "👑 Most on time" : last && pct < 50 ? "🐢 Always “omw”"
-      : b.trend_min < -1 ? "📈 Getting better" : b.trend_min > 1 ? "📉 Slipping lately" : "";
+    const badge = i === 0 && pct >= 50 ? `${icon("crown")} Most on time` : last && pct < 50 ? `${icon("turtle")} Always “omw”`
+      : b.trend_min < -1 ? `${icon("trending-up")} Getting better` : b.trend_min > 1 ? `${icon("trending-down")} Slipping lately` : "";
     const usually = b.avg_late_min < -1 ? `usually ${Math.round(-b.avg_late_min)} min early`
       : b.avg_late_min <= 1 ? "usually right on time" : `usually ${Math.round(b.avg_late_min)} min late`;
-    return `<div class="rank-row ${i === 0 ? "first" : ""}"><div class="rank">${["🥇", "🥈", "🥉"][i] || i + 1}</div>${face(b, i)}
+    return `<div class="rank-row ${i === 0 ? "first" : ""}"><div class="rank ${i < 3 ? `r${i + 1}` : ""}">${i + 1}</div>${face(b, i)}
       <div class="who"><b>${esc(b.name)}</b><small>On time ${b.on_time} of ${b.hangouts} · ${usually}</small>
-        ${b.just ? `<small class="just">📍 Just arrived${b.just.where ? ` at ${esc(b.just.where)}` : ""} · ${lateText(b.just.late)}</small>` : ""}
+        ${b.just ? `<small class="just">${icon("map-pin")} Just arrived${b.just.where ? ` at ${esc(b.just.where)}` : ""} · ${lateText(b.just.late)}</small>` : ""}
         ${badge ? `<span class="badge">${badge}</span>` : ""}</div>
       <div class="pct"><b>${pct}%</b><small>on time</small></div></div>`;
   }).join("");
