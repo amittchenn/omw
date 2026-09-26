@@ -151,6 +151,15 @@
     .cal-confirm small { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
     .cal-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 10px; }
     .mini.danger { background: #ffe3e8; color: #d0213f; }
+    .id-edit { margin-top: 10px; padding: 12px; border-radius: 18px; background: var(--soft); text-align: left; }
+    .id-edit[hidden] { display: none; }
+    .id-edit small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .id-edit input { width: 100%; margin-top: 8px; padding: 11px 12px; border: 0; border-radius: 12px; background: #fff; font: inherit; font-size: 18px;
+                     font-weight: 900; letter-spacing: .04em; text-transform: uppercase; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
+    #idMsg { min-height: 18px; margin-top: 6px; font-size: 13px; font-weight: 800; color: var(--muted); }
+    #idMsg.ok { color: #1c8f4f; } #idMsg.bad { color: #d0213f; }
+    .id-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+    .id-actions .mini:disabled { opacity: .4; }
     .person.asking { background: #fff4f5; border-radius: 16px; }
     .person.asking .who b { color: #d0213f; }
     .fair-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 13px; font-weight: 900; color: var(--muted); }
@@ -746,7 +755,8 @@
     .code-box { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding: 12px 14px;
                 border-radius: 20px; background: var(--sun); }
     .code-box small { display: block; font-size: 12px; font-weight: 800; }
-    .code-box b { font-size: 26px; font-weight: 900; letter-spacing: .12em; }
+    .code-box > div { flex: 1; min-width: 0; }
+    .code-box b { display: block; font-size: 24px; font-weight: 900; letter-spacing: .08em; overflow-wrap: anywhere; line-height: 1.15; }
     .mini { height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--soft); font-size: 13px; font-weight: 900;
             cursor: pointer; flex: none; }
     .mini.yes, .mini.dark { background: var(--ink); color: #fff; }
@@ -1148,13 +1158,20 @@
       <input id="meName" maxlength="30" title="Tap to change your name">
       <div class="code-box">
         <div><small>Your friend ID</small><b id="meCode">······</b></div>
+        <button class="mini" id="editCode">Change</button>
         <button class="mini dark" id="copyCode">Copy</button>
+      </div>
+      <div class="id-edit" id="idEdit" hidden>
+        <small>Pick your friend ID: 3 to 15 letters, numbers or _. Friends use it to add you.</small>
+        <input id="idInput" maxlength="15" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. AMITT_23">
+        <div id="idMsg"></div>
+        <div class="id-actions"><button class="mini" id="idCancel">Cancel</button><button class="mini dark" id="idSave" disabled>Save</button></div>
       </div>
     </div>
 
     <div class="section">
       <div class="label">Add a friend</div>
-      <div class="add-row"><input id="addInput" placeholder="Friend ID, e.g. K7P2QX" maxlength="8" autocomplete="off" autocapitalize="characters"><button class="mini dark" id="addBtn">Add</button></div>
+      <div class="add-row"><input id="addInput" placeholder="Friend ID, e.g. K7P2QX" maxlength="15" autocomplete="off" autocapitalize="characters"><button class="mini dark" id="addBtn">Add</button></div>
       <div id="addMsg"></div>
       <div id="requests"></div>
     </div>

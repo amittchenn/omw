@@ -32,7 +32,8 @@ let hangoutDocs = {};  // every hangout you're invited to or going to, by id
 
 const say = (text, ok = false) => { $("addMsg").textContent = text; $("addMsg").className = ok ? "ok" : ""; };
 const randomId = () => Array.from(crypto.getRandomValues(new Uint32Array(6)), n => ID_CHARS[n % ID_CHARS.length]).join("");
-const cleanId = v => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+const cleanId = v => v.toUpperCase().replace(/[^A-Z0-9_]/g, "");
+const ID_RULE = /^[A-Z0-9_]{3,15}$/;  // friend IDs you pick: 3-15 letters, numbers or _ (the same check is in the Firestore rules)
 // ---------- your picture: everything you make or upload is kept in "My pictures", to switch between or delete ----------
 // private/{uid}/avatars/{id} = { kind: "ai", art, bg } | { kind: "upload", art } | { kind: "character", look }, plus at (when it was added)
 // users/{uid}.avatar = the one in use: { kind, id, style, look, bg, v, usePhoto }; users/{uid}.photo = the small JPEG friends see
@@ -617,6 +618,49 @@ async function ensureId(user) {
   }
 }
 
+// pick your own ID: it's yours only if nobody has it (the database refuses to hand out one that's taken),
+// and your old one is freed. Friends and requests are linked to your account, not your ID, so nothing else changes.
+let idCheck = 0;
+async function idStatus(code) {
+  if (code === profile.code) return ["same", "That's your ID now."];
+  if (code.length < 3) return ["bad", "At least 3 characters."];
+  if (!ID_RULE.test(code)) return ["bad", "Only letters, numbers and _ (up to 15)."];
+  const owner = await getDoc(doc(db, "codes", code));
+  return owner.exists() ? ["taken", `${code} is taken. Try another.`] : ["ok", `${code} is available!`];
+}
+async function checkNewId() {
+  const n = ++idCheck, code = cleanId($("idInput").value);
+  $("idMsg").className = ""; $("idMsg").textContent = code ? "Checking…" : "";
+  $("idSave").disabled = true;
+  if (!code) return;
+  await new Promise(r => setTimeout(r, 300));  // wait until they stop typing
+  if (n !== idCheck) return;
+  const [state, text] = await idStatus(code).catch(() => ["bad", "Couldn't check right now. Try again."]);
+  if (n !== idCheck) return;
+  $("idMsg").textContent = text; $("idMsg").className = state === "ok" ? "ok" : state === "same" ? "" : "bad";
+  $("idSave").disabled = state !== "ok";
+}
+async function changeId() {
+  const code = cleanId($("idInput").value), old = profile.code;
+  const [state, text] = await idStatus(code);
+  if (state !== "ok") { $("idMsg").textContent = text; $("idMsg").className = "bad"; return; }
+  $("idSave").disabled = true; $("idSave").textContent = "Saving…";
+  try {
+    const mine = old ? await getDoc(doc(db, "codes", old)) : null;
+    const batch = writeBatch(db);
+    batch.set(doc(db, "codes", code), { uid: me.uid, name: profile.name || "", ...(mine?.data()?.fbId ? { fbId: mine.data().fbId } : {}) });
+    batch.set(doc(db, "users", me.uid), { code }, { merge: true });
+    if (old && mine?.exists() && mine.data().uid === me.uid) batch.delete(doc(db, "codes", old));
+    await batch.commit();  // all or nothing: if someone grabbed it a moment ago, nothing changes
+    profile = { ...profile, code };
+    $("idEdit").hidden = true;
+    renderMe();
+    say(`Your friend ID is now ${code}.`, true);
+  } catch {
+    $("idMsg").textContent = `${code} was just taken. Try another.`; $("idMsg").className = "bad";
+  } finally { $("idSave").textContent = "Save"; }
+}
+
 async function ensureCalToken(user) {
   const ref = doc(db, "private", user.uid);
   const snap = await getDoc(ref);
@@ -630,7 +674,7 @@ async function ensureCalToken(user) {
 // ---------- actions ----------
 async function sendRequest() {
   const code = cleanId($("addInput").value);
-  if (code.length !== 6) return say("Friend IDs are 6 characters, like K7P2QX.");
+  if (!ID_RULE.test(code)) return say("Friend IDs are 3 to 15 letters, numbers or _.");
   if (code === profile.code) return say("That's your own ID!");
   const owner = await getDoc(doc(db, "codes", code));
   if (!owner.exists()) return say("No one has that ID. Double-check it with your friend.");
@@ -693,6 +737,14 @@ if (configured) {
 
   $("addBtn").onclick = run(sendRequest);
   $("addInput").onkeydown = e => { if (e.key === "Enter") run(sendRequest)(); };
+  $("editCode").onclick = () => {
+    $("idEdit").hidden = !$("idEdit").hidden;
+    if (!$("idEdit").hidden) { $("idInput").value = profile.code || ""; $("idMsg").textContent = ""; $("idSave").disabled = true; $("idInput").focus(); $("idInput").select(); }
+  };
+  $("idInput").oninput = () => { const v = cleanId($("idInput").value); if ($("idInput").value !== v) $("idInput").value = v; checkNewId(); };
+  $("idInput").onkeydown = e => { if (e.key === "Enter" && !$("idSave").disabled) run(changeId)(); if (e.key === "Escape") $("idEdit").hidden = true; };
+  $("idSave").onclick = run(changeId);
+  $("idCancel").onclick = () => { $("idEdit").hidden = true; };
   $("copyCode").onclick = () => {
     navigator.clipboard?.writeText(profile.code || "");
     $("copyCode").textContent = "Copied!";
