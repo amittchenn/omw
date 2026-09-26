@@ -42,7 +42,8 @@ const myLook = () => cleanLook(profile.avatar?.style === "real" ? profile.avatar
 async function photoFor(a, user, upload, saved) {
   if (usesUpload(a, upload)) return upload;
   if (usesPhoto(a, user)) return user.photoURL;
-  if (a?.style === "real") return /^data:image\/jpeg/.test(saved || "") ? saved : renderJpeg(a.look);
+  // characters saved before the 3D-style redraw (no v: 2) are drawn again in the new style
+  if (a?.style === "real") return a.v === 2 && /^data:image\/jpeg/.test(saved || "") ? saved : renderJpeg(a.look);
   if (a?.style && saved) return saved;  // an older avatar
   return renderJpeg(randomLook(user.uid));  // no photo at all: a character to start with
 }
@@ -105,10 +106,10 @@ function renderMe() {
   renderBusy(profile.busy || []);
 }
 
-const TABS = { gender: "Gender", skin: "Skin", face: "Face", hair: "Hair", hairColor: "Hair color", eyes: "Eyes", eyeColor: "Eye color",
-               brows: "Brows", nose: "Nose", mouth: "Mouth", beard: "Beard", glasses: "Glasses", outfit: "Outfit",
-               outfitColor: "Outfit color", bg: "Background" };
-const ZOOM = { face: "head", hair: "head", eyes: "face", eyeColor: "face", brows: "face", nose: "face", mouth: "face", beard: "head", glasses: "face" };
+const TABS = { gender: "Gender", skin: "Skin", face: "Face", hair: "Hair", hairColor: "Hair color", hat: "Hat", hatColor: "Hat color",
+               eyes: "Eyes", eyeColor: "Eye color", brows: "Brows", nose: "Nose", mouth: "Mouth", beard: "Beard", glasses: "Glasses",
+               bg: "Background" };
+const ZOOM = { face: "head", hair: "head", eyes: "face", eyeColor: "face", brows: "face", nose: "face", mouth: "face", beard: "head", glasses: "face", hat: "head" };
 const GENDERS = { man: "Man", woman: "Woman" };
 const nice = v => GENDERS[v] || (v === "none" ? "None" : v.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase()));
 const savedDraft = () => ({ mode: usesUpload(profile.avatar, profile.upload) ? "upload" : usesPhoto(profile.avatar, me) ? "photo" : "character",
@@ -152,7 +153,7 @@ function renderAvatarEditor() {
   document.querySelector(".cc-opts").scrollTop = keep.opts;
 }
 async function saveAvatar() {
-  const avatar = { style: "real", look: cleanLook(draft.look), useUpload: draft.mode === "upload", usePhoto: draft.mode === "photo" };
+  const avatar = { style: "real", v: 2, look: cleanLook(draft.look), useUpload: draft.mode === "upload", usePhoto: draft.mode === "photo" };
   const upload = draft.upload || undefined;
   const photo = await photoFor(avatar, me, upload);
   profile = { ...profile, avatar, photo, ...(upload ? { upload } : {}) };  // show it right away
