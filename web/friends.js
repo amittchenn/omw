@@ -18,7 +18,7 @@ import { googleCalIcon, appleCalIcon, calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
 import { liveHangouts, sharingNow, shareStart } from "./live.js";
 import { chatHangouts, unreadCount } from "./chat.js";
-import { PARTS, COLOR_PARTS, cleanLook, randomLook, characterSrc, renderJpeg } from "./character.js";
+import { PARTS, COLOR_PARTS, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -104,11 +104,12 @@ function renderMe() {
   renderBusy(profile.busy || []);
 }
 
-const TABS = { skin: "🎨 Skin", face: "🙂 Face", hair: "💇 Hair", hairColor: "🖌️ Hair color", eyes: "👀 Eyes", eyeColor: "🔵 Eye color",
+const TABS = { gender: "🧑 Gender", skin: "🎨 Skin", face: "🙂 Face", hair: "💇 Hair", hairColor: "🖌️ Hair color", eyes: "👀 Eyes", eyeColor: "🔵 Eye color",
                brows: "🤨 Brows", nose: "👃 Nose", mouth: "👄 Mouth", beard: "🧔 Beard", glasses: "👓 Glasses", outfit: "👕 Outfit",
                outfitColor: "🎽 Outfit color", bg: "🟡 Background" };
 const ZOOM = { face: "head", hair: "head", eyes: "face", eyeColor: "face", brows: "face", nose: "face", mouth: "face", beard: "head", glasses: "face" };
-const nice = v => v === "none" ? "None" : v.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase());
+const GENDERS = { man: "Man", woman: "Woman", nonbinary: "Non-binary" };
+const nice = v => GENDERS[v] || (v === "none" ? "None" : v.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase()));
 const savedDraft = () => ({ mode: usesUpload(profile.avatar, profile.upload) ? "upload" : usesPhoto(profile.avatar, me) ? "photo" : "character",
                             look: myLook(), upload: profile.upload || "" });
 const changed = () => { const s = savedDraft();
@@ -137,7 +138,7 @@ function renderAvatarEditor() {
     <div class="cc-opts ${colors ? "colors" : ""}">${colors
       ? opts.map(c => `<button class="${c === value ? "on" : ""}" style="background:#${c}" data-set="${ccTab}" data-val="${c}" title="Color"></button>`).join("")
       : opts.map(v => `<button class="${v === value ? "on" : ""}" data-set="${ccTab}" data-val="${v}" title="${nice(v)}">
-          <img src="${esc(characterSrc({ ...l, [ccTab]: v }, ZOOM[ccTab] || "full"))}" alt="${nice(v)}">${v === "none" ? "<small>None</small>" : ""}</button>`).join("")}</div>
+          <img src="${esc(characterSrc(ccTab === "gender" ? withGender(l, v) : { ...l, [ccTab]: v }, ZOOM[ccTab] || "full"))}" alt="${nice(v)}">${v === "none" || GENDERS[v] ? `<small>${nice(v)}</small>` : ""}</button>`).join("")}</div>
     <div class="cc-save">
       <button class="wide" data-cancel="1">Cancel</button>
       <button class="wide dark" data-save="1" ${changed() ? "" : "disabled"}>Save</button>
@@ -497,7 +498,8 @@ if (configured) {
     const b = e.target.closest("button");
     if (!b || b.disabled) return;
     if (b.dataset.tab) { ccTab = b.dataset.tab; document.querySelector(".cc-opts").scrollTop = 0; }
-    if (b.dataset.set) draft = { ...draft, mode: "character", look: { ...draft.look, [b.dataset.set]: b.dataset.val } };
+    if (b.dataset.set) draft = { ...draft, mode: "character", look: b.dataset.set === "gender" ? withGender(draft.look, b.dataset.val)
+                                                                                     : { ...draft.look, [b.dataset.set]: b.dataset.val } };
     if (b.dataset.random) draft = { ...draft, mode: "character", look: randomLook() };
     if (b.dataset.useChar) draft = { ...draft, mode: "character" };
     if (b.dataset.useUpload) draft = { ...draft, mode: "upload" };
@@ -546,6 +548,34 @@ if (configured) {
       () => { done(); say("Location blocked. Allow it in your browser's site settings."); },
     );
   };
+  // or type it: addresses as you type (Google Places, or Mapbox/OpenStreetMap if Google isn't set up)
+  let homeTimer, homeFound = [], homeSession = null;
+  $("homeInput").oninput = () => {
+    clearTimeout(homeTimer);
+    const q = $("homeInput").value.trim();
+    if (q.length < 3) { $("homeSuggest").innerHTML = ""; return; }
+    homeTimer = setTimeout(async () => {
+      homeSession ||= crypto.randomUUID?.() || String(Math.random()).slice(2);
+      const c = profile.home || (window.myFix && { lat: window.myFix.here[0], lng: window.myFix.here[1] }) || { lat: 39.8, lng: -98.6 };
+      const list = await fetch(`/places/suggest?q=${encodeURIComponent(q)}&lat=${c.lat}&lng=${c.lng}&session=${homeSession}`).then(r => r.json()).catch(() => []);
+      if ($("homeInput").value.trim() !== q) return;
+      homeFound = list.filter(p => p.kind === "place");
+      $("homeSuggest").innerHTML = homeFound.length
+        ? homeFound.map((p, i) => `<div class="opt" data-home="${i}"><i>🏠</i><div><b>${esc(p.name)}</b><span>${esc(p.address)}</span></div></div>`).join("")
+        : `<div class="none">No matches yet. Keep typing the street and city.</div>`;
+    }, 250);
+  };
+  $("homeSuggest").onmousedown = e => e.preventDefault();  // keep the box focused while you pick
+  $("homeSuggest").onclick = run(async e => {
+    let p = homeFound[+e.target.closest("[data-home]")?.dataset.home];
+    if (!p) return;
+    if (p.lat == null) p = { ...p, ...(await fetch(`/places/details?id=${encodeURIComponent(p.id)}&session=${homeSession}`).then(r => r.json())) };
+    homeSession = null;
+    if (p.lat == null) throw new Error("Couldn't find that address. Try another.");
+    await saveProfile({ home: { lat: p.lat, lng: p.lng }, homeName: p.name, homeAddress: p.address || "" });
+    $("homeInput").value = ""; $("homeSuggest").innerHTML = ""; homeFound = [];
+  });
+  $("homeInput").onblur = () => setTimeout(() => ($("homeSuggest").innerHTML = ""), 200);
   $("requests").onclick = run(async e => {
     const b = e.target.closest("button");
     if (!b) return;

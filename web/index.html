@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>omw</title>
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <meta name="theme-color" content="#FFE600">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -72,6 +74,26 @@
     .opt b { display: block; font-size: 15px; font-weight: 900; }
     .opt span, .none { display: block; font-size: 12px; color: var(--muted); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .none { padding: 14px 16px; white-space: normal; }
+    .suggest { max-height: min(62vh, 520px); overflow-y: auto; }
+    .opt em { margin-left: auto; flex: none; padding-left: 8px; font-style: normal; font-size: 12px; font-weight: 800; color: var(--muted); }
+    .opt div { flex: 1; }
+    .opt b.hit { display: inline; font-weight: 900; color: var(--ink); background: #fff3a6; border-radius: 3px; }
+    .opt b:has(.hit) { font-weight: 700; }
+    .opt i.num { background: var(--ink); color: #fff; font-weight: 900; font-size: 14px; }
+    .opt span span { display: inline; }
+    .stars { color: #e3a400; font-weight: 900; }
+    .open { color: var(--green); font-weight: 900; }
+    .closed { color: var(--red); font-weight: 900; }
+    .list-head { padding: 10px 16px 4px; font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px; }
+    .chip { padding: 7px 12px; border: 0; border-radius: 999px; background: var(--soft); font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+    .chip:hover { background: #fff3a6; }
+    .result-pin { width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--red); border: 2px solid #fff;
+                  box-shadow: 0 3px 8px rgba(0,0,0,.3); display: grid; place-items: center; }
+    .result-pin span { transform: rotate(45deg); color: #fff; font-weight: 900; font-size: 13px; }
+    .search-area { position: fixed; z-index: 900; top: 80px; left: calc(50% + 216px); transform: translateX(-50%); padding: 10px 16px; border: 0;
+                   border-radius: 999px; background: #fff; box-shadow: var(--shadow-sm); font: inherit; font-weight: 900; cursor: pointer; }
+    .search-area[hidden] { display: none; }
 
     .map-hint { position: fixed; top: 80px; left: calc(50% + 216px); transform: translateX(-50%); z-index: 800; background: var(--ink);
                 color: #fff; padding: 10px 18px; border-radius: 999px; font-weight: 800; font-size: 14px; box-shadow: var(--shadow-sm);
@@ -375,7 +397,7 @@
                gap: 8px; margin-top: 6px; max-height: 280px; overflow-y: auto; padding: 4px; }
     .cc-opts button { position: relative; display: block; width: 100%; height: 0; padding: 100% 0 0; border-radius: 18px; background: #fff; overflow: hidden; }
     .cc-opts img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-    .cc-opts button small { position: absolute; left: 0; right: 0; bottom: 4px; font-size: 10px; font-weight: 900; }
+    .cc-opts button small { position: absolute; left: 6px; right: 6px; bottom: 5px; padding: 2px 0; border-radius: 999px; background: rgba(255,255,255,.92); font-size: 10px; font-weight: 900; white-space: nowrap; }
     .cc-opts button.on { box-shadow: 0 0 0 3px var(--ink); }
     .cc-opts.colors { grid-template-columns: repeat(7, minmax(0, 1fr)); }
     .cc-opts.colors button { border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
@@ -389,6 +411,12 @@
     .mode-pick button.on { background: var(--ink); color: #fff; }
     #meHome b { font-weight: 900; }
     #meHome small { display: block; margin: 2px 0 0 26px; font-size: 12px; }
+    .home-search { position: relative; margin: 10px 0 8px; }
+    .home-search input { width: 100%; height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--soft);
+                         font: inherit; font-size: 15px; font-weight: 700; outline: none; box-sizing: border-box; }
+    .home-search input:focus { box-shadow: 0 0 0 3px var(--sun); }
+    .home-suggest { margin-top: 6px; border-radius: 18px; background: #fff; box-shadow: var(--shadow-sm); overflow: hidden; }
+    .home-suggest:empty { display: none; }
     .avatar.big { width: 88px; height: 88px; margin: 0 auto; border: 4px solid #fff; box-shadow: 0 0 0 4px var(--sun), var(--shadow-sm); }
     .avatar.big span { font-size: 28px; }
     .avatar[style*="background-image"] { background-size: cover; background-position: center; }
@@ -496,6 +524,8 @@
       .handle { display: block; cursor: pointer; }
       .hello { cursor: pointer; }
       .map-hint { left: 50%; top: 76px; }
+      .search-area { left: 50%; top: 76px; }
+      .suggest { position: fixed; left: 12px; right: 12px; top: 76px; z-index: 1200; }
       .toasts { top: 76px; }
       .sim { left: 50%; bottom: auto; top: 76px; width: calc(100% - 24px); grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
       .sim-ctrl { grid-column: 1 / -1; justify-content: center; }
@@ -560,6 +590,7 @@
     <button class="clear" id="clearPlace" title="Remove this spot" hidden>✕</button>
     <div class="suggest" id="suggest"></div>
   </div>
+  <button class="search-area" id="searchArea" hidden>🔍 Search this area</button>
 </header>
 <div class="map-hint" id="mapHint">📍 Search a place or tap the map</div>
 <div class="toasts" id="toasts"></div>
@@ -722,6 +753,10 @@
     <div class="section">
       <div class="label">Home</div>
       <div class="home-line" id="meHome"></div>
+      <div class="home-search">
+        <input id="homeInput" placeholder="Type your home address" autocomplete="street-address">
+        <div class="home-suggest" id="homeSuggest"></div>
+      </div>
       <button class="wide" id="setHome">📍 Use my current location</button>
     </div>
 
@@ -841,7 +876,7 @@ function clearVenue() {
   venueMarker?.remove(); venueMarker = null;
   layer.clearLayers(); routes = {}; homeMarkers = {}; lastPlan = [];
   $("results").innerHTML = ""; $("empty").style.display = "";
-  $("placeInput").value = ""; $("clearPlace").hidden = true; hideSuggest();
+  $("placeInput").value = ""; $("clearPlace").hidden = true; hideSuggest(); resultPins.clearLayers(); $("searchArea").hidden = true;
   $("mapHint").style.display = "";
   $("venueSub").textContent = "No spot yet: search above or tap the map";
   showWeather();
@@ -856,41 +891,129 @@ map.on("click", async e => {
   if (venue === latlng) setVenue(latlng, place.name, place.address);
 });
 
-// search box: suggestions as you type
-let searchTimer, found = [], active = -1;
+// ---------- search box, like Google Maps ----------
+// typing: places and searches, closest first · Enter or a category: a full list with ratings, open now and distance,
+// pinned on the map · empty box: quick categories and your recent spots
+const CATEGORIES = [["☕", "Coffee"], ["🍜", "Food"], ["🧋", "Boba"], ["🍕", "Pizza"], ["🍦", "Dessert"], ["📚", "Study spots"],
+                    ["🌳", "Parks"], ["🎳", "Things to do"], ["🍸", "Bars"], ["🛍️", "Shopping"]];
+const TYPE_ICONS = [[/cafe|coffee/, "☕"], [/bakery/, "🥐"], [/bar|night_club/, "🍸"], [/restaurant|food|meal/, "🍽️"], [/park|garden/, "🌳"],
+  [/gym|fitness/, "🏋️"], [/library/, "📚"], [/university|school/, "🎓"], [/movie/, "🎬"], [/bowling|amusement|arcade/, "🎳"],
+  [/museum|art/, "🏛️"], [/store|mall|shop|market/, "🛍️"], [/stadium|sports/, "🏟️"], [/lodging|hotel/, "🏨"], [/transit|station|airport/, "🚉"]];
+const iconFor = types => (TYPE_ICONS.find(([re]) => re.test([].concat(types || []).join(" ").toLowerCase())) || [0, "📍"])[1];
+const MILES = /^en-US|^en-LR|^my/.test(navigator.language || "");
+const howFar = m => m == null ? "" : MILES ? (m < 160 ? `${Math.round(m * 3.281)} ft` : `${(m / 1609).toFixed(m < 16090 ? 1 : 0)} mi`)
+  : m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
+const recentKey = "omwRecentPlaces";
+const recents = () => { try { return JSON.parse(localStorage.getItem(recentKey)) || []; } catch { return []; } };
+const remember = p => { try { localStorage.setItem(recentKey, JSON.stringify([{ name: p.name, address: p.address, lat: p.lat, lng: p.lng },
+  ...recents().filter(r => r.name !== p.name)].slice(0, 5))); } catch { /* private mode */ } };
+// bold the part of the name you typed
+const highlight = (text, q) => { const i = text.toLowerCase().indexOf(q.toLowerCase());
+  return i < 0 || !q ? esc(text) : `${esc(text.slice(0, i))}<b class="hit">${esc(text.slice(i, i + q.length))}</b>${esc(text.slice(i + q.length))}`; };
+
+let searchTimer, found = [], active = -1, session = null, lastQuery = "", resultsQuery = "";
+const resultPins = L.layerGroup().addTo(map);
 const hideSuggest = () => { $("suggest").style.display = "none"; active = -1; };
-function pickPlace(p) {
+const whereQs = () => { const c = map.getCenter(), me = window.myFix?.here;
+  return `lat=${c.lat}&lng=${c.lng}${me ? `&here_lat=${me[0]}&here_lng=${me[1]}` : ""}`; };
+function showList(html, items) {
+  found = items; active = -1;
+  $("suggest").innerHTML = html;
+  $("suggest").style.display = "block";
+}
+
+async function pickPlace(p) {
   hideSuggest();
   $("placeInput").blur();
+  if (p.kind === "query") return runSearch(p.text);
+  if (p.lat == null && p.id) {  // a Google suggestion: look up where it is
+    try { p = { ...p, ...(await (await fetch(`${API}/places/details?id=${encodeURIComponent(p.id)}${session ? `&session=${session}` : ""}`)).json()) }; }
+    catch { return; }
+    session = null;  // a typing session ends when you pick something
+  }
+  resultPins.clearLayers(); $("searchArea").hidden = true;
+  remember(p);
   setVenue([p.lat, p.lng], p.name, p.address);
   map.flyTo([p.lat, p.lng], 16);
 }
+
+// empty box: quick categories + recent spots
+function showStart() {
+  const r = recents();
+  showList(`<div class="chips">${CATEGORIES.map(([e, n]) => `<button class="chip" data-cat="${esc(n)}">${e} ${esc(n)}</button>`).join("")}</div>`
+    + (r.length ? `<div class="list-head">Recent</div>` + r.map((p, i) => `<div class="opt" data-i="${i}"><i>🕘</i><div><b>${esc(p.name)}</b><span>${esc(p.address)}</span></div></div>`).join("") : ""),
+    r.map(p => ({ ...p, kind: "place" })));
+}
+
+// typing: suggestions
+async function showSuggestions(q) {
+  session ||= crypto.randomUUID?.() || String(Math.random()).slice(2);
+  let items = [];
+  try { items = await (await fetch(`${API}/places/suggest?q=${encodeURIComponent(q)}&${whereQs()}&session=${session}`)).json(); } catch { /* offline */ }
+  if ($("placeInput").value.trim() !== q) return;  // you kept typing
+  // always offer "search for what I typed" first, like Google Maps
+  if (!items.some(s => s.kind === "query" && s.text.toLowerCase() === q.toLowerCase())) items.unshift({ kind: "query", text: q });
+  showList(items.map((s, i) => s.kind === "query"
+      ? `<div class="opt" data-i="${i}"><i>🔍</i><div><b>${highlight(s.text, q)}</b><span>Search nearby</span></div></div>`
+      : `<div class="opt" data-i="${i}"><i>${iconFor(s.types)}</i><div><b>${highlight(s.name, q)}</b><span>${esc(s.address)}</span></div>${s.distance_m != null ? `<em>${howFar(s.distance_m)}</em>` : ""}</div>`).join(""), items);
+}
+
+// Enter / a category / "Search this area": a full list, pinned on the map
+async function runSearch(q) {
+  resultsQuery = q;
+  $("mapHint").style.display = "none";
+  $("placeInput").value = q; $("clearPlace").hidden = false;
+  showList(`<div class="none">Searching for ${esc(q)}…</div>`, []);
+  let items = [];
+  try { items = await (await fetch(`${API}/places/search?q=${encodeURIComponent(q)}&${whereQs()}`)).json(); } catch { /* offline */ }
+  resultPins.clearLayers();
+  if (!items.length) return showList(`<div class="none">Nothing found for “${esc(q)}” around here. Try another word, or tap the map.</div>`, []);
+  items.forEach((p, i) => L.marker([p.lat, p.lng], { icon: L.divIcon({ className: "", iconSize: [30, 30], iconAnchor: [15, 30],
+      html: `<div class="result-pin"><span>${i + 1}</span></div>` }) })
+    .bindTooltip(esc(p.name), { direction: "top", offset: [0, -28] }).on("click", () => pickPlace(p)).addTo(resultPins));
+  map.fitBounds(L.latLngBounds(items.map(p => [p.lat, p.lng])).pad(0.2), { maxZoom: 16, paddingTopLeft: [innerWidth > 800 ? 440 : 0, 80] });
+  const stars = p => p.rating ? `<span class="stars">★ ${p.rating.toFixed(1)}</span>${p.reviews ? ` (${p.reviews.toLocaleString()})` : ""}` : "";
+  showList(`<div class="list-head">Results for “${esc(q)}”</div>` + items.map((p, i) => `<div class="opt" data-i="${i}"><i class="num">${i + 1}</i><div>
+      <b>${esc(p.name)}</b>
+      <span>${[stars(p), p.price, esc(p.type)].filter(Boolean).join(" · ")}</span>
+      <span>${p.open === true ? `<span class="open">Open now</span> · ` : p.open === false ? `<span class="closed">Closed</span> · ` : ""}${esc(p.address)}</span>
+    </div>${p.distance_m != null ? `<em>${howFar(p.distance_m)}</em>` : ""}</div>`).join(""), items);
+  setTimeout(() => ($("searchArea").hidden = true), 800);  // fitBounds moves the map; only offer it after *you* move it
+}
+
+$("suggest").onmousedown = e => {
+  e.preventDefault();  // keep the box focused
+  const cat = e.target.closest("[data-cat]"), opt = e.target.closest(".opt");
+  if (cat) runSearch(cat.dataset.cat);
+  else if (opt) pickPlace(found[+opt.dataset.i]);
+};
+$("placeInput").onfocus = () => { if (!$("placeInput").value.trim()) showStart(); else if (found.length) $("suggest").style.display = "block"; };
 $("placeInput").oninput = () => {
   clearTimeout(searchTimer);
   const q = $("placeInput").value.trim();
-  if (q.length < 3) return hideSuggest();
-  searchTimer = setTimeout(async () => {
-    const c = map.getCenter();
-    found = await (await fetch(`${API}/places?q=${encodeURIComponent(q)}&lat=${c.lat}&lng=${c.lng}`)).json();
-    $("suggest").innerHTML = found.length
-      ? found.map((p, i) => `<div class="opt" data-i="${i}"><i>📍</i><div><b>${esc(p.name)}</b><span>${esc(p.address)}</span></div></div>`).join("")
-      : `<div class="none">No places found. Try the full name (e.g. "Klaus Advanced Computing Building"), or tap the map.</div>`;
-    $("suggest").style.display = "block";
-    $("suggest").querySelectorAll(".opt").forEach(el => el.onmousedown = () => pickPlace(found[+el.dataset.i]));
-  }, 300);
+  $("clearPlace").hidden = !q && !venue;
+  if (!q) return showStart();
+  if (q.length < 2) return;
+  searchTimer = setTimeout(() => { lastQuery = q; showSuggestions(q); }, 180);
 };
 $("placeInput").onkeydown = e => {
   const opts = $("suggest").querySelectorAll(".opt");
-  if (!opts.length) return;
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const q = $("placeInput").value.trim();
+    if (active >= 0 && found[active]) pickPlace(found[active]);
+    else if (q) { clearTimeout(searchTimer); runSearch(q); }
+  } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && opts.length) {
     e.preventDefault();
     active = (active + (e.key === "ArrowDown" ? 1 : -1) + opts.length) % opts.length;
     opts.forEach((o, i) => o.classList.toggle("active", i === active));
-  } else if (e.key === "Enter") {
-    pickPlace(found[Math.max(active, 0)]);
-  } else if (e.key === "Escape") hideSuggest();
+    opts[active].scrollIntoView({ block: "nearest" });
+  } else if (e.key === "Escape") { hideSuggest(); $("placeInput").blur(); }
 };
 $("placeInput").onblur = () => setTimeout(hideSuggest, 150);
+// moved the map after a search: offer to search again there
+map.on("moveend", () => { if (resultPins.getLayers().length) $("searchArea").hidden = false; });
+$("searchArea").onclick = () => { $("searchArea").hidden = true; runSearch(resultsQuery); };
 
 // ---------- form ----------
 // categories: the defaults plus any you make (saved to your profile by friends.js)

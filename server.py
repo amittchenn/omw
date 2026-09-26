@@ -6,6 +6,7 @@ import math
 import os
 import random
 from datetime import date, datetime, timedelta, timezone
+import re
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -15,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from calendar_feed import build_ics, hangouts_for_token
-from places import place_name, search_places
+from places import details, place_name, search, search_places, suggest
 from predictor import HISTORY, learn_from, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
 from travel import MODES, route, travel_minutes
@@ -84,6 +85,30 @@ def config():
 def places(q: str, lat: float, lng: float):
     # search real places by name, closest to where the map is looking
     return search_places(q, lat, lng)
+
+
+# Google-Maps-style search. lat/lng = where the map is looking; here_lat/here_lng = where you are (for distances)
+@app.get("/places/suggest")
+def places_suggest(q: str, lat: float, lng: float, here_lat: Optional[float] = None, here_lng: Optional[float] = None,
+                   session: Optional[str] = None):
+    here = (here_lat, here_lng) if here_lat is not None and here_lng is not None else None
+    return suggest(q[:100], lat, lng, here, session)
+
+
+@app.get("/places/search")
+def places_search(q: str, lat: float, lng: float, here_lat: Optional[float] = None, here_lng: Optional[float] = None):
+    here = (here_lat, here_lng) if here_lat is not None and here_lng is not None else None
+    return search(q[:100], lat, lng, here)
+
+
+@app.get("/places/details")
+def places_details(id: str, session: Optional[str] = None):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,300}", id):
+        raise HTTPException(400, "Bad place id")
+    try:
+        return details(id, session)
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't find that place: {e}")
 
 
 @app.get("/place-name")

@@ -8,6 +8,7 @@ export const EYE_COLORS = ["4a2b16", "6b4423", "8a6a3a", "4d7a3a", "3f6f9a", "7d
 export const OUTFIT_COLORS = ["1f2430", "3c4a5c", "25557c", "4c8ee8", "7cc7ff", "3aa876", "a7e0b0", "f2d15c", "ff9f68", "ff6f91", "c0392b", "8e6fd8", "e9e9ee", "ffffff"];
 export const BGS = ["ffd000", "ffb3c7", "b9a8ff", "8fe3c0", "9fd4ff", "ffc49c", "f1f0f7", "2b2b3a"];
 export const PARTS = {
+  gender: ["man", "woman", "nonbinary"],
   face: ["oval", "round", "square", "heart"],
   hair: ["crew", "sidePart", "quiff", "buzz", "curly", "afro", "long", "wavy", "bob", "bun", "locs", "bald", "beanie", "hijab"],
   eyes: ["almond", "round", "hooded", "narrow", "lashes", "happy"],
@@ -30,6 +31,19 @@ export function cleanLook(l = {}) {
   return out;
 }
 
+// hairstyles people usually pick for each; everyone can still choose any of them
+const HAIR_FOR = { man: ["crew", "sidePart", "quiff", "buzz", "curly", "afro", "locs"],
+                   woman: ["long", "wavy", "bob", "bun", "curly", "afro", "locs"],
+                   nonbinary: ["crew", "sidePart", "quiff", "buzz", "curly", "afro", "long", "wavy", "bob", "bun", "locs"] };
+// switching gender in the editor: swap in a matching hairstyle and drop the beard, like Bitmoji's first step
+export function withGender(look, gender) {
+  const l = { ...look, gender };
+  if (gender === "nonbinary") return l;
+  if (!HAIR_FOR[gender].includes(l.hair) && !["bald", "beanie", "hijab"].includes(l.hair)) l.hair = HAIR_FOR[gender][0];
+  if (gender === "woman") l.beard = "none";
+  return l;
+}
+
 const hash = s => {
   let h = 2166136261;
   for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
@@ -38,10 +52,11 @@ const hash = s => {
 };
 export function randomLook(seed = Math.random().toString(36)) {
   const one = (k, list) => list[hash(seed + k) % list.length], roll = k => hash(seed + k) % 100;
-  return cleanLook({ skin: one("s", SKINS), face: one("f", PARTS.face), hair: one("h", PARTS.hair.slice(0, 11)),
+  const gender = one("g0", ["man", "woman", "man", "woman", "nonbinary"]);
+  return cleanLook({ gender, skin: one("s", SKINS), face: one("f", PARTS.face), hair: one("h", HAIR_FOR[gender]),
     hairColor: one("hc", HAIR_COLORS.slice(0, 8)), eyes: one("e", PARTS.eyes.slice(0, 5)), eyeColor: one("ec", EYE_COLORS),
     brows: one("b", PARTS.brows.slice(0, 4)), nose: one("n", PARTS.nose), mouth: one("m", ["smile", "grin", "smile", "smirk"]),
-    beard: roll("bd") < 25 ? one("bd2", PARTS.beard.slice(1)) : "none", glasses: roll("g") < 20 ? one("g2", ["round", "square"]) : "none",
+    beard: gender === "man" && roll("bd") < 35 ? one("bd2", PARTS.beard.slice(1)) : "none", glasses: roll("g") < 20 ? one("g2", ["round", "square"]) : "none",
     outfit: one("o", PARTS.outfit), outfitColor: one("oc", OUTFIT_COLORS), bg: "ffd000" });
 }
 
@@ -81,10 +96,12 @@ const BROWS = {  // one brow over the eye at 0,0; filled shapes, thicker toward 
 function eye(x, flip, l, id) {
   const iris = l.eyeColor, s = flip ? -1 : 1, lid = "#2a1c16";
   if (l.eyes === "happy")  // closed, smiling eyes
-    return `<g transform="translate(${x},97) scale(${s},1)"><path d="M-9,1.5 C-5,-5 5,-5 9,1.5" fill="none" stroke="${lid}" stroke-width="2.4" stroke-linecap="round"/></g>`;
+    return `<g transform="translate(${x},97) scale(${s},1)"><path d="M-9,1.5 C-5,-5 5,-5 9,1.5" fill="none" stroke="${lid}" stroke-width="2.4" stroke-linecap="round"/>
+      ${l.gender === "woman" ? `<path d="M-8,-0.5 L-11.5,-3" stroke="${lid}" stroke-width="1.5" stroke-linecap="round"/>` : ""}</g>`;
   const [shape, top] = EYE_SHAPES[l.eyes];
-  const lashes = l.eyes === "lashes"
-    ? `<path d="M8,-3.5 L12.5,-7 M10.5,-1.5 L14.5,-4" stroke="${lid}" stroke-width="1.6" stroke-linecap="round"/>` : "";
+  // lashes flick out from the outer corner (x < 0 is the outside; the other eye is mirrored)
+  const lashes = l.eyes === "lashes" || l.gender === "woman"
+    ? `<path d="M-6.5,-4.8 L-8,-8.6 M-9,-3 L-11.8,-6.4 M-10.8,-0.6 L-14.4,-2.8" stroke="${lid}" stroke-width="${l.eyes === "lashes" ? 1.8 : 1.4}" stroke-linecap="round"/>` : "";
   return `<g transform="translate(${x},97) scale(${s},1)">
     <clipPath id="e${id}"><path d="${shape}"/></clipPath>
     <path d="${shape}" fill="#fbf8f5"/>
@@ -112,7 +129,7 @@ function nose(l) {
 }
 
 function mouth(l) {
-  const lip = blend(l.skin, "b8474f", 0.45), dark = shade(lip, -0.25), y = l.nose === "long" ? 131 : 129;
+  const lip = l.gender === "woman" ? blend(l.skin, "c2525e", 0.6) : blend(l.skin, "b8474f", 0.45), dark = shade(lip, -0.25), y = l.nose === "long" ? 131 : 129;
   const g = d => `<g transform="translate(0,${y - 129})">${d}</g>`;
   switch (l.mouth) {
     case "grin": return g(`<path d="M86,125 C92,138 108,138 114,125 C108,127 92,127 86,125Z" fill="#5b1a1f"/>
@@ -211,8 +228,9 @@ function hair(l) {
 
 function outfit(l) {
   const c = "#" + l.outfitColor, dark = shade(l.outfitColor, -0.18), line = shade(l.outfitColor, -0.3);
-  const body = `<path d="M18,200 C20,172 42,158 74,154 L126,154 C158,158 180,172 182,200Z" fill="${c}"/>
-    <path d="M18,200 C20,172 42,158 74,154 L126,154 C158,158 180,172 182,200Z" fill="url(#shadeBody)"/>`;
+  const L = { man: 18, woman: 32, nonbinary: 25 }[l.gender], R = 200 - L;
+  const shape = `M${L},200 C${L + 2},172 ${L + 24},158 74,154 L126,154 C${R - 24},158 ${R - 2},172 ${R},200Z`;
+  const body = `<path d="${shape}" fill="${c}"/><path d="${shape}" fill="url(#shadeBody)"/>`;
   switch (l.outfit) {
     case "vneck": return body + `<path d="M82,154 L100,182 L118,154Z" fill="url(#neckG)"/><path d="M82,154 L100,182 L118,154" fill="none" stroke="${dark}" stroke-width="3"/>`;
     case "hoodie": return `<path d="M64,150 C64,134 136,134 136,150 L130,170 L70,170Z" fill="${dark}"/>` + body
@@ -223,10 +241,9 @@ function outfit(l) {
       ${[178, 190].map(y => `<circle cx="100" cy="${y}" r="1.8" fill="${line}"/>`).join("")}`;
     case "sweater": return body + `<path d="M80,154 C86,168 114,168 120,154" fill="none" stroke="${dark}" stroke-width="7"/>
       <path d="M80,154 C86,168 114,168 120,154" fill="none" stroke="${line}" stroke-width="1" stroke-dasharray="1.5 2.5"/>`;
-    case "jacket": return `<path d="M18,200 C20,172 42,158 74,154 L126,154 C158,158 180,172 182,200Z" fill="#f2f2f2"/>
-      <path d="M18,200 C20,172 42,158 74,154 L86,154 L100,200Z M182,200 C180,172 158,158 126,154 L114,154 L100,200Z" fill="${c}"/>
-      <path d="M18,200 C20,172 42,158 74,154 L86,154 L100,200Z M182,200 C180,172 158,158 126,154 L114,154 L100,200Z" fill="url(#shadeBody)"/>
-      <path d="M74,154 L92,178 L86,154 M126,154 L108,178 L114,154" fill="${dark}"/>`;
+    case "jacket": { const sides = `M${L},200 C${L + 2},172 ${L + 24},158 74,154 L86,154 L100,200Z M${R},200 C${R - 2},172 ${R - 24},158 126,154 L114,154 L100,200Z`;
+      return `<path d="${shape}" fill="#f2f2f2"/><path d="${sides}" fill="${c}"/><path d="${sides}" fill="url(#shadeBody)"/>
+      <path d="M74,154 L92,178 L86,154 M126,154 L108,178 L114,154" fill="${dark}"/>`; }
     default: return body + `<path d="M80,154 C86,168 114,168 120,154" fill="none" stroke="${dark}" stroke-width="3.5"/>`;
   }
 }
