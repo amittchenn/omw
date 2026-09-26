@@ -60,6 +60,10 @@ function notify(id, m) {
 // you can't make it: tell the group in its chat (and their notifications) before you're taken off
 export const postLeft = h => send(h, "can't make it anymore", "left");
 
+// the Chats inbox (dms.js) lists every hangout chat too, newest message first
+window.hangoutChatList = () => hangouts.filter(chatOpenFor).map(h => ({ id: h.id, title: h.title, start: h.start,
+  last: (messages[h.id] || []).at(-1), unread: unreadCount(h.id) }));
+
 // the planner posts Muse's invite note as the first message of a new hangout
 window.sendChat = (id, text) => send({ id }, text);
 

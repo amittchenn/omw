@@ -484,6 +484,65 @@
     .msg-auto.omw { background: #e6f1ff; color: #0a5cb8; }
     .msg-auto.left { background: #ffe8e8; color: #c62828; }
     .msg-auto time { display: inline; margin-left: 4px; }
+    .msg-auto.sys { background: var(--soft); color: var(--muted); font-size: 12px; }
+
+    /* ---------- Chats (DMs and group chats) ---------- */
+    .inbox-btn { margin-left: auto; }
+    .inbox { position: fixed; z-index: 1400; top: 16px; right: 16px; bottom: 16px; width: 420px; overflow: hidden;
+             background: #fff; color: var(--text); border-radius: 28px; box-shadow: var(--shadow); transform: translateX(calc(100% + 32px));
+             transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+    .inbox.ib-open { transform: none; }
+    .inbox.dragging, .convo.dragging { transition: none; }
+    .ib-page, .convo { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+                       background: #fff; }
+    .convo { transform: translateX(100%); transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+    .inbox.in-convo .convo { transform: none; }
+    .ib-head { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+    .ib-head h2 { flex: 1; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; }
+    .ib-head .round.small { box-shadow: none; background: var(--soft); border: 0; }
+    .ib-head .round[hidden] { display: none; }
+    .ib-search { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; padding: 0 14px; height: 42px; border-radius: 14px; background: var(--soft); color: var(--muted); }
+    .ib-search input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-weight: 700; }
+    .ib-search[hidden] { display: none; }
+    .ib-body { flex: 1; overflow-y: auto; margin: 0 -16px; padding: 4px 16px 10px; overscroll-behavior: contain; }
+    .ib-fresh { display: flex; gap: 14px; overflow-x: auto; padding: 10px 2px 12px; margin-bottom: 4px; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+    .ib-fresh button { border: 0; background: none; padding: 0; display: grid; justify-items: center; gap: 4px; cursor: pointer; }
+    .ib-fresh small { font-size: 12px; font-weight: 800; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ib-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 4px; border: 0; background: none; text-align: left; cursor: pointer; border-radius: 14px; }
+    .ib-row:active { background: var(--soft); }
+    .ib-row.static { cursor: default; }
+    .ib-face.avatar, .ib-face { width: 54px; height: 54px; flex: none; }
+    .ib-face.avatar span { font-size: 17px; }
+    .ib-plan { display: grid; place-items: center; border-radius: 50%; background: var(--sun); color: var(--ink); }
+    .ib-plan .ic { width: 24px; height: 24px; margin: 0; }
+    .ib-stack { position: relative; width: 54px; height: 54px; flex: none; }
+    .ib-stack .ib-mini { position: absolute; width: 38px; height: 38px; border: 2px solid #fff; }
+    .ib-stack .ib-mini:first-child { top: 0; left: 0; } .ib-stack .ib-mini:last-child { right: 0; bottom: 0; }
+    .ib-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+    .ib-text b { font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ib-text small { font-size: 13px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ib-row.ib-unread .ib-text b, .ib-row.ib-unread .ib-text small { color: var(--ink); font-weight: 900; }
+    .ib-meta { display: grid; justify-items: end; gap: 6px; font-size: 12px; font-weight: 800; color: var(--muted); }
+    .ib-dot { width: 10px; height: 10px; border-radius: 50%; background: #1a73e8; }
+    .ib-sub { margin: 14px 4px 4px; font-size: 12px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .ib-name { width: 100%; height: 44px; margin: 4px 0; padding: 0 14px; border: 0; border-radius: 14px; background: var(--soft); font-weight: 700; outline: none; }
+    .ib-rename { display: flex; gap: 6px; align-items: center; } .ib-rename .mini { height: 44px; padding: 0 16px; }
+    .ib-check { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--line); color: #fff; }
+    .ib-check .ic { width: 16px; height: 16px; margin: 0; }
+    .ib-row[data-add] .ib-check { color: var(--ink); }
+    .ib-row.pick.on .ib-check { background: #1a73e8; border-color: #1a73e8; }
+    .ib-go { position: sticky; bottom: 0; padding: 12px 0 2px; background: #fff; }
+    .ib-go .wide:disabled { opacity: .4; }
+    .danger-btn { background: #ffe3e8 !important; color: #d0213f !important; }
+    .cv-head { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .cv-head .ib-face, .cv-head .ib-stack { width: 40px; height: 40px; }
+    .cv-head .ib-stack .ib-mini { width: 28px; height: 28px; }
+    .convo .chat-list { margin: 8px -16px 0; padding: 8px 16px; border-top: 1px solid var(--line); }
+    .convo .msg.mine { background: #1a73e8; }
+    .convo .chat-send .mini { width: 48px; padding: 0; display: grid; place-items: center; }
+    .convo .chat-send .ic { margin: 0; }
+    .chat-edge { display: none; }
+    .page-tabs { display: none; }
     .chat-quick { display: flex; gap: 6px; padding-top: 8px; }
     .chat-send { display: flex; gap: 6px; padding-top: 8px; }
     .chat-send input { flex: 1; min-width: 0; height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--soft); font-weight: 700; outline: none; }
@@ -688,6 +747,25 @@
       .sheet.collapsed { max-height: 132px; overflow: hidden; }
       .sheet { overflow-x: hidden; overscroll-behavior: contain; }
       .sheet.dragging { transition: none; }
+      .inbox { top: 0; right: 0; bottom: 0; left: 0; width: auto; border-radius: 0; transform: translateX(100%);
+               padding-top: env(safe-area-inset-top); }
+      .inbox .ib-page, .inbox .convo { top: env(safe-area-inset-top); }
+      /* a thin strip on the right edge: swipe left from there (even over the map) to open Chats */
+      .chat-edge { display: block; position: fixed; z-index: 860; right: 0; top: 80px; bottom: 0; width: 18px; touch-action: none; }
+      .chat-edge.left { right: auto; left: 0; }
+      #boardBtn { display: none; }  /* on phones the leaderboard is a tab next to My plans */
+      /* My plans and the leaderboard: one full-screen page from the left (tap the buttons or swipe right), like Chats from the right */
+      .drawer.page { background: transparent; }
+      .drawer.page .drawer-card { position: fixed; inset: 0; width: 100%; height: 100%; max-height: none; border-radius: 0; overscroll-behavior: contain;
+        padding: calc(14px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom)); animation: from-left .3s cubic-bezier(.2, .8, .2, 1); }
+      .drawer.page.instant .drawer-card, .drawer.page .drawer-card.dragging { animation: none; }
+      .drawer.page .drawer-card.settle { transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+      @keyframes from-left { from { transform: translateX(-100%); } }
+      .drawer.page .board-title { display: none; }
+      .drawer.page .x { top: calc(14px + env(safe-area-inset-top)); }
+      .page-tabs { display: flex; gap: 4px; margin: 0 50px 16px 0; padding: 4px; border-radius: 999px; background: var(--soft); }
+      .page-tabs button { flex: 1; height: 38px; border: 0; border-radius: 999px; background: none; font-weight: 900; font-size: 15px; color: var(--muted); cursor: pointer; }
+      .page-tabs button.on { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
       /* iPhone zooms into any text box under 16px (and then the page slides side to side): keep them all at 16px */
       input, textarea, select { font-size: 16px !important; }
       body { touch-action: manipulation; }
@@ -763,7 +841,28 @@
     <div class="suggest" id="suggest"></div>
   </div>
   <button class="search-area" id="searchArea" hidden><i data-ic="search"></i> Search this area</button>
+  <div class="me-btn inbox-btn" hidden>
+    <button class="round" id="inboxBtn" title="Chats" data-ic="message-circle"></button>
+    <span class="count" id="inboxBadge" hidden>0</span>
+  </div>
 </header>
+<div class="chat-edge" id="chatEdge"></div>
+<div class="chat-edge left" id="pageEdge"></div>
+<!-- Chats: DMs, group chats and hangout chats (dms.js). Tap the chat button or swipe left to open; swipe right to go back -->
+<section class="inbox" id="inbox" hidden>
+  <div class="ib-page">
+    <div class="ib-head"><button class="round small" id="ibBack" title="Back" data-ic="chevron-left"></button>
+      <h2 id="ibTitleBar">Chats</h2><button class="round small" id="ibNew" title="New chat" data-ic="square-pen"></button></div>
+    <label class="ib-search" id="ibSearchWrap"><i data-ic="search"></i><input id="ibSearch" placeholder="Search chats" autocomplete="off"></label>
+    <div class="ib-body" id="ibBody"></div>
+  </div>
+  <div class="convo" id="convo">
+    <div class="ib-head"><button class="round small" id="cvBack" title="Back" data-ic="chevron-left"></button><div class="cv-head" id="cvHead"></div></div>
+    <div class="chat-list" id="cvList"></div>
+    <form class="chat-send" id="cvForm"><input id="cvInput" placeholder="Message…" maxlength="1000" autocomplete="off">
+      <button class="mini dark" title="Send"><i data-ic="send"></i></button></form>
+  </div>
+</section>
 <div class="map-hint" id="mapHint"><i data-ic="map-pin"></i> Search a place or tap the map</div>
 <div class="toasts" id="toasts"></div>
 <aside class="dir" id="dir" hidden>
@@ -861,8 +960,9 @@
   <div class="results" id="results"></div>
 </aside>
 
-<div class="drawer" id="board" hidden>
+<div class="drawer page" id="board" hidden>
   <div class="drawer-card">
+    <div class="page-tabs"><button data-page="plans">My plans</button><button data-page="board" class="on">Leaderboard</button></div>
     <button class="x" id="boardClose" title="Close" data-ic="x"></button>
     <h2 class="board-title">Who's always late?</h2>
     <div id="boardList"></div>
@@ -870,8 +970,9 @@
   </div>
 </div>
 
-<div class="drawer" id="plans" hidden>
+<div class="drawer page" id="plans" hidden>
   <div class="drawer-card">
+    <div class="page-tabs"><button data-page="plans" class="on">My plans</button><button data-page="board">Leaderboard</button></div>
     <button class="x" id="plansClose" title="Close" data-ic="x"></button>
     <h2 class="board-title">My plans</h2>
     <div class="section" id="inviteSection" hidden>
@@ -2329,6 +2430,7 @@ showFriends();
 <script type="module" src="/static/auth.js"></script>
 <script type="module" src="/static/friends.js"></script>
 <script type="module" src="/static/facebook.js"></script>
+<script type="module" src="/static/dms.js"></script>
 <script>
   // installable on phones (Add to Home Screen) and a friendly page when offline
   if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
