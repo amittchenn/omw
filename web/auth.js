@@ -52,12 +52,16 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE")) {
 } else {
   const auth = getAuth(initializeApp(firebaseConfig));
 
+  const greeting = name => {
+    const h = new Date().getHours();
+    return `${h < 5 ? "Hey night owl" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}, ${name.split(" ")[0]}`;
+  };
   onAuthStateChanged(auth, user => {
     document.body.classList.remove("checking");
     document.body.classList.toggle("signed-in", !!user);
     if (!user) { setMode("signin"); $("password").value = ""; return; }
     const name = user.displayName || user.email.split("@")[0];
-    $("userName").textContent = name;
+    $("userName").textContent = greeting(name);
     if (!$("userPic").style.backgroundImage) $("userPic").textContent = name.slice(0, 1).toUpperCase();  // until your avatar loads
     window.currentUser = user;  // the rest of the page can read who's signed in
   });
@@ -73,7 +77,7 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE")) {
       if (!name) throw { message: "Tell your friends who you are: add your name." };
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(user, { displayName: name });
-      $("userName").textContent = name;
+      $("userName").textContent = greeting(name);
       $("userPic").textContent = name.slice(0, 1).toUpperCase();
     });
   };
