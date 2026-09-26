@@ -16,10 +16,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from calendar_feed import build_ics, hangouts_for_token
+from muse_features import fair_spot, plan_from_text
 from places import details, place_name, search, search_places, suggest
 from predictor import HISTORY, learn_from, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
-from travel import MODES, route, travel_minutes
+from travel import MODES, directions, route, travel_minutes
 from weather import hours_around, weather_at, weather_now
 
 app = FastAPI(title="Hangout API")
@@ -58,13 +59,13 @@ LABELS = {
 PEOPLE = HISTORY.groupby("user_id")[["persona", "travel_mode", "group_id"]].first().reset_index()
 PEOPLE["name"] = [NAMES[i % len(NAMES)] for i in range(len(PEOPLE))]
 PEOPLE["label"] = PEOPLE.persona.map(LABELS)
-HOME_KM = {"walking": (0.8, 2.5), "cycling": (1.5, 5), "driving": (3, 10), "transit": (2, 8)}
+HOME_KM = (2, 6)  # someone with no home set: a made-up one this far away, whatever way they travel
 
 
 def demo_home(user_id, mode, venue):
     """A made-up home near the venue, the same every time for the same person."""
     rng = random.Random(user_id)
-    km, angle = rng.uniform(*HOME_KM[mode]), rng.uniform(0, 2 * math.pi)
+    km, angle = rng.uniform(*HOME_KM), rng.uniform(0, 2 * math.pi)
     lat = venue[0] + km * math.cos(angle) / 111
     lng = venue[1] + km * math.sin(angle) / (111 * math.cos(math.radians(venue[0])))
     return [round(lat, 5), round(lng, 5)]
@@ -85,6 +86,74 @@ def config():
 def places(q: str, lat: float, lng: float):
     # search real places by name, closest to where the map is looking
     return search_places(q, lat, lng)
+
+
+# directions like Google Maps: turn by turn (or which bus to take), trip time and distance
+class DirectionsRequest(BaseModel):
+    origin: list[float]            # [lat, lng]: where you are now, or your home
+    venue: list[float]
+    mode: str = "driving"
+    start_time: Optional[str] = None      # the hangout's start (local time), so transit picks buses that get you there on time
+    utc_offset_min: Optional[int] = None
+
+
+@app.post("/directions")
+def get_directions(req: DirectionsRequest):
+    if len(req.origin) != 2 or len(req.venue) != 2:
+        raise HTTPException(400, "origin and venue should be [lat, lng].")
+    arrive_by = None
+    if req.start_time and req.utc_offset_min is not None:
+        arrive_by = datetime.fromisoformat(req.start_time[:16]).replace(tzinfo=timezone(timedelta(minutes=req.utc_offset_min)))
+    return directions(tuple(req.origin), tuple(req.venue), req.mode if req.mode in MODES else "driving", arrive_by)
+
+
+# ---------- Muse ----------
+class AIPlanRequest(BaseModel):
+    text: str
+    friends: list[dict] = []       # [{"id", "name"}]
+    categories: list[dict] = []    # [{"id", "name"}]
+    now: str                       # your local time, "YYYY-MM-DDTHH:MM"
+    lat: float
+    lng: float
+
+
+@app.post("/ai/plan")
+def ai_plan(req: AIPlanRequest):
+    """Muse turns "boba with Priya and Sam Friday after 5" into who, what, when and where."""
+    if not req.text.strip():
+        raise HTTPException(400, "Say what you want to do.")
+    try:
+        friends = [{"id": str(f.get("id", ""))[:128], "name": str(f.get("name", ""))[:60]} for f in req.friends[:200]]
+        cats = [{"id": str(c.get("id", ""))[:40], "name": str(c.get("name", ""))[:40]} for c in req.categories[:50]]
+        return plan_from_text(req.text[:500], friends, cats, req.now, req.lat, req.lng)
+    except Exception as e:
+        raise HTTPException(502, f"Muse couldn't read that: {e}")
+
+
+class FairSpotRequest(BaseModel):
+    query: str                     # what kind of place: "coffee", "cheap tacos open late"
+    people: list[dict]             # [{"id", "name", "home": [lat, lng] or null, "mode"}]
+    lat: float
+    lng: float
+
+
+@app.post("/ai/fair-spot")
+def ai_fair_spot(req: FairSpotRequest):
+    """Places near the middle of the group, everyone's trip to each, and Muse's pick of the fairest."""
+    if not req.query.strip():
+        raise HTTPException(400, "Say what kind of place.")
+    people = []
+    for p in req.people[:12]:
+        home = p.get("home")
+        ok = isinstance(home, list) and len(home) == 2 and all(isinstance(x, (int, float)) for x in home)
+        people.append({"id": str(p.get("id", ""))[:128], "name": str(p.get("name", "Friend"))[:60],
+                       "home": home if ok else None, "mode": p.get("mode") if p.get("mode") in MODES else "driving"})
+    if sum(1 for p in people if p["home"]) < 1:
+        raise HTTPException(400, "Nobody picked has a home set yet, so there's no way to tell what's fair.")
+    try:
+        return fair_spot(req.query, people, req.lat, req.lng)
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't pick a spot: {e}")
 
 
 # Google-Maps-style search. lat/lng = where the map is looking; here_lat/here_lng = where you are (for distances)
@@ -233,7 +302,7 @@ def plan(req: PlanRequest):
             g = guests[uid]
             name, usual = g.name, g.travel_mode if g.travel_mode in MODES else "driving"
             home = g.home if g.home and len(g.home) == 2 else demo_home(uid, usual, req.venue)
-            label = "New here" if g.home else "New here · no home set"
+            label = "New here" if g.home else "No home set · guessed where they live"
         elif uid in set(PEOPLE.user_id):
             person = PEOPLE[PEOPLE.user_id == uid].iloc[0]
             name, usual, label = person["name"], person.travel_mode, person.label
@@ -253,6 +322,8 @@ def plan(req: PlanRequest):
                      learning=not habits,
                      alert_time=(start - timedelta(minutes=minutes + max(p90, 0))).isoformat(timespec="minutes"))
             label = "Learning · Maps time for now" if not habits else f"Learned from {len(habits)} check-in{'s' * (len(habits) > 1)}"
+            if not g.home:
+                label = "No home set · guessed where they live"
         results.append({**r, "name": name, "label": label, "home": home, "route": path,
                         "travel_mode": mode, "travel_source": source})
     return sorted(results, key=lambda r: r["alert_time"])

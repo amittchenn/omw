@@ -5,7 +5,7 @@ Ways to get there: driving, walking, cycling, transit (transit needs Google; Map
 """
 import math
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 from dotenv import load_dotenv
@@ -49,7 +49,11 @@ def decode_polyline(encoded):
     return points
 
 
-def _google(origin, dest, mode, arrive_by):
+STEP_FIELDS = ",".join("routes.legs.steps." + x for x in [
+    "navigationInstruction", "distanceMeters", "staticDuration", "travelMode", "transitDetails"])
+
+
+def _google(origin, dest, mode, arrive_by, steps=False):
     body = {
         "origin": {"location": {"latLng": {"latitude": origin[0], "longitude": origin[1]}}},
         "destination": {"location": {"latLng": {"latitude": dest[0], "longitude": dest[1]}}},
@@ -58,26 +62,55 @@ def _google(origin, dest, mode, arrive_by):
     }
     if mode == "driving":
         body["routingPreference"] = "TRAFFIC_AWARE"
+        # traffic for when they'll actually drive, not for right now (a rough leave time: the straight-line trip at 25 km/h, plus 10 min)
+        if arrive_by:
+            leave = arrive_by - timedelta(minutes=_distance_km(origin, dest) * 1.4 / 25 * 60 + 10)
+            if leave > datetime.now(timezone.utc) + timedelta(minutes=1):
+                body["departureTime"] = leave.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     if mode == "transit" and arrive_by and arrive_by > datetime.now(timezone.utc):
         body["arrivalTime"] = arrive_by.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")  # buses that get you there on time
     r = requests.post("https://routes.googleapis.com/directions/v2:computeRoutes", json=body, timeout=8,
                       headers={"X-Goog-Api-Key": GOOGLE_KEY,
-                               "X-Goog-FieldMask": "routes.duration,routes.polyline.encodedPolyline"})
+                               "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
+                                                   + ("," + STEP_FIELDS if steps else "")})
     r.raise_for_status()
     routes = r.json().get("routes")
     if not routes:
         raise ValueError(f"Google found no {mode} route")
     best = routes[0]
-    return int(best["duration"].rstrip("s")) / 60, decode_polyline(best["polyline"]["encodedPolyline"])
+    minutes, path = int(best["duration"].rstrip("s")) / 60, decode_polyline(best["polyline"]["encodedPolyline"])
+    if not steps:
+        return minutes, path
+    return minutes, path, best.get("distanceMeters"), [_google_step(s) for leg in best.get("legs", []) for s in leg.get("steps", [])]
 
 
-def _mapbox(origin, dest, mode):
+def _google_step(s):
+    step = {"text": s.get("navigationInstruction", {}).get("instructions", ""), "maneuver": s.get("navigationInstruction", {}).get("maneuver", ""),
+            "distance_m": s.get("distanceMeters"), "minutes": int(s.get("staticDuration", "0s").rstrip("s")) / 60}
+    t = s.get("transitDetails")
+    if t:
+        line, stops, times = t.get("transitLine", {}), t.get("stopDetails", {}), t.get("localizedValues", {})
+        step["transit"] = {"line": line.get("nameShort") or line.get("name", ""), "vehicle": line.get("vehicle", {}).get("name", {}).get("text", "Transit"),
+                           "color": line.get("color", ""), "text_color": line.get("textColor", ""), "headsign": t.get("headsign", ""),
+                           "from": stops.get("departureStop", {}).get("name", ""), "to": stops.get("arrivalStop", {}).get("name", ""),
+                           "departs": times.get("departureTime", {}).get("time", {}).get("text", ""),
+                           "arrives": times.get("arrivalTime", {}).get("time", {}).get("text", ""), "stops": t.get("stopCount")}
+        step["text"] = step["text"] or f"{step['transit']['vehicle']} {step['transit']['line']} toward {step['transit']['headsign']}"
+    return step
+
+
+def _mapbox(origin, dest, mode, steps=False):
     coords = f"{origin[1]},{origin[0]};{dest[1]},{dest[0]}"  # Mapbox wants lng,lat
     r = requests.get(f"https://api.mapbox.com/directions/v5/mapbox/{MAPBOX_MODE[mode]}/{coords}",
-                     params={"access_token": TOKEN, "geometries": "geojson"}, timeout=5)
+                     params={"access_token": TOKEN, "geometries": "geojson", "steps": "true" if steps else "false"}, timeout=5)
     r.raise_for_status()
     best = r.json()["routes"][0]
-    return best["duration"] / 60, [[lat, lng] for lng, lat in best["geometry"]["coordinates"]]
+    minutes, path = best["duration"] / 60, [[lat, lng] for lng, lat in best["geometry"]["coordinates"]]
+    if not steps:
+        return minutes, path
+    return minutes, path, best.get("distance"), [
+        {"text": s["maneuver"].get("instruction", ""), "maneuver": f"{s['maneuver'].get('type', '')} {s['maneuver'].get('modifier', '')}".strip(),
+         "distance_m": s.get("distance"), "minutes": s.get("duration", 0) / 60} for leg in best["legs"] for s in leg["steps"]]
 
 
 def route(origin, dest, mode="driving", arrive_by=None):
@@ -96,6 +129,25 @@ def route(origin, dest, mode="driving", arrive_by=None):
             print(f"[travel] Mapbox {mode} failed: {e}")
     km = _distance_km(origin, dest) * 1.3  # roads aren't straight lines
     return km / FALLBACK_KMH[mode] * 60, [list(origin), list(dest)], "estimate"
+
+
+def directions(origin, dest, mode="driving", arrive_by=None):
+    """Turn-by-turn directions, like Google Maps: {minutes, distance_m, path, steps, source}."""
+    mode = mode if mode in MODES else "driving"
+    if GOOGLE_KEY:
+        try:
+            minutes, path, meters, steps = _google(origin, dest, mode, arrive_by, steps=True)
+            return {"minutes": minutes, "distance_m": meters, "path": path, "steps": steps, "source": "google"}
+        except Exception as e:
+            print(f"[travel] Google {mode} directions failed: {e}")
+    if TOKEN and mode in MAPBOX_MODE:
+        try:
+            minutes, path, meters, steps = _mapbox(origin, dest, mode, steps=True)
+            return {"minutes": minutes, "distance_m": meters, "path": path, "steps": steps, "source": "mapbox"}
+        except Exception as e:
+            print(f"[travel] Mapbox {mode} directions failed: {e}")
+    minutes, path, source = route(origin, dest, mode, arrive_by)
+    return {"minutes": minutes, "distance_m": round(_distance_km(origin, dest) * 1300), "path": path, "steps": [], "source": source}
 
 
 def travel_minutes(origin, dest, mode="driving", arrive_by=None):

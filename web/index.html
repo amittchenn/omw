@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>omw</title>
-  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" href="/static/logo.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=2">
   <meta name="theme-color" content="#FFE600">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap">
@@ -94,6 +94,53 @@
     .search-area { position: fixed; z-index: 900; top: 80px; left: calc(50% + 216px); transform: translateX(-50%); padding: 10px 16px; border: 0;
                    border-radius: 999px; background: #fff; box-shadow: var(--shadow-sm); font: inherit; font-weight: 900; cursor: pointer; }
     .search-area[hidden] { display: none; }
+
+    /* ---------- Muse ---------- */
+    .muse { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; padding: 5px 5px 5px 12px; border-radius: 999px;
+            background: linear-gradient(90deg, #f1ecff, #fff6c2); box-shadow: inset 0 0 0 2px #d9ceff; }
+    .muse input { flex: 1; min-width: 0; height: 36px; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 700; outline: none; }
+    .muse-msg { margin-top: 6px; font-size: 12px; font-weight: 800; color: #5b45c9; }
+    .muse-msg:empty { display: none; }
+    .muse-msg.err { color: var(--red); }
+    .fair { margin-top: 8px; }
+    .fair[hidden] { display: none; }
+    .fair-form { display: flex; gap: 6px; }
+    .fair-form input { flex: 1; min-width: 0; height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--soft); font: inherit; font-size: 14px; font-weight: 700; outline: none; }
+    .fair-card { margin-top: 8px; padding: 12px; border-radius: 18px; background: var(--soft); }
+    .fair-card.pick { background: #f1ecff; box-shadow: inset 0 0 0 2px #b9a8ff; }
+    .fair-card b { font-size: 15px; }
+    .fair-card .why { margin: 4px 0 6px; font-size: 13px; font-weight: 800; color: #5b45c9; }
+    .fair-card small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .trips { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+    .trip { padding: 3px 8px; border-radius: 999px; background: #fff; font-size: 12px; font-weight: 800; }
+    .trip.worst { background: #ffe1e6; }
+
+    /* ---------- directions, like Google Maps ---------- */
+    .dir { position: fixed; z-index: 1100; top: 80px; right: 16px; width: 380px; max-height: calc(100vh - 100px); overflow-y: auto;
+           padding: 16px; border-radius: 26px; background: #fff; box-shadow: var(--shadow); }
+    .dir[hidden] { display: none; }
+    .dir-head { display: flex; justify-content: space-between; gap: 8px; }
+    .dir-head b { font-size: 18px; font-weight: 900; }
+    .dir-head small { display: block; margin-top: 2px; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .round.small { width: 34px; height: 34px; flex: none; }
+    .dir-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0; }
+    .dir-modes button { padding: 8px 4px; border: 0; border-radius: 14px; background: var(--soft); font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+    .dir-modes button small { display: block; font-size: 11px; color: var(--muted); }
+    .dir-modes button.on { background: var(--ink); color: #fff; }
+    .dir-modes button.on small { color: #ddd; }
+    .dir-sum { font-size: 14px; font-weight: 700; }
+    .dir-sum .big { font-size: 26px; font-weight: 900; }
+    .dir-sum .big small { font-size: 15px; color: var(--muted); }
+    .dir-sum .eta { color: var(--green); font-weight: 900; }
+    .dir-sum .late { color: var(--red); font-weight: 900; }
+    .dir-open { display: flex; gap: 6px; margin: 10px 0 4px; }
+    .dir-open a { flex: 1; padding: 10px; border-radius: 999px; background: var(--ink); color: #fff; text-align: center; text-decoration: none; font-size: 13px; font-weight: 900; }
+    .dir-open a + a { background: var(--soft); color: var(--ink); }
+    .dir-steps { margin: 8px 0 0; padding: 0; list-style: none; }
+    .dir-steps li { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; font-weight: 700; }
+    .dir-steps li i { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--soft); display: grid; place-items: center; font-style: normal; }
+    .dir-steps li small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+    .line-badge { display: inline-block; padding: 1px 7px; border-radius: 6px; font-weight: 900; font-size: 12px; }
 
     .map-hint { position: fixed; top: 80px; left: calc(50% + 216px); transform: translateX(-50%); z-index: 800; background: var(--ink);
                 color: #fff; padding: 10px 18px; border-radius: 999px; font-weight: 800; font-size: 14px; box-shadow: var(--shadow-sm);
@@ -525,6 +572,7 @@
       .hello { cursor: pointer; }
       .map-hint { left: 50%; top: 76px; }
       .search-area { left: 50%; top: 76px; }
+      .dir { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 62vh; border-radius: 26px 26px 0 0; }
       .suggest { position: fixed; left: 12px; right: 12px; top: 76px; z-index: 1200; }
       .toasts { top: 76px; }
       .sim { left: 50%; bottom: auto; top: 76px; width: calc(100% - 24px); grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
@@ -541,7 +589,7 @@
 <body class="checking">
 <div class="gate">
   <div class="gate-card">
-    <img class="logo" src="/static/logo.svg" alt="">
+    <img class="logo" src="/static/logo.svg?v=2" alt="">
     <h2>omw</h2>
     <p class="tagline">Hangouts where "omw" actually means on my way. Maps knows the trip. We know your friends.</p>
 
@@ -583,7 +631,7 @@
     <span class="count" id="planBadge" hidden>0</span>
   </div>
   <button class="round" id="boardBtn" title="Who's always late?">🏆</button>
-  <div class="brand"><img src="/static/logo.svg" alt="">omw</div>
+  <div class="brand"><img src="/static/logo.svg?v=2" alt="">omw</div>
   <div class="search">
     <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7a7a86" stroke-width="3" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>
     <input id="placeInput" placeholder="Where are we meeting?" autocomplete="off">
@@ -594,11 +642,25 @@
 </header>
 <div class="map-hint" id="mapHint">📍 Search a place or tap the map</div>
 <div class="toasts" id="toasts"></div>
+<aside class="dir" id="dir" hidden>
+  <div class="dir-head"><div><b id="dirTitle">Directions</b><small id="dirFrom"></small></div><button class="round small" id="dirClose">✕</button></div>
+  <div class="dir-modes" id="dirModes"></div>
+  <div class="dir-sum" id="dirSum"></div>
+  <div class="dir-open" id="dirOpen"></div>
+  <ol class="dir-steps" id="dirSteps"></ol>
+</aside>
 
 <aside class="sheet" id="sheet">
   <div class="handle" id="handle"></div>
   <div class="hello"><h1>Plan a hangout</h1><span id="userName"></span></div>
   <div class="venue-sub" id="venueSub">No spot yet: search above or tap the map</div>
+
+  <form class="muse" id="museForm">
+    <span class="muse-spark">✨</span>
+    <input id="museText" placeholder="Tell Muse: boba with Priya Friday after 5" autocomplete="off" maxlength="500">
+    <button class="mini dark" id="museGo">Go</button>
+  </form>
+  <div class="muse-msg" id="museMsg"></div>
 
   <div class="section" id="weekSection" hidden>
     <div class="label">This week</div>
@@ -614,6 +676,16 @@
       <button class="pick-all" id="pickAll"></button>
     </div>
     <div class="pick-list" id="friendPick"></div>
+  </div>
+
+  <div class="section">
+    <div class="label">Where</div>
+    <button class="find" id="fairBtn">⚖️ Find a spot that's fair for everyone</button>
+    <div class="fair" id="fair" hidden>
+      <form class="fair-form" id="fairForm"><input id="fairText" placeholder="What kind of place? e.g. cheap tacos, open late" autocomplete="off" maxlength="100">
+        <button class="mini dark">Find</button></form>
+      <div id="fairList"></div>
+    </div>
   </div>
 
   <div class="section">
@@ -877,6 +949,7 @@ function clearVenue() {
   layer.clearLayers(); routes = {}; homeMarkers = {}; lastPlan = [];
   $("results").innerHTML = ""; $("empty").style.display = "";
   $("placeInput").value = ""; $("clearPlace").hidden = true; hideSuggest(); resultPins.clearLayers(); $("searchArea").hidden = true;
+  fairPins.clearLayers();
   $("mapHint").style.display = "";
   $("venueSub").textContent = "No spot yet: search above or tap the map";
   showWeather();
@@ -1192,6 +1265,153 @@ $("findBtn").onclick = async () => {
 const fmt = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const minutesBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 6e4);
 
+// ---------- directions, like Google Maps ----------
+// from where you are now (or your home), every way to get there with times, then turn by turn or which bus to take
+const DIR_MODES = { driving: "🚗 Drive", transit: "🚌 Transit", walking: "🚶 Walk", cycling: "🚲 Bike" };
+const GMAPS_MODE = { driving: "driving", transit: "transit", walking: "walking", cycling: "bicycling" };
+const APPLE_MODE = { driving: "d", transit: "r", walking: "w", cycling: "w" };
+const localIso = d => new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+const dirLayer = L.layerGroup().addTo(map);
+const TURN = [[/uturn/i, "↩️"], [/sharp.?left|SHARP_LEFT/i, "↰"], [/sharp.?right|SHARP_RIGHT/i, "↱"], [/slight.?left|SLIGHT_LEFT|keep.?left|FORK_LEFT/i, "↖️"],
+  [/slight.?right|SLIGHT_RIGHT|keep.?right|FORK_RIGHT/i, "↗️"], [/left/i, "⬅️"], [/right/i, "➡️"], [/roundabout/i, "🔄"], [/merge|ramp/i, "⤴️"],
+  [/depart|straight|continue|name|DEPART/i, "⬆️"], [/arrive/i, "🏁"]];
+const turnIcon = m => (TURN.find(([re]) => re.test(m || "")) || [0, "⬆️"])[1];
+let dirState = null;  // { venue, name, start, mode, origin, originLabel, results: { mode: directions } }
+
+async function openDirections({ venue: dest, name, start, mode, from }) {
+  const live = window.myFix && Date.now() - window.myFix.at < 5 * 6e4 ? window.myFix.here : null;
+  const home = myFriends().find(p => p.isMe)?.home;
+  const origin = live || home || from;
+  $("dir").hidden = false;
+  $("dirTitle").textContent = `To ${name || "the spot"}`;
+  if (!origin) {
+    $("dirFrom").textContent = ""; $("dirModes").innerHTML = $("dirOpen").innerHTML = $("dirSteps").innerHTML = "";
+    return $("dirSum").textContent = "Allow location, or set your home in your profile, to get directions.";
+  }
+  dirState = { venue: dest, name, start, mode: DIR_MODES[mode] ? mode : "driving", origin,
+               originLabel: live ? "From your location" : "From home", results: {} };
+  $("dirFrom").textContent = dirState.originLabel;
+  renderDirections();
+  // every way at once, so the tabs show their times like Google Maps
+  await Promise.all(Object.keys(DIR_MODES).map(async m => {
+    try {
+      const res = await fetch(`${API}/directions`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origin, venue: dest, mode: m, start_time: start || null, utc_offset_min: -new Date().getTimezoneOffset() }) });
+      if (!res.ok) throw new Error();
+      if (dirState?.venue === dest) { dirState.results[m] = await res.json(); renderDirections(); }
+    } catch { if (dirState?.venue === dest) { dirState.results[m] = { error: true }; renderDirections(); } }
+  }));
+}
+window.openDirections = openDirections;
+
+function renderDirections() {
+  const s = dirState, d = s.results[s.mode], dist = m => m == null ? "" : howFar(m);
+  $("dirModes").innerHTML = Object.entries(DIR_MODES).map(([m, label]) => {
+    const r = s.results[m];
+    return `<button class="${m === s.mode ? "on" : ""}" data-dmode="${m}">${label}<small>${!r ? "…" : r.error ? "—" : `${Math.round(r.minutes)} min`}</small></button>`;
+  }).join("");
+  const g = `https://www.google.com/maps/dir/?api=1&origin=${s.origin.join(",")}&destination=${s.venue.join(",")}&travelmode=${GMAPS_MODE[s.mode]}`;
+  const a = `https://maps.apple.com/?saddr=${s.origin.join(",")}&daddr=${s.venue.join(",")}&dirflg=${APPLE_MODE[s.mode]}`;
+  $("dirOpen").innerHTML = `<a href="${g}" target="_blank" rel="noopener">▶ Start in Google Maps</a><a href="${a}" target="_blank" rel="noopener">Apple Maps</a>`;
+  dirLayer.clearLayers();
+  if (!d) { $("dirSum").innerHTML = "Getting directions…"; $("dirSteps").innerHTML = ""; return; }
+  if (d.error) { $("dirSum").innerHTML = `No ${DIR_MODES[s.mode].split(" ")[1].toLowerCase()} route found. Try another way.`; $("dirSteps").innerHTML = ""; return; }
+  const now = new Date(), arrive = new Date(now.getTime() + d.minutes * 6e4), start = s.start ? new Date(s.start) : null;
+  const leaveBy = start && new Date(start.getTime() - d.minutes * 6e4);
+  $("dirSum").innerHTML = `<div class="big">${Math.round(d.minutes)} min <small>(${dist(d.distance_m)})</small></div>
+    <div>Leave now, arrive <span class="eta">${fmt(arrive.toISOString())}</span>${d.source === "google" ? " · Google Maps" : d.source === "estimate" ? " · rough estimate" : ""}</div>
+    ${leaveBy && leaveBy > now ? `<div>To be there by ${fmt(start.toISOString())}, leave by <b>${fmt(leaveBy.toISOString())}</b></div>`
+      : start && start > now ? `<div class="late">Leave now: you'll be ${Math.round((arrive - start) / 6e4)} min late</div>` : ""}`;
+  $("dirSteps").innerHTML = d.steps.length ? d.steps.map(st => st.transit ? `<li><i>${/bus/i.test(st.transit.vehicle) ? "🚌" : /rail|train|subway|metro|tram/i.test(st.transit.vehicle) ? "🚆" : "🚏"}</i><div>
+        <span class="line-badge" style="background:${esc(st.transit.color || "#1e88ff")};color:${esc(st.transit.text_color || "#fff")}">${esc(st.transit.line || st.transit.vehicle)}</span>
+        toward ${esc(st.transit.headsign)}
+        <small>Get on at ${esc(st.transit.from)}${st.transit.departs ? ` · ${esc(st.transit.departs)}` : ""}</small>
+        <small>${st.transit.stops ? `${st.transit.stops} stops · ` : ""}get off at ${esc(st.transit.to)}${st.transit.arrives ? ` · ${esc(st.transit.arrives)}` : ""}</small></div></li>`
+      : `<li><i>${turnIcon(st.maneuver || st.text)}</i><div>${esc(st.text || "Continue")}<small>${[dist(st.distance_m), st.minutes >= 1 ? `${Math.round(st.minutes)} min` : ""].filter(Boolean).join(" · ")}</small></div></li>`).join("")
+      + `<li><i>🏁</i><div>${esc(s.name || "You're there")}</div></li>`
+    : `<li><i>ℹ️</i><div>No turn-by-turn for this one. Tap “Start in Google Maps” to navigate.</div></li>`;
+  const line = L.polyline(d.path, { color: "#1e88ff", weight: 7, opacity: .9 }).addTo(dirLayer);
+  L.circleMarker(s.origin, { radius: 7, color: "#fff", weight: 3, fillColor: "#1e88ff", fillOpacity: 1 }).addTo(dirLayer);
+  map.fitBounds(line.getBounds().pad(0.15), { paddingTopLeft: [innerWidth > 860 ? 440 : 20, 80], paddingBottomRight: [innerWidth > 860 ? 400 : 20, innerWidth > 860 ? 20 : innerHeight * 0.6] });
+}
+$("dirModes").onclick = e => { const b = e.target.closest("[data-dmode]"); if (b && dirState) { dirState.mode = b.dataset.dmode; renderDirections(); } };
+$("dirClose").onclick = () => { $("dir").hidden = true; dirState = null; dirLayer.clearLayers(); };
+
+// ---------- Muse: plan from one sentence ----------
+$("museForm").onsubmit = async e => {
+  e.preventDefault();
+  const text = $("museText").value.trim();
+  if (!text) return;
+  const msg = (t, err = false) => { $("museMsg").textContent = t; $("museMsg").className = "muse-msg" + (err ? " err" : ""); };
+  $("museGo").disabled = true; msg("✨ Muse is reading that…");
+  try {
+    const c = map.getCenter();
+    const res = await fetch(`${API}/ai/plan`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, now: localIso(new Date()), lat: c.lat, lng: c.lng,
+        friends: myFriends().filter(p => !p.isMe).map(p => ({ id: p.user_id, name: p.name })),
+        categories: allTypes().map(([id, , name]) => ({ id, name })) }) });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.detail || res.statusText);
+    const done = [];
+    if (d.who.length) { picked.clear(); d.who.forEach(id => picked.add(id)); showFriends();
+      done.push(`added ${d.who.map(id => myFriends().find(p => p.user_id === id)?.name).filter(Boolean).join(", ")}`); }
+    const type = d.type && document.querySelector(`input[name=type][value="${CSS.escape(d.type)}"]`);
+    if (type) { type.checked = true; done.push(allTypes().find(t => t[0] === d.type)?.[2].toLowerCase()); }
+    if (d.when) { $("start").value = d.when; done.push(new Date(d.when).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })); }
+    if (d.place) { setVenue([d.place.lat, d.place.lng], d.place.name, d.place.address); map.flyTo([d.place.lat, d.place.lng], 15); done.push(d.place.name); }
+    else if (d.place_query) done.push(`couldn't find “${d.place_query}”`);
+    showWeather();
+    msg(`✨ ${d.summary || "Done"}${done.length ? ` (${done.join(" · ")})` : ""}`);
+    if (d.find_time) $("findBtn").click();
+  } catch (err) {
+    msg(`Muse couldn't do that: ${err.message}`, true);
+  } finally { $("museGo").disabled = false; }
+};
+
+// ---------- Muse: a spot that's fair for everyone ----------
+const fairPins = L.layerGroup().addTo(map);
+$("fairBtn").onclick = () => {
+  $("fair").hidden = !$("fair").hidden;
+  if (!$("fair").hidden && !$("fairText").value) $("fairText").value = allTypes().find(t => t[0] === selectedType())?.[2] || "";
+  if (!$("fair").hidden) $("fairText").focus();
+};
+$("fairForm").onsubmit = async e => {
+  e.preventDefault();
+  const query = $("fairText").value.trim(), ids = pickedIds();
+  if (!query) return;
+  if (ids.length < 2) return $("fairList").innerHTML = `<div class="note">Pick at least one friend under Who first.</div>`;
+  const people = myFriends().filter(p => ids.includes(p.user_id))
+    .map(p => ({ id: p.user_id, name: p.isMe ? "You" : p.name, home: p.home || (p.isMe ? window.myFix?.here : null) || null, mode: modeFor[p.user_id] || p.travel_mode }));
+  $("fairList").innerHTML = `<div class="note">✨ Checking everyone's trip to each place…</div>`;
+  try {
+    const c = map.getCenter();
+    const res = await fetch(`${API}/ai/fair-spot`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, people, lat: c.lat, lng: c.lng }) });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.detail || res.statusText);
+    if (!d.candidates.length) return $("fairList").innerHTML = `<div class="note">${esc(d.why)}</div>`;
+    const name = id => people.find(p => p.id === id)?.name || "Friend";
+    const order = [d.pick, ...d.candidates.map((_, i) => i).filter(i => i !== d.pick)];
+    fairPins.clearLayers();
+    d.candidates.forEach((p, i) => L.marker([p.lat, p.lng], { icon: L.divIcon({ className: "", iconSize: [30, 30], iconAnchor: [15, 30],
+      html: `<div class="result-pin" ${i === d.pick ? 'style="background:#7b61ff"' : ""}><span>${i === d.pick ? "✨" : order.indexOf(i) + 1}</span></div>` }) })
+      .bindTooltip(esc(p.name), { direction: "top", offset: [0, -28] }).addTo(fairPins));
+    map.fitBounds(L.latLngBounds([...d.candidates.map(p => [p.lat, p.lng]), ...people.filter(p => p.home).map(p => p.home)]).pad(0.15), viewPadding());
+    $("fairList").innerHTML = order.map((i, n) => { const p = d.candidates[i];
+      return `<div class="fair-card ${i === d.pick ? "pick" : ""}">
+        <b>${i === d.pick ? "✨ " : `${n + 1}. `}${esc(p.name)}</b>
+        ${i === d.pick ? `<div class="why">${esc(d.why)}</div>` : ""}
+        <small>${[p.rating ? `★ ${p.rating.toFixed(1)}` : "", p.price, esc(p.type || ""), p.open === true ? "Open now" : p.open === false ? "Closed now" : ""].filter(Boolean).join(" · ")}</small>
+        <div class="trips">${Object.entries(p.times).map(([u, m]) => `<span class="trip ${m === p.worst && p.spread > 5 ? "worst" : ""}">${esc(name(u))} ${m} min</span>`).join("")}</div>
+        <button class="mini ${i === d.pick ? "dark" : ""}" data-meet="${i}">📍 Meet here</button></div>`; }).join("")
+      + (d.missing_home?.length ? `<div class="note">No home set for ${esc(d.missing_home.join(", "))}, so their trip isn't counted.</div>` : "")
+      + (d.read_by ? `<div class="note">Picked by ${esc(d.read_by)} from real ${d.candidates[0].sources.includes("google") ? "Google Maps" : ""} trip times.</div>` : "");
+    $("fairList").onclick = ev => { const b = ev.target.closest("[data-meet]"); if (!b) return;
+      const p = d.candidates[+b.dataset.meet]; fairPins.clearLayers(); setVenue([p.lat, p.lng], p.name, p.address); map.flyTo([p.lat, p.lng], 15);
+      $("fair").hidden = true; };
+  } catch (err) { $("fairList").innerHTML = `<div class="note">Couldn't pick a spot: ${esc(err.message)}</div>`; }
+};
+
 $("planBtn").onclick = () => { closeHangout(); runPlan(); };
 async function runPlan() {
   $("error").textContent = "";
@@ -1206,7 +1426,8 @@ async function runPlan() {
       body: JSON.stringify({ user_ids, venue, start_time: $("start").value,
                              hangout_type: selectedType(), modes: modeFor, utc_offset_min: -new Date().getTimezoneOffset(),
                              guests: myFriends().filter(p => user_ids.includes(p.user_id))
-                               .map(({ user_id, name, travel_mode, home, habits }) => ({ user_id, name, travel_mode, home, habits })) }),
+                               .map(({ user_id, name, travel_mode, home, habits, isMe }) => ({ user_id, name, travel_mode, habits,
+                                 home: home || (isMe ? window.myFix?.here : null) || null })) }),
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
     showResults(await res.json());
@@ -1265,6 +1486,7 @@ function cardHtml(r) {
         : ` · usually leaves ${Math.max(0, Math.round(r.typical_delay_min))} min after the alert (up to ${Math.max(0, Math.round(r.bad_day_delay_min))})`}</div>
       <div class="modes">${Object.entries(MODE).map(([m, label]) =>
         `<button class="mode-chip ${m === r.travel_mode ? "on" : ""}" data-user="${r.user_id}" data-mode="${m}" title="${label}">${label}</button>`).join("")}</div>
+      ${r.user_id === myId() ? `<button class="mini dark dir-btn" data-dir="1">🧭 Directions</button>` : ""}
       <div class="status" id="st-${r.user_id}"></div>
     </div>
   </div>`;
@@ -1276,6 +1498,9 @@ function bindCard(card) {
   card.onmouseenter = () => { routes[uid]?.setStyle({ weight: 10, dashArray: null }); routes[uid]?.bringToFront(); };
   card.onmouseleave = () => routes[uid]?.setStyle({ weight: 6, dashArray: "1 10" });
   card.querySelectorAll(".mode-chip").forEach(b => b.onclick = e => { e.stopPropagation(); switchMode(uid, b.dataset.mode, card); });
+  const dirBtn = card.querySelector("[data-dir]");
+  if (dirBtn) dirBtn.onclick = e => { e.stopPropagation(); const r = lastPlan.find(x => x.user_id === uid);
+    openDirections({ venue, name: venueName, start: $("start").value, mode: r?.travel_mode, from: r?.home }); };
 }
 
 function drawRoute(r) {

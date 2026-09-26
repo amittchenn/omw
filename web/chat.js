@@ -52,7 +52,7 @@ function notify(id, m) {
   window.toast?.({ user_id: m.from, name: m.name, photo: window.myFriends?.find(p => p.user_id === m.from)?.photo || "" },
                  `<b>${esc(h.title)}</b><br>${esc(text)}`, m.kind === "late");
   if ("Notification" in window && Notification.permission === "granted" && (document.hidden || !document.hasFocus())) {
-    const n = new Notification(h.title, { body: text, tag: `${id}:${m.id}`, icon: "/static/logo.svg" });
+    const n = new Notification(h.title, { body: text, tag: `${id}:${m.id}`, icon: "/static/logo.svg?v=2" });
     n.onclick = () => { window.focus(); openChat(id); n.close(); };
   }
 }

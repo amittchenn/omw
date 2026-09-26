@@ -278,6 +278,7 @@ function planCard(h, { past = false, next = false } = {}) {
     ${past ? "" : checkInHtml(h)}
     <div class="plan-actions">
       ${h.venue ? `<button class="mini dark" data-show="${esc(h.id)}">${past ? "🗺️ Show on map" : "📍 Where is everyone?"}</button>` : ""}
+      ${!past && h.venue ? `<button class="mini" data-dir="${esc(h.id)}">🧭 Directions</button>` : ""}
       <button class="mini" data-chat="${esc(h.id)}">💬 Chat${unreadCount(h.id) ? ` <span class="unread">${unreadCount(h.id)}</span>` : ""}</button>
       ${past ? "" : `<a class="mini" href="${googleLink(h)}" target="_blank" rel="noopener" title="Add to Google Calendar">${googleCalIcon(20)}</a>
         <a class="mini" href="${appleFile(h)}" download="hangout.ics" title="Add to Apple Calendar">${appleCalIcon(20, new Date(h.start))}</a>`}
@@ -591,6 +592,9 @@ if (configured) {
     const show = e.target.closest("[data-show]");
     if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
     if (b?.dataset.chat) { $("plans").hidden = true; return window.openChat(b.dataset.chat); }
+    if (b?.dataset.dir) { const h = hangoutDocs[b.dataset.dir]; $("plans").hidden = true;
+      const d = new Date(h.start);
+      return window.openDirections({ venue: h.venue, name: h.venueName || h.title, start: new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16), mode: myModeFor(h) }); }
     if (b?.dataset.myMode && !b.classList.contains("on")) { b.textContent = "…"; await changeMode(b.dataset.myMode, b.dataset.mode); }
     if (b?.dataset.cancelHangout && confirm("Cancel this hangout for everyone?")) await deleteDoc(doc(db, "hangouts", b.dataset.cancelHangout));
     if (b?.dataset.leave && confirm("Can't make it? You'll be taken off this hangout.")) await rsvp(b.dataset.leave, "declined");
