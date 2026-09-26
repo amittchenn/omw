@@ -1,17 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="18" fill="#FFE600"/>
-  <!-- speed lines: someone's on their way -->
-  <g stroke="#111114" stroke-width="3.4" stroke-linecap="round">
-    <line x1="9" y1="21" x2="17" y2="21"/>
-    <line x1="6" y1="29" x2="16" y2="29"/>
-    <line x1="10" y1="37" x2="17" y2="37"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- omw: an alarm clock running late, on the app's yellow -->
+  <rect width="512" height="512" rx="116" fill="#FFE600"/>
+  <defs>
+    <g id="clock">
+      <circle cx="148" cy="158" r="58"/>
+      <circle cx="324" cy="158" r="58"/>
+      <rect x="154" y="376" width="44" height="74" rx="22" transform="rotate(24 176 400)"/>
+      <rect x="276" y="376" width="44" height="74" rx="22" transform="rotate(-24 298 400)"/>
+      <circle cx="236" cy="272" r="150"/>
+    </g>
+  </defs>
+  <g transform="rotate(-16 236 272) translate(4 6)">
+    <!-- white sticker edge -->
+    <use href="#clock" fill="#fff" stroke="#fff" stroke-width="34" stroke-linejoin="round"/>
+    <!-- bells, legs, body -->
+    <use href="#clock" fill="#111114"/>
+    <circle cx="236" cy="272" r="124" fill="#fff"/>
+    <!-- hour marks -->
+    <g fill="#111114">
+      <rect x="229" y="160" width="14" height="30" rx="7"/>
+      <rect x="229" y="354" width="14" height="30" rx="7"/>
+      <rect x="124" y="265" width="30" height="14" rx="7"/>
+      <rect x="318" y="265" width="30" height="14" rx="7"/>
+    </g>
+    <!-- hands: nearly on the hour, time to go -->
+    <g stroke="#111114" stroke-linecap="round">
+      <line x1="236" y1="272" x2="222" y2="182" stroke-width="18"/>
+      <line x1="236" y1="272" x2="304" y2="258" stroke-width="18"/>
+    </g>
+    <circle cx="236" cy="272" r="20" fill="#111114"/>
+    <circle cx="236" cy="272" r="7" fill="#FFE600"/>
   </g>
-  <!-- a map pin whose head is a clock: where + when -->
-  <path d="M37 56C37 56 21 40.5 21 28.5a16 16 0 1 1 32 0C53 40.5 37 56 37 56Z" fill="#111114"/>
-  <circle cx="37" cy="28.5" r="10" fill="#fff"/>
-  <g stroke-linecap="round">
-    <line x1="37" y1="28.5" x2="37" y2="21.5" stroke="#111114" stroke-width="3"/>
-    <line x1="37" y1="28.5" x2="42" y2="31.5" stroke="#FF4F9A" stroke-width="3"/>
+  <!-- speed lines: on my way -->
+  <g fill="none" stroke="#111114" stroke-linecap="round">
+    <path d="M404 206 C436 212 462 226 482 250" stroke-width="20"/>
+    <path d="M412 268 C442 278 464 296 478 322" stroke-width="20"/>
+    <path d="M404 338 C424 350 438 366 446 386" stroke-width="18"/>
   </g>
-  <circle cx="37" cy="28.5" r="2" fill="#111114"/>
 </svg>
