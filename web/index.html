@@ -628,6 +628,12 @@
     .cc-opts.colors { grid-template-columns: repeat(7, minmax(0, 1fr)); }
     .cc-opts.colors button { border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
     .cc-opts.colors button.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+    .cc-preview.pick img { object-fit: contain; padding: 6px 6px 2px; }
+    .cc-bgs { display: flex; gap: 8px; margin-top: 12px; }
+    .cc-bgs button { flex: 1; aspect-ratio: 1; max-width: 34px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+    .cc-bgs button.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+    #avatarEditor .cc-opts { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    #avatarEditor .cc-opts img { inset: 6%; width: 88%; height: 88%; object-fit: contain; }
     .cc-save { display: flex; gap: 8px; margin-top: 10px; }
     .cc-save button { flex: 1; background: #fff !important; }
     .cc-save button.dark { background: var(--ink) !important; color: #fff; }
