@@ -804,6 +804,23 @@
     .slot-note { font-size: 12px; font-weight: 700; color: var(--muted); }
     .nobody { padding: 14px; border-radius: 18px; background: var(--soft); color: var(--muted); font-weight: 700; font-size: 14px; text-align: center; }
 
+    /* ---------- splash: the logo while the app starts (instead of a plain yellow screen) ---------- */
+    .splash { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; text-align: center;
+              background: radial-gradient(circle at 20% 15%, #fff59a 0, transparent 40%), radial-gradient(circle at 85% 85%, #ffd000 0, transparent 45%), var(--sun);
+              transition: opacity .4s ease, visibility 0s linear .4s; }
+    body.splash-done .splash { opacity: 0; visibility: hidden; pointer-events: none; }
+    .splash-in { display: grid; justify-items: center; gap: 4px; animation: splashUp .5s cubic-bezier(.2, .9, .3, 1.2) both; }
+    .splash img { width: 116px; height: 116px; border-radius: 30px; box-shadow: 0 18px 40px rgba(90, 70, 0, .28); animation: ring 1.6s ease-in-out .35s infinite; }
+    .splash b { margin-top: 18px; font-size: 54px; font-weight: 900; letter-spacing: -.06em; line-height: 1; color: var(--ink); }
+    .splash small { font-size: 16px; font-weight: 800; color: rgba(17, 17, 20, .62); }
+    .splash-dots { position: absolute; bottom: calc(48px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex; justify-content: center; gap: 7px; }
+    .splash-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink); opacity: .25; animation: dot 1s ease-in-out infinite; }
+    .splash-dots i:nth-child(2) { animation-delay: .15s; } .splash-dots i:nth-child(3) { animation-delay: .3s; }
+    @keyframes splashUp { from { opacity: 0; transform: translateY(14px) scale(.92); } }
+    @keyframes ring { 0%, 55%, 100% { transform: rotate(0); } 60% { transform: rotate(-9deg); } 66% { transform: rotate(8deg); } 72% { transform: rotate(-6deg); } 78% { transform: rotate(4deg); } 84% { transform: rotate(0); } }
+    @keyframes dot { 50% { opacity: .8; transform: translateY(-3px); } }
+    @media (prefers-reduced-motion: reduce) { .splash img, .splash-in, .splash-dots i { animation: none; } }
+
     /* ---------- login ---------- */
     .gate { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; overflow-y: auto;
             background: radial-gradient(circle at 20% 15%, #fff59a 0, transparent 40%), radial-gradient(circle at 85% 85%, #ffd000 0, transparent 45%), var(--sun); }
@@ -893,6 +910,19 @@
   </style>
 </head>
 <body class="checking">
+<div class="splash" aria-hidden="true">
+  <div class="splash-in"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8IS0tIG9tdzogYW4gYWxhcm0gY2xvY2sgcnVubmluZyBsYXRlLCBvbiB0aGUgYXBwJ3MgeWVsbG93IC0tPgogIDxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iMTE2IiBmaWxsPSIjRkZFNjAwIi8+CiAgPGRlZnM+CiAgICA8ZyBpZD0iY2xvY2siPgogICAgICA8Y2lyY2xlIGN4PSIxNDgiIGN5PSIxNTgiIHI9IjU4Ii8+CiAgICAgIDxjaXJjbGUgY3g9IjMyNCIgY3k9IjE1OCIgcj0iNTgiLz4KICAgICAgPHJlY3QgeD0iMTU0IiB5PSIzNzYiIHdpZHRoPSI0NCIgaGVpZ2h0PSI3NCIgcng9IjIyIiB0cmFuc2Zvcm09InJvdGF0ZSgyNCAxNzYgNDAwKSIvPgogICAgICA8cmVjdCB4PSIyNzYiIHk9IjM3NiIgd2lkdGg9IjQ0IiBoZWlnaHQ9Ijc0IiByeD0iMjIiIHRyYW5zZm9ybT0icm90YXRlKC0yNCAyOTggNDAwKSIvPgogICAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjE1MCIvPgogICAgPC9nPgogIDwvZGVmcz4KICA8ZyB0cmFuc2Zvcm09InJvdGF0ZSgtMTYgMjM2IDI3MikgdHJhbnNsYXRlKDQgNikiPgogICAgPCEtLSB3aGl0ZSBzdGlja2VyIGVkZ2UgLS0+CiAgICA8dXNlIGhyZWY9IiNjbG9jayIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjM0IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgICA8IS0tIGJlbGxzLCBsZWdzLCBib2R5IC0tPgogICAgPHVzZSBocmVmPSIjY2xvY2siIGZpbGw9IiMxMTExMTQiLz4KICAgIDxjaXJjbGUgY3g9IjIzNiIgY3k9IjI3MiIgcj0iMTI0IiBmaWxsPSIjZmZmIi8+CiAgICA8IS0tIGhvdXIgbWFya3MgLS0+CiAgICA8ZyBmaWxsPSIjMTExMTE0Ij4KICAgICAgPHJlY3QgeD0iMjI5IiB5PSIxNjAiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzMCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMjI5IiB5PSIzNTQiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzMCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMTI0IiB5PSIyNjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMzE4IiB5PSIyNjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNCIgcng9IjciLz4KICAgIDwvZz4KICAgIDwhLS0gaGFuZHM6IG5lYXJseSBvbiB0aGUgaG91ciwgdGltZSB0byBnbyAtLT4KICAgIDxnIHN0cm9rZT0iIzExMTExNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgICAgPGxpbmUgeDE9IjIzNiIgeTE9IjI3MiIgeDI9IjIyMiIgeTI9IjE4MiIgc3Ryb2tlLXdpZHRoPSIxOCIvPgogICAgICA8bGluZSB4MT0iMjM2IiB5MT0iMjcyIiB4Mj0iMzA0IiB5Mj0iMjU4IiBzdHJva2Utd2lkdGg9IjE4Ii8+CiAgICA8L2c+CiAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjIwIiBmaWxsPSIjMTExMTE0Ii8+CiAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjciIGZpbGw9IiNGRkU2MDAiLz4KICA8L2c+CiAgPCEtLSBzcGVlZCBsaW5lczogb24gbXkgd2F5IC0tPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzExMTExNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik00MDQgMjA2IEM0MzYgMjEyIDQ2MiAyMjYgNDgyIDI1MCIgc3Ryb2tlLXdpZHRoPSIyMCIvPgogICAgPHBhdGggZD0iTTQxMiAyNjggQzQ0MiAyNzggNDY0IDI5NiA0NzggMzIyIiBzdHJva2Utd2lkdGg9IjIwIi8+CiAgICA8cGF0aCBkPSJNNDA0IDMzOCBDNDI0IDM1MCA0MzggMzY2IDQ0NiAzODYiIHN0cm9rZS13aWR0aD0iMTgiLz4KICA8L2c+Cjwvc3ZnPgo=" alt=""><b>omw!</b><small>Hang out. Show up on time.</small></div>
+  <div class="splash-dots"><i></i><i></i><i></i></div>
+</div>
+<script>
+  // the splash stays until we know whether you're signed in, and at least a moment so it doesn't just flash
+  (() => {
+    const shown = Date.now(), done = () => setTimeout(() => document.body.classList.add("splash-done"), Math.max(0, 900 - (Date.now() - shown)));
+    if (!document.body.classList.contains("checking")) return done();
+    const watch = new MutationObserver(() => { if (!document.body.classList.contains("checking")) { watch.disconnect(); done(); } });
+    watch.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  })();
+</script>
 <div class="gate">
   <div class="gate-card">
     <img class="logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8IS0tIG9tdzogYW4gYWxhcm0gY2xvY2sgcnVubmluZyBsYXRlLCBvbiB0aGUgYXBwJ3MgeWVsbG93IC0tPgogIDxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iMTE2IiBmaWxsPSIjRkZFNjAwIi8+CiAgPGRlZnM+CiAgICA8ZyBpZD0iY2xvY2siPgogICAgICA8Y2lyY2xlIGN4PSIxNDgiIGN5PSIxNTgiIHI9IjU4Ii8+CiAgICAgIDxjaXJjbGUgY3g9IjMyNCIgY3k9IjE1OCIgcj0iNTgiLz4KICAgICAgPHJlY3QgeD0iMTU0IiB5PSIzNzYiIHdpZHRoPSI0NCIgaGVpZ2h0PSI3NCIgcng9IjIyIiB0cmFuc2Zvcm09InJvdGF0ZSgyNCAxNzYgNDAwKSIvPgogICAgICA8cmVjdCB4PSIyNzYiIHk9IjM3NiIgd2lkdGg9IjQ0IiBoZWlnaHQ9Ijc0IiByeD0iMjIiIHRyYW5zZm9ybT0icm90YXRlKC0yNCAyOTggNDAwKSIvPgogICAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjE1MCIvPgogICAgPC9nPgogIDwvZGVmcz4KICA8ZyB0cmFuc2Zvcm09InJvdGF0ZSgtMTYgMjM2IDI3MikgdHJhbnNsYXRlKDQgNikiPgogICAgPCEtLSB3aGl0ZSBzdGlja2VyIGVkZ2UgLS0+CiAgICA8dXNlIGhyZWY9IiNjbG9jayIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjM0IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgICA8IS0tIGJlbGxzLCBsZWdzLCBib2R5IC0tPgogICAgPHVzZSBocmVmPSIjY2xvY2siIGZpbGw9IiMxMTExMTQiLz4KICAgIDxjaXJjbGUgY3g9IjIzNiIgY3k9IjI3MiIgcj0iMTI0IiBmaWxsPSIjZmZmIi8+CiAgICA8IS0tIGhvdXIgbWFya3MgLS0+CiAgICA8ZyBmaWxsPSIjMTExMTE0Ij4KICAgICAgPHJlY3QgeD0iMjI5IiB5PSIxNjAiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzMCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMjI5IiB5PSIzNTQiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzMCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMTI0IiB5PSIyNjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMzE4IiB5PSIyNjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNCIgcng9IjciLz4KICAgIDwvZz4KICAgIDwhLS0gaGFuZHM6IG5lYXJseSBvbiB0aGUgaG91ciwgdGltZSB0byBnbyAtLT4KICAgIDxnIHN0cm9rZT0iIzExMTExNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgICAgPGxpbmUgeDE9IjIzNiIgeTE9IjI3MiIgeDI9IjIyMiIgeTI9IjE4MiIgc3Ryb2tlLXdpZHRoPSIxOCIvPgogICAgICA8bGluZSB4MT0iMjM2IiB5MT0iMjcyIiB4Mj0iMzA0IiB5Mj0iMjU4IiBzdHJva2Utd2lkdGg9IjE4Ii8+CiAgICA8L2c+CiAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjIwIiBmaWxsPSIjMTExMTE0Ii8+CiAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjciIGZpbGw9IiNGRkU2MDAiLz4KICA8L2c+CiAgPCEtLSBzcGVlZCBsaW5lczogb24gbXkgd2F5IC0tPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzExMTExNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik00MDQgMjA2IEM0MzYgMjEyIDQ2MiAyMjYgNDgyIDI1MCIgc3Ryb2tlLXdpZHRoPSIyMCIvPgogICAgPHBhdGggZD0iTTQxMiAyNjggQzQ0MiAyNzggNDY0IDI5NiA0NzggMzIyIiBzdHJva2Utd2lkdGg9IjIwIi8+CiAgICA8cGF0aCBkPSJNNDA0IDMzOCBDNDI0IDM1MCA0MzggMzY2IDQ0NiAzODYiIHN0cm9rZS13aWR0aD0iMTgiLz4KICA8L2c+Cjwvc3ZnPgo=" alt="">
