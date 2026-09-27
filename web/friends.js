@@ -518,12 +518,15 @@ function planCard(h, { past = false, next = false } = {}) {
   const waiting = invited.filter(u => !h.attendees.includes(u) && rsvp[u] !== "declined");
   const declined = invited.filter(u => rsvp[u] === "declined");
   const names = us => us.map(u => esc(nameOf(h, u))).join(", ");
-  const mine = h.createdBy === me.uid;
+  const mine = h.createdBy === me.uid, canEdit = !past && editable(h);
+  const others = h.attendees.filter(u => u !== me.uid);
   return `<div class="plan-card ${past ? "past" : ""} ${next ? "next" : ""}" data-show="${esc(h.id)}">
     <div class="plan-head"><div class="who"><b>${esc(h.title)}</b>
         <small>${esc(whenText(h))}${h.address ? ` · ${esc(h.address)}` : ""}</small>
         <small>Planned by ${mine ? "you" : esc(h.createdByName || "a friend")}</small></div>
-      ${past ? "" : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">${icon("x")}</button>`}</div>
+      ${past ? "" : canEdit ? `<button class="mini" data-discard="${esc(h.id)}" title="Discard this plan">${icon("trash-2")}</button>`
+                           : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">${icon("x")}</button>`}</div>
+    ${!past && mine && others.length ? `<small class="note locked">${icon("lock")} Locked: ${esc(names(others))} ${others.length > 1 ? "are" : "is"} in, so it can't be changed</small>` : ""}
     ${past ? `<div class="trip-sum ${everyoneArrived(h) ? "all" : ""}">${icon(everyoneArrived(h) ? "circle-check" : "flag")} ${esc(tripSummary(h))}</div>` : ""}
     ${window.memoryCard?.(h) || ""}
     ${!past && leaveTime(h) ? `<div class="plan-you">
@@ -545,8 +548,10 @@ function planCard(h, { past = false, next = false } = {}) {
       ${chatOpen(h) ? act("message-circle", "Chat", `data-chat="${esc(h.id)}"`, "", unreadCount(h.id)) : ""}
       ${past ? "" : act("user-round-plus", "Invite", `data-add-people="${esc(h.id)}" title="Invite more friends"`, addingTo === h.id ? "on" : "")}
       ${past ? "" : act("calendar-plus", "Calendar", `data-cal="${esc(h.id)}" title="Add to Google Calendar"`)}
+      ${canEdit ? act("pencil", "Edit", `data-edit-plan="${esc(h.id)}" title="Change it before anyone accepts"`, editingPlan === h.id ? "on" : "") : ""}
     </div>
     ${!past && addingTo === h.id ? addPeoplePanel(h) : ""}
+    ${canEdit && editingPlan === h.id ? editPanel(h) : ""}
   </div>`;
 }
 
@@ -566,6 +571,52 @@ async function invitePerson(h, uid) {
   await updateDoc(doc(db, "hangouts", h.id), { invited: arrayUnion(uid), [`names.${uid}`]: name,
                                               [`modes.${uid}`]: friends[uid]?.travelMode || "driving" });
   window.postChat?.(h.id, `invited ${name}`, "added");  // tell the group; they join the chat once they accept
+}
+
+// your own plan stays editable (or can be thrown away) until someone else says they're in; then it's locked for everyone.
+// The Firestore rules hold the same line, so nobody can change a plan under people who already said yes.
+const editable = h => h.createdBy === me.uid && h.attendees.every(u => u === me.uid);
+let editingPlan = "", editPlace = null, editFound = [], editTimer, editSession = null;
+function editPanel(h) {
+  const p = editPlace || { name: h.venueName, address: h.address };
+  return `<div class="from-panel edit-plan">
+    <label>Title<input class="ep-title" maxlength="80" value="${esc(h.title)}"></label>
+    <label>When<input class="ep-when" type="datetime-local" value="${esc(localIso(h.start))}"></label>
+    <label>Where</label>
+    <div class="ep-place">${icon("map-pin")}<div><b>${esc(p.name || "Pick a place")}</b>${p.address ? `<span>${esc(p.address)}</span>` : ""}</div></div>
+    <input class="from-search" data-edit-search="${esc(h.id)}" placeholder="Search another place" autocomplete="off">
+    <div class="from-found" id="editFound"></div>
+    <div class="ep-actions"><button class="mini" data-edit-cancel="1">Cancel</button>
+      <button class="mini dark" data-edit-save="${esc(h.id)}">Save changes</button></div>
+    <small class="note" id="editMsg"></small>
+  </div>`;
+}
+async function saveEdit(h, box) {
+  const title = box.querySelector(".ep-title").value.trim(), when = box.querySelector(".ep-when").value;
+  if (!when) throw new Error("Pick a time.");
+  const start = new Date(when).toISOString();
+  if (new Date(start) < Date.now()) throw new Error("Pick a time that hasn't passed.");
+  const moved = editPlace && (editPlace.lat !== h.venue?.[0] || editPlace.lng !== h.venue?.[1]);
+  const changed = moved || start !== new Date(h.start).toISOString();
+  const update = { title: title || h.title, start, editedAt: serverTimestamp() };
+  if (moved) {
+    Object.assign(update, { venue: [editPlace.lat, editPlace.lng], venueName: editPlace.name, address: editPlace.address || "" });
+    if (h.venueName) update.title = update.title.replace(h.venueName, editPlace.name);  // "Food at Old place" follows the place
+  }
+  if (changed) {  // new time or place: everyone else's leave times were for the old one, and anyone who said no gets asked again
+    for (const u of (h.invited || []).filter(u => u !== me.uid)) {
+      update[`alerts.${u}`] = deleteField(); update[`travel.${u}`] = deleteField();
+      if (h.rsvp?.[u] === "declined") update[`rsvp.${u}`] = deleteField();
+    }
+    Object.assign(update, await myWayThere({ ...h, ...update }, myModeFor(h)));  // and your own leave time, for the new trip
+  }
+  await updateDoc(doc(db, "hangouts", h.id), update);
+  editingPlan = ""; editPlace = null; editFound = [];
+}
+async function discardPlan(h) {
+  const waiting = (h.invited || []).filter(u => u !== me.uid && h.rsvp?.[u] !== "declined").length;
+  if (!confirm(waiting ? `Discard ${h.title}? The invite${waiting > 1 ? "s" : ""} will disappear.` : `Discard ${h.title}?`)) return;
+  await deleteDoc(doc(db, "hangouts", h.id));
 }
 
 // "This week" on the main screen: your plans in the next 7 days, tap one to see it on the map
@@ -607,7 +658,7 @@ function renderInvites() {
   $("inviteCount").textContent = invites.length ? `(${invites.length})` : "";
   $("inviteList").innerHTML = invites.map(h => `<div class="invite">
       <b>${esc(h.title)}</b>
-      <small>${esc(whenText(h))} · from ${esc(h.createdByName || "a friend")}</small>
+      <small>${esc(whenText(h))} · from ${esc(h.createdByName || "a friend")}${h.editedAt ? " · updated" : ""}</small>
       <small>${whoIsComing(h)}</small>
       ${leaveTime(h) ? `<small>${icon("bell")} Your leave-now alert would be ${leaveTime(h)}</small>` : ""}
       <small>How are you getting there?</small>${modeChips(h, inviteMode[h.id] || myModeFor(h), "data-inv-mode")}
@@ -1075,6 +1126,23 @@ if (configured) {
   });
   $("homeInput").onblur = () => setTimeout(() => ($("homeSuggest").innerHTML = ""), 200);
   // "Leaving from": search any place for one hangout (same place search as your home)
+  // editing a plan: search a new place (same search as "Leaving from")
+  $("hangoutList").addEventListener("input", e => {
+    if (!e.target.dataset.editSearch) return;
+    clearTimeout(editTimer);
+    const q = e.target.value.trim(), box = document.getElementById("editFound"), h = hangoutDocs[e.target.dataset.editSearch];
+    if (q.length < 3) { box.innerHTML = ""; return; }
+    editTimer = setTimeout(async () => {
+      editSession ||= crypto.randomUUID?.() || String(Math.random()).slice(2);
+      const [lat, lng] = h?.venue || [profile.home?.lat ?? 39.8, profile.home?.lng ?? -98.6];
+      const list = await fetch(`/places/suggest?q=${encodeURIComponent(q)}&lat=${lat}&lng=${lng}&session=${editSession}`).then(r => r.json()).catch(() => []);
+      if (e.target.value.trim() !== q) return;
+      editFound = list.filter(p => p.kind === "place");
+      box.innerHTML = editFound.length
+        ? editFound.map((p, i) => `<button class="opt" data-edit-pick="${i}"><i>${icon("map-pin")}</i><div><b>${esc(p.name)}</b><span>${esc(p.address || "")}</span></div></button>`).join("")
+        : `<div class="none">No matches yet. Keep typing.</div>`;
+    }, 250);
+  });
   $("hangoutList").addEventListener("input", e => {
     if (!e.target.dataset.fromSearch) return;
     clearTimeout(fromTimer);
@@ -1116,8 +1184,30 @@ if (configured) {
   $("pastList").onclick = $("hangoutList").onclick = run(async e => {
     const b = e.target.closest("button, a");
     const show = e.target.closest("[data-show]");
+    if (!b && e.target.closest(".from-panel, .add-people")) return;  // typing or tapping inside a panel isn't "show on the map"
     if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
     if (b?.dataset.chat) { $("plans").hidden = true; return window.openChat(b.dataset.chat); }
+    if (b?.dataset.editPlan) { editingPlan = editingPlan === b.dataset.editPlan ? "" : b.dataset.editPlan; editPlace = null; editFound = []; return renderHangouts(); }
+    if (b?.dataset.editCancel) { editingPlan = ""; editPlace = null; editFound = []; return renderHangouts(); }
+    if (b?.dataset.editPick) {
+      let p = editFound[+b.dataset.editPick];
+      if (p && p.lat == null) p = { ...p, ...(await fetch(`/places/details?id=${encodeURIComponent(p.id)}&session=${editSession}`).then(r => r.json())) };
+      editSession = null;
+      if (p?.lat == null) throw new Error("Couldn't find that place. Try another.");
+      const box = b.closest(".edit-plan"), was = editPlace ? editPlace.name : hangoutDocs[box.querySelector("[data-edit-search]").dataset.editSearch]?.venueName;
+      const keep = { t: was ? box.querySelector(".ep-title").value.replace(was, p.name) : box.querySelector(".ep-title").value, w: box.querySelector(".ep-when").value };
+      editPlace = p; editFound = []; renderHangouts();
+      const nb = document.querySelector(".edit-plan"); if (nb) { nb.querySelector(".ep-title").value = keep.t; nb.querySelector(".ep-when").value = keep.w; }
+      return;
+    }
+    if (b?.dataset.editSave) {
+      const h = hangoutDocs[b.dataset.editSave];
+      if (!editable(h)) { editingPlan = ""; renderHangouts(); throw new Error("Someone already said they're in, so this plan is locked."); }
+      b.disabled = true; b.textContent = "Saving…";
+      try { await saveEdit(h, b.closest(".edit-plan")); } finally { b.disabled = false; b.textContent = "Save changes"; }
+      return renderHangouts();
+    }
+    if (b?.dataset.discard) return discardPlan(hangoutDocs[b.dataset.discard]);
     if (b?.dataset.addPeople) { addingTo = addingTo === b.dataset.addPeople ? "" : b.dataset.addPeople; return renderHangouts(); }
     if (b?.dataset.invite) {
       b.disabled = true;
