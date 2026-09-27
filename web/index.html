@@ -127,7 +127,7 @@
     .mc-when { padding: 6px 10px; border: 0; border-radius: 12px; background: #fff; font: inherit; font-size: 13px; }
     .mc-err { margin-top: 6px; color: var(--red) !important; }
     .fair-card.chosen { box-shadow: inset 0 0 0 3px #7b61ff; }
-    .mc-field { display: grid; grid-template-columns: 74px 1fr; gap: 8px; align-items: start; padding: 8px 0; border-top: 1px solid #e2dafc; }
+    .mc-field { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; align-items: start; padding: 8px 0; border-top: 1px solid #e2dafc; }
     .mc-field > span { display: flex; align-items: center; gap: 5px; padding-top: 7px; font-size: 12px; font-weight: 600; color: #5b45c9; }
     .mc-field > span .ic { margin: 0; }
     .mc-field select, .mc-field .mc-when, .mc-search input { width: 100%; box-sizing: border-box; height: 34px; padding: 0 10px; border: 0; border-radius: 12px;
@@ -135,7 +135,17 @@
     .mc-place b { display: block; padding-top: 6px; font-size: 14px; }
     .mc-place small { display: block; font-size: 12px; color: var(--muted); }
     .mc-search { display: flex; gap: 6px; margin-top: 6px; }
-    .mc-search .mini { height: 34px; background: #fff; }
+    .mc-search .mini { height: 38px; background: #fff; }
+    /* the card is white, so its inputs and the other-place options sit on soft grey, all one size and left-aligned */
+    .muse-confirm .mc-field select, .muse-confirm .mc-when, .muse-confirm .mc-search input { background: var(--soft); }
+    .muse-confirm .mc-search .mini, .muse-confirm .mc-person, .muse-confirm .mc-chip { background: var(--soft); }
+    .mc-place .mc-opts { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+    .mc-opt { display: flex; align-items: center; gap: 8px; width: 100%; height: 38px; padding: 0 12px; border: 0; border-radius: 12px;
+              background: var(--soft); font: inherit; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; }
+    .mc-opt span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .mc-opt .ic { flex: none; width: 15px; height: 15px; margin: 0; color: var(--muted); }
+    .mc-opt:hover { background: #ece8fb; }
+    .mc-search input { height: 38px; padding: 0 12px; font-size: 14px; }
     .mc-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
     .mc-field > .mc-chips { margin-top: 3px; }
     .mc-chip { padding: 6px 10px; border: 0; border-radius: 999px; background: #fff; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
@@ -1084,6 +1094,7 @@
       .page-tabs button.on { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
       /* iPhone zooms into any text box under 16px (and then the page slides side to side): keep them all at 16px */
       input, textarea, select { font-size: 16px !important; }
+      .mc-place b { font-size: 16px; } .mc-opt { font-size: 15px; }  /* inputs are 16px here (stops iOS zooming), so the rest of Where matches */
       body { touch-action: manipulation; }
       .handle { display: block; cursor: pointer; }
       .hello { cursor: pointer; }
@@ -2261,8 +2272,8 @@ function museConfirm(note, boxId = "museConfirm", options) {
       <select class="mc-type">${allTypes().map(([v, , n]) => `<option value="${esc(v)}" ${v === selectedType() ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></div>
     <div class="mc-field"><span>${icon("map-pin")} Where</span>
       <div class="mc-place">${venue ? `<b>${esc(venueName)}</b>${venueAddress ? `<small>${esc(venueAddress)}</small>` : ""}` : `<small>Pick a place</small>`}
-        ${opts.filter(o => o.name !== venueName).length ? `<div class="mc-chips">${opts.map((o, k) => o.name === venueName ? "" :
-          `<button class="mc-chip" data-opt="${k}">${esc(o.name)}</button>`).join("")}</div>` : ""}
+        ${opts.filter(o => o.name !== venueName).length ? `<div class="mc-opts">${opts.map((o, k) => o.name === venueName ? "" :
+          `<button class="mc-opt" data-opt="${k}" title="${esc(o.name)}">${icon("map-pin")}<span>${esc(o.name)}</span></button>`).join("")}</div>` : ""}
         <form class="mc-search"><input placeholder="Search another place" maxlength="100"><button class="mini">Find</button></form></div></div>
     <div class="mc-field"><span>${icon("calendar")} When</span><input type="datetime-local" class="mc-when" value="${esc($("start").value)}"></div>
     <div class="mc-field"><span>${icon("users")} Who</span>
