@@ -13,7 +13,7 @@ import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebase
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, arrayUnion, arrayRemove, collection, query, where, onSnapshot, writeBatch,
-  deleteDoc, serverTimestamp, getDocs, disableNetwork, enableNetwork,
+  deleteDoc, serverTimestamp, getDocs, disableNetwork, enableNetwork, deleteField,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
@@ -229,6 +229,18 @@ async function loadLibrary() {
     library = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .filter(x => x.kind === "character" ? !!x.look : !!safePhoto(x.art)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   } catch { library = []; return; }
+  // exact copies of the same picture: keep one (the one you're using, if it's one of them)
+  const seen = new Map(), extra = [];
+  for (const x of [...library].sort((p, q) => (q.id === profile.avatar?.id) - (p.id === profile.avatar?.id))) {
+    const key = x.kind + ":" + (x.kind === "character" ? JSON.stringify(x.look) : x.art);
+    if (seen.has(key)) extra.push(x); else seen.set(key, x);
+  }
+  if (extra.length) {
+    library = library.filter(x => !extra.includes(x));
+    extra.forEach(x => deleteDoc(doc(db, "private", me.uid, "avatars", x.id)).catch(() => {}));
+  }
+  // pictures from before My pictures existed move in once; after that, deleting one keeps it deleted
+  if (profile.libMigrated) return;
   const a = profile.avatar || {}, has = (kind, key) => library.find(x => x.kind === kind && (kind === "character" ? JSON.stringify(x.look) === key : x.art === key));
   const old = [];
   if (safePhoto(profile.upload) && !has("upload", profile.upload)) old.push({ kind: "upload", art: profile.upload, was: a.useUpload });
@@ -241,8 +253,10 @@ async function loadLibrary() {
   for (const { was, ...item } of old) {
     const saved = await addToLibrary(item);
     // point your current picture at its new home, without changing how it looks
-    if (was) { const avatar = { ...a, kind: saved.kind, id: saved.id }; profile = { ...profile, avatar }; await saveProfile({ avatar }); }
+    if (was) { const avatar = { ...a, kind: saved.kind, id: saved.id, useUpload: false }; profile = { ...profile, avatar }; await saveProfile({ avatar }); }
   }
+  await saveProfile({ libMigrated: true, upload: deleteField() }).catch(() => {});  // the old copy is in My pictures now
+  profile = { ...profile, libMigrated: true, upload: "" };
 }
 
 async function openAvatarEditor() {
