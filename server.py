@@ -23,10 +23,12 @@ from muse_features import fair_spot, plan_from_text
 from places import details, place_name, search, search_places, suggest
 from predictor import HISTORY, learn_from, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
+import traffic
 from travel import MODES, directions, route, travel_minutes
 from weather import hours_around, weather_at, weather_now
 
 app = FastAPI(title="omw! API")
+traffic.start_background()  # the driving traffic model: retrains every hour on the last 2 weeks of drives (traffic.py)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory="web"), name="static")  # serves web/auth.js, web/firebase-config.js
 
@@ -428,7 +430,8 @@ def plan(req: PlanRequest):
         else:
             raise HTTPException(400, f"Unknown person '{uid}'.")
         mode = req.modes.get(uid) if req.modes.get(uid) in MODES else usual  # picked for this plan, or how they usually go
-        minutes, path, source = route(tuple(home), tuple(req.venue), mode, arrive_by)
+        drive = {}  # driving: the traffic model's details (traffic at the leave time, weather, empty-road time)
+        minutes, path, source = route(tuple(home), tuple(req.venue), mode, arrive_by or datetime.fromisoformat(req.start_time), drive)
         r = predict_departure(uid, req.start_time, minutes, mode, req.hangout_type,
                               raining, group_size=req.group_size or len(req.user_ids))
         if uid in guests:
@@ -443,7 +446,7 @@ def plan(req: PlanRequest):
             if not g.home:
                 label = "No home set · guessed where they live"
         results.append({**r, "name": name, "label": label, "home": home, "route": path,
-                        "travel_mode": mode, "travel_source": source})
+                        "travel_mode": mode, "travel_source": source, "traffic": drive or None})
     return sorted(results, key=lambda r: r["alert_time"])
 
 

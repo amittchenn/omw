@@ -2,3 +2,6 @@
 firebase-key.json
 __pycache__/
 .DS_Store
+node_modules/
+models/traffic.json
+data/traffic_weather.csv

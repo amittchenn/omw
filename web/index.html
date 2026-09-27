@@ -171,6 +171,77 @@
     .trip-sum { display: flex; align-items: center; gap: 6px; margin: 8px 0 2px; padding: 7px 10px; border-radius: 12px; background: var(--soft);
                 font-size: 13px; font-weight: 900; color: var(--muted); width: fit-content; }
     .trip-sum.all { background: #e3f6ea; color: #1c8f4f; }
+    /* ---------- memories (memories.js): BeReal-style group photos on a calendar ---------- */
+    .mem-take { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 46px; margin: 8px 0 2px; border: 0; border-radius: 14px;
+                background: var(--ink); color: #fff; font: inherit; font-weight: 900; font-size: 14px; cursor: pointer; }
+    .mem-take svg { width: 18px; height: 18px; }
+    .mem-strip { display: flex; align-items: center; gap: 10px; width: 100%; margin: 8px 0 2px; padding: 6px 10px 6px 6px; border: 0; border-radius: 14px;
+                 background: var(--soft); font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+    .mem-strip img { width: 44px; height: 58px; object-fit: cover; border-radius: 10px; flex: none; }
+    .mem-strip span { flex: 1; display: grid; gap: 2px; min-width: 0; }
+    .mem-strip b { display: flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 900; }
+    .mem-strip b svg, .mem-strip > svg { width: 16px; height: 16px; flex: none; }
+    .mem-strip small { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .mem-summary { margin: -6px 0 14px; font-size: 14px; font-weight: 700; color: var(--muted); }
+    .mem-summary b { color: var(--ink); }
+    .mem-empty { display: grid; justify-items: center; gap: 6px; padding: 30px 12px; text-align: center; }
+    .mem-empty svg { width: 34px; height: 34px; color: var(--muted); }
+    .mem-empty b { font-size: 17px; color: var(--ink); }
+    .mem-month { margin-bottom: 22px; }
+    .mem-month-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+    .mem-month-head b { font-size: 19px; font-weight: 900; letter-spacing: -.02em; }
+    .mem-month-head small { font-size: 13px; font-weight: 800; color: var(--muted); }
+    .mem-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+    .mem-grid > small { text-align: center; font-size: 11px; font-weight: 900; color: var(--muted); padding-bottom: 2px; }
+    .mem-day { display: grid; place-items: center; aspect-ratio: 3 / 4; border-radius: 10px; font-size: 13px; font-weight: 800; color: #c4c4cc; }
+    .mem-day.has { position: relative; overflow: hidden; padding: 0; border: 0; background: #222; color: #fff; cursor: pointer;
+                   box-shadow: 0 3px 10px rgba(0, 0, 0, .15); transition: transform .12s; }
+    .mem-day.has:active { transform: scale(.94); }
+    .mem-day.has img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .mem-day.has b { position: relative; font-size: 15px; font-weight: 900; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
+    .mem-day.has em { position: absolute; top: 3px; right: 3px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--sun); color: var(--ink);
+                      font-style: normal; font-size: 10px; font-weight: 900; line-height: 16px; text-align: center; }
+    .mem-overlay { position: fixed; inset: 0; z-index: 2100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 10, 16, .72);
+                   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+    .mem-overlay[hidden] { display: none; }
+    .mem-card { position: relative; width: min(420px, 100%); max-height: 100%; overflow-y: auto; padding: 22px 20px 20px; border-radius: 30px; background: #fff;
+                box-shadow: 0 30px 80px rgba(0, 0, 0, .35); }
+    .mem-card .board-title { margin: 2px 50px 4px 0; }
+    .mem-date { font-size: 13px; font-weight: 900; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
+    .mem-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 13px; font-weight: 700; color: var(--muted); }
+    .mem-sub svg { width: 14px; height: 14px; }
+    .mem-ontime, .mem-late { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 900; }
+    .mem-ontime { background: var(--sun); color: var(--ink); }
+    .mem-ontime svg { width: 12px; height: 12px; fill: currentColor; }
+    .mem-late { background: var(--soft); color: var(--muted); }
+    .mem-photo { overflow: hidden; border-radius: 22px; background: #111; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+    .mem-photo img { display: block; width: 100%; max-height: 62vh; object-fit: contain; }
+    .mem-others { display: flex; gap: 6px; margin-top: 8px; }
+    .mem-others button { width: 44px; height: 58px; padding: 0; overflow: hidden; border: 2px solid transparent; border-radius: 10px; cursor: pointer; }
+    .mem-others button.on { border-color: var(--ink); }
+    .mem-others img { width: 100%; height: 100%; object-fit: cover; }
+    .mem-who { display: flex; flex-wrap: wrap; gap: 5px; margin: 12px 0 6px; }
+    .mem-who span { padding: 5px 10px; border-radius: 999px; background: var(--soft); font-size: 13px; font-weight: 800; }
+    .mem-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+    .mem-actions .mini { display: inline-flex; align-items: center; gap: 5px; }
+    .mem-actions .mini svg { width: 15px; height: 15px; }
+    .mem-card .wide.dark { display: flex; align-items: center; justify-content: center; gap: 8px; height: 50px; background: var(--ink); color: #fff; font-size: 15px; }
+    .mem-card .wide.dark svg { width: 17px; height: 17px; }
+    .mem-card .wide:disabled { opacity: .6; }
+    .mem-msg { display: block; margin-top: 8px; text-align: center; color: var(--red); }
+    /* the moment: everyone's there, take the photo (top of the map) */
+    .snap-prompt { position: fixed; z-index: 1200; top: 84px; left: 50%; transform: translateX(-50%); width: 420px; display: flex; align-items: center; gap: 6px;
+                   padding: 6px; border-radius: 22px; background: var(--ink); color: #fff; box-shadow: 0 14px 40px rgba(0, 0, 0, .3); animation: snapIn .35s ease both; }
+    @keyframes snapIn { from { opacity: 0; } }
+    .snap-prompt[hidden] { display: none; }
+    .snap-go { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 8px; border: 0; background: none; color: inherit; font: inherit;
+               text-align: left; cursor: pointer; }
+    .snap-go > svg { width: 38px; height: 38px; padding: 8px; flex: none; border-radius: 14px; background: var(--sun); color: var(--ink); }
+    .snap-go span { display: grid; gap: 1px; min-width: 0; }
+    .snap-go b { font-size: 14px; font-weight: 900; }
+    .snap-go small { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, .72); }
+    .snap-x { width: 34px; height: 34px; flex: none; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; cursor: pointer; }
+    .snap-x svg { width: 16px; height: 16px; }
     .trip-sum svg { width: 15px; height: 15px; }
     .id-edit { margin-top: 10px; padding: 12px; border-radius: 18px; background: var(--soft); text-align: left; }
     .id-edit[hidden] { display: none; }
@@ -937,7 +1008,8 @@
       /* a thin strip on the right edge: swipe left from there (even over the map) to open Chats */
       .chat-edge { display: block; position: fixed; z-index: 860; right: 0; top: 80px; bottom: 0; width: 18px; touch-action: none; }
       .chat-edge.left { right: auto; left: 0; }
-      #boardBtn { display: none; }  /* on phones the leaderboard is a tab next to My plans */
+      #boardBtn, #memoriesBtn { display: none; }  /* on phones the leaderboard and memories are tabs next to My plans */
+      .snap-prompt { top: calc(76px + env(safe-area-inset-top)); left: 12px; right: 12px; transform: none; width: auto; }
       /* My plans and the leaderboard: one full-screen page from the left (tap the buttons or swipe right), like Chats from the right */
       .drawer.page { background: transparent; }
       .drawer.page .drawer-card { position: fixed; inset: 0; width: 100%; height: 100%; max-height: none; border-radius: 0; overscroll-behavior: contain;
@@ -948,7 +1020,7 @@
       .drawer.page .board-title { display: none; }
       .drawer.page .x { top: calc(14px + env(safe-area-inset-top)); }
       .page-tabs { display: flex; gap: 4px; margin: 0 50px 16px 0; padding: 4px; border-radius: 999px; background: var(--soft); }
-      .page-tabs button { flex: 1; height: 38px; border: 0; border-radius: 999px; background: none; font-weight: 900; font-size: 15px; color: var(--muted); cursor: pointer; }
+      .page-tabs button { flex: 1; height: 38px; border: 0; border-radius: 999px; background: none; font-weight: 900; font-size: 14px; white-space: nowrap; min-width: 0; color: var(--muted); cursor: pointer; }
       .page-tabs button.on { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
       /* iPhone zooms into any text box under 16px (and then the page slides side to side): keep them all at 16px */
       input, textarea, select { font-size: 16px !important; }
@@ -1033,6 +1105,7 @@
     <button class="round" id="plansBtn" title="My plans" data-ic="calendar-days"></button>
     <span class="count" id="planBadge" hidden>0</span>
   </div>
+  <button class="round" id="memoriesBtn" title="Memories" data-ic="images"></button>
   <button class="round" id="boardBtn" title="Who's always late?" data-ic="trophy"></button>
   <div class="brand"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8IS0tIG9tdzogYW4gYWxhcm0gY2xvY2sgcnVubmluZyBsYXRlLCBvbiB0aGUgYXBwJ3MgeWVsbG93IC0tPgogIDxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiByeD0iMTE2IiBmaWxsPSIjRkZFNjAwIi8+CiAgPGRlZnM+CiAgICA8ZyBpZD0iY2xvY2siPgogICAgICA8Y2lyY2xlIGN4PSIxNDgiIGN5PSIxNTgiIHI9IjU4Ii8+CiAgICAgIDxjaXJjbGUgY3g9IjMyNCIgY3k9IjE1OCIgcj0iNTgiLz4KICAgICAgPHJlY3QgeD0iMTU0IiB5PSIzNzYiIHdpZHRoPSI0NCIgaGVpZ2h0PSI3NCIgcng9IjIyIiB0cmFuc2Zvcm09InJvdGF0ZSgyNCAxNzYgNDAwKSIvPgogICAgICA8cmVjdCB4PSIyNzYiIHk9IjM3NiIgd2lkdGg9IjQ0IiBoZWlnaHQ9Ijc0IiByeD0iMjIiIHRyYW5zZm9ybT0icm90YXRlKC0yNCAyOTggNDAwKSIvPgogICAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjE1MCIvPgogICAgPC9nPgogIDwvZGVmcz4KICA8ZyB0cmFuc2Zvcm09InJvdGF0ZSgtMTYgMjM2IDI3MikgdHJhbnNsYXRlKDQgNikiPgogICAgPCEtLSB3aGl0ZSBzdGlja2VyIGVkZ2UgLS0+CiAgICA8dXNlIGhyZWY9IiNjbG9jayIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjM0IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgICA8IS0tIGJlbGxzLCBsZWdzLCBib2R5IC0tPgogICAgPHVzZSBocmVmPSIjY2xvY2siIGZpbGw9IiMxMTExMTQiLz4KICAgIDxjaXJjbGUgY3g9IjIzNiIgY3k9IjI3MiIgcj0iMTI0IiBmaWxsPSIjZmZmIi8+CiAgICA8IS0tIGhvdXIgbWFya3MgLS0+CiAgICA8ZyBmaWxsPSIjMTExMTE0Ij4KICAgICAgPHJlY3QgeD0iMjI5IiB5PSIxNjAiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzMCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMjI5IiB5PSIzNTQiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzMCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMTI0IiB5PSIyNjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNCIgcng9IjciLz4KICAgICAgPHJlY3QgeD0iMzE4IiB5PSIyNjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIxNCIgcng9IjciLz4KICAgIDwvZz4KICAgIDwhLS0gaGFuZHM6IG5lYXJseSBvbiB0aGUgaG91ciwgdGltZSB0byBnbyAtLT4KICAgIDxnIHN0cm9rZT0iIzExMTExNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgICAgPGxpbmUgeDE9IjIzNiIgeTE9IjI3MiIgeDI9IjIyMiIgeTI9IjE4MiIgc3Ryb2tlLXdpZHRoPSIxOCIvPgogICAgICA8bGluZSB4MT0iMjM2IiB5MT0iMjcyIiB4Mj0iMzA0IiB5Mj0iMjU4IiBzdHJva2Utd2lkdGg9IjE4Ii8+CiAgICA8L2c+CiAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjIwIiBmaWxsPSIjMTExMTE0Ii8+CiAgICA8Y2lyY2xlIGN4PSIyMzYiIGN5PSIyNzIiIHI9IjciIGZpbGw9IiNGRkU2MDAiLz4KICA8L2c+CiAgPCEtLSBzcGVlZCBsaW5lczogb24gbXkgd2F5IC0tPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzExMTExNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik00MDQgMjA2IEM0MzYgMjEyIDQ2MiAyMjYgNDgyIDI1MCIgc3Ryb2tlLXdpZHRoPSIyMCIvPgogICAgPHBhdGggZD0iTTQxMiAyNjggQzQ0MiAyNzggNDY0IDI5NiA0NzggMzIyIiBzdHJva2Utd2lkdGg9IjIwIi8+CiAgICA8cGF0aCBkPSJNNDA0IDMzOCBDNDI0IDM1MCA0MzggMzY2IDQ0NiAzODYiIHN0cm9rZS13aWR0aD0iMTgiLz4KICA8L2c+Cjwvc3ZnPgo=" alt="">omw!</div>
   </div>
@@ -1169,7 +1242,7 @@
 
 <div class="drawer page" id="board" hidden>
   <div class="drawer-card">
-    <div class="page-tabs"><button data-page="plans">My plans</button><button data-page="board" class="on">Leaderboard</button></div>
+    <div class="page-tabs"><button data-page="plans">My plans</button><button data-page="memories">Memories</button><button data-page="board" class="on">Leaderboard</button></div>
     <button class="x" id="boardClose" title="Close" data-ic="x"></button>
     <h2 class="board-title">Who's always late?</h2>
     <div id="boardList"></div>
@@ -1179,7 +1252,7 @@
 
 <div class="drawer page" id="plans" hidden>
   <div class="drawer-card">
-    <div class="page-tabs"><button data-page="plans" class="on">My plans</button><button data-page="board">Leaderboard</button></div>
+    <div class="page-tabs"><button data-page="plans" class="on">My plans</button><button data-page="memories">Memories</button><button data-page="board">Leaderboard</button></div>
     <button class="x" id="plansClose" title="Close" data-ic="x"></button>
     <h2 class="board-title">My plans</h2>
     <div class="section" id="inviteSection" hidden>
@@ -1196,6 +1269,22 @@
     </div>
   </div>
 </div>
+
+<!-- Memories: a group photo for every hangout where everyone showed up, on a calendar (memories.js) -->
+<div class="drawer page" id="memories" hidden>
+  <div class="drawer-card">
+    <div class="page-tabs"><button data-page="plans">My plans</button><button data-page="memories" class="on">Memories</button><button data-page="board">Leaderboard</button></div>
+    <button class="x" id="memoriesClose" title="Close" data-ic="x"></button>
+    <h2 class="board-title">Memories</h2>
+    <div class="mem-summary" id="memSummary"></div>
+    <div id="memList"></div>
+  </div>
+</div>
+<div class="mem-overlay" id="memView" hidden></div>
+<div class="mem-overlay" id="memCompose" hidden></div>
+<input type="file" id="snapCamera" accept="image/*" capture="user" hidden>
+<input type="file" id="snapLibrary" accept="image/*" hidden>
+<div class="snap-prompt" id="snapPrompt" hidden></div>
 
 <div class="drawer" id="chat" hidden>
   <div class="drawer-card chat-card">
@@ -1338,6 +1427,7 @@ let myDot = null, myRing = null, myLocation = null, centeredOnMe = false;
 navigator.geolocation?.watchPosition(p => {
   myLocation = [p.coords.latitude, p.coords.longitude];
   window.myFix = { here: myLocation, at: Date.now() };  // "Use my current location" in your profile reuses this
+  window.dispatchEvent(new Event("my-fix"));  // plans that leave from "where you are" update their leave times
   if (!myDot) {
     myRing = L.circle(myLocation, { radius: p.coords.accuracy, color: "#1e88ff", weight: 1, fillOpacity: .12, interactive: false }).addTo(map);
     myDot = L.marker(myLocation, { zIndexOffset: 2000, interactive: false,
@@ -1826,6 +1916,10 @@ const dirLayer = L.layerGroup().addTo(map);
 const TURN = [[/uturn/i, "undo-2"], [/sharp.?left|SHARP_LEFT/i, "corner-up-left"], [/sharp.?right|SHARP_RIGHT/i, "corner-up-right"], [/slight.?left|SLIGHT_LEFT|keep.?left|FORK_LEFT/i, "arrow-up-left"],
   [/slight.?right|SLIGHT_RIGHT|keep.?right|FORK_RIGHT/i, "arrow-up-right"], [/left/i, "corner-up-left"], [/right/i, "corner-up-right"], [/roundabout/i, "refresh-cw"], [/merge|ramp/i, "merge"],
   [/depart|straight|continue|name|DEPART/i, "arrow-up"], [/arrive/i, "flag"]];
+// driving: what the traffic model expects when they leave, e.g. " · traffic +14% at 2:33 PM, rain"
+const trafficNote = t => { const pct = Math.round((t.ratio - 1) * 100), at = new Date(t.leave).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return ` · ${t.basis === "live" ? "live traffic" : pct > 2 ? `traffic +${pct}% at ${at}` : pct < -2 ? `light roads at ${at}` : `usual traffic at ${at}`}${
+    t.weather && t.weather !== "clear" ? `, ${t.weather === "heavy" ? "heavy rain" : t.weather}` : ""}`; };
 const turnIcon = m => icon((TURN.find(([re]) => re.test(m || "")) || [0, "arrow-up"])[1]);
 let dirState = null;  // { venue, name, start, mode, origin, originLabel, results: { mode: directions } }
 
@@ -2198,7 +2292,7 @@ $("fairForm").onsubmit = async e => {
   if (!query) return;
   if (ids.length < 2) return $("fairList").innerHTML = `<div class="note">Pick at least one friend under Who first.</div>`;
   const people = myFriends().filter(p => ids.includes(p.user_id))
-    .map(p => ({ id: p.user_id, name: p.isMe ? "You" : p.name, home: p.home || (p.isMe ? window.myFix?.here : null) || null, mode: modeFor[p.user_id] || p.travel_mode }));
+    .map(p => ({ id: p.user_id, name: p.isMe ? "You" : p.name, home: (p.isMe ? window.myFix?.here : null) || p.home || null, mode: modeFor[p.user_id] || p.travel_mode }));
   $("fairConfirm").hidden = true; $("fairDone").hidden = true;
   $("fairList").innerHTML = `<div class="note">Checking everyone's trip to each place…</div>`;
   try {
@@ -2259,7 +2353,7 @@ async function runPlan() {
                              hangout_type: selectedType(), modes: modeFor, utc_offset_min: -new Date().getTimezoneOffset(),
                              guests: myFriends().filter(p => user_ids.includes(p.user_id))
                                .map(({ user_id, name, travel_mode, home, habits, isMe }) => ({ user_id, name, travel_mode, habits,
-                                 home: home || (isMe ? window.myFix?.here : null) || null })) }),
+                                 home: (isMe ? window.myFix?.here : null) || home || null })) }),  // you leave from where you are now
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
     showResults(await res.json());
@@ -2315,7 +2409,7 @@ function cardHtml(r) {
         <div class="time"><small>Leave at</small>${fmt(r.alert_time)}</div>
       </div>
       <div class="detail">${icon(MODE_ICON[r.travel_mode] || "car")} ${how[0].toUpperCase() + how.slice(1)} · ${Math.round(r.travel_minutes)} min${
-        r.travel_source === "google" ? " · Google Maps" : r.travel_source === "estimate" ? " · rough estimate" : ""}</div>
+        r.traffic ? trafficNote(r.traffic) : r.travel_source === "google" ? " · Google Maps" : r.travel_source === "estimate" ? " · rough estimate" : ""}</div>
       <div class="compare">${r.learning ? `Uses the Maps time until ${mine ? "your" : esc(r.name) + "'s"} first check-in`
         : `Maps says ${fmt(r.maps_only_alert_time)}
         <span class="badge ${earlier > 2 ? "" : "ok"}">${earlier > 2 ? `${earlier} min earlier` : "right on time"}</span>
@@ -2698,6 +2792,7 @@ showFriends();
 <script type="module" src="/static/auth.js"></script>
 <script type="module" src="/static/friends.js"></script>
 <script type="module" src="/static/dms.js"></script>
+<script type="module" src="/static/memories.js"></script>
 <script>
   // installable on phones (Add to Home Screen) and a friendly page when offline
   if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));

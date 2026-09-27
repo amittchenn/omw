@@ -280,7 +280,7 @@ window.addEventListener("chat-changed", () => renderInbox());
 // On those screens, swipe the other way to go back. Swipes start on the planner, the top bar, or a thin strip at either
 // edge of the screen (the strips keep the map from panning instead).
 const sideScroller = el => el.closest(".types, .week, .friends, .cc-tabs, .ib-fresh, .page-tabs, input, textarea, select, .modes, .cal-menu, .plan-actions");
-const pageOpen = () => [$("plans"), $("board")].find(d => !d.hidden);
+const pageOpen = () => [$("plans"), $("memories"), $("board")].find(d => !d?.hidden);
 const pageCard = () => pageOpen()?.querySelector(".drawer-card");
 let sw = null;
 function swipeStart(e, mode) {
@@ -340,7 +340,7 @@ for (const el of [$("sheet"), document.querySelector(".topbar")])
 onTouch($("chatEdge"), e => swipeStart(e, "chats"));
 onTouch($("pageEdge"), e => { swipeStart(e, "main"); });
 onTouch($("inbox"), e => { if (!e.target.closest("input, textarea, .ib-fresh")) swipeStart(e, $("inbox").classList.contains("in-convo") ? "convo" : "inbox"); });
-for (const d of [$("plans"), $("board")]) {
+for (const d of [$("plans"), $("memories"), $("board")]) {
   onTouch(d, e => { if (!sideScroller(e.target)) swipeStart(e, "page"); });
   // the "My plans | Leaderboard" switch at the top of that page
   d.querySelector(".page-tabs").onclick = e => {
@@ -349,7 +349,7 @@ for (const d of [$("plans"), $("board")]) {
     d.hidden = true;
     const to = $(b.dataset.page);
     to.classList.add("instant");
-    $(b.dataset.page === "board" ? "boardBtn" : "plansBtn").click();
+    $({ board: "boardBtn", memories: "memoriesBtn", plans: "plansBtn" }[b.dataset.page]).click();
   };
   // tapping the top-bar buttons slides the page in; switching tabs or swiping doesn't replay that
   new MutationObserver(() => { if (d.hidden) d.classList.remove("instant"); }).observe(d, { attributes: true, attributeFilter: ["hidden"] });

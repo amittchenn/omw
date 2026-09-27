@@ -10,4 +10,4 @@ scikit-learn
 joblib
 matplotlib
 openai
-firebase-admin
+firebase-admintzdata

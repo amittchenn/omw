@@ -55,7 +55,7 @@ def weather_at(lat, lng, when):
         return {"known": False, "raining": False, "rain_chance": None, "icon": "thermometer", "label": "No forecast yet", "temp_c": None}
     icon, label = _look(code)
     return {"known": True, "raining": (chance or 0) >= RAIN_CHANCE or (mm or 0) >= RAIN_MM,
-            "rain_chance": chance, "icon": icon, "label": label, "temp_c": temp}
+            "rain_chance": chance, "icon": icon, "label": label, "temp_c": temp, "mm": mm, "code": code}
 
 
 def weather_now(lat, lng):

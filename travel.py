@@ -2,6 +2,8 @@
 Travel time and the route line for each person.
 Google Maps (Routes API, then the older Directions API) first, then Mapbox, then a rough straight-line estimate so the app never breaks.
 Ways to get there: driving, walking, cycling, transit (transit needs Google; Mapbox has no bus/train routes).
+Driving times for a hangout later on come from our own traffic model (traffic.py): Maps gives the drive on empty roads,
+the model says how slow traffic will be when they have to leave. Every live Google drive time is saved to train it.
 """
 import html
 import math
@@ -11,6 +13,8 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from dotenv import load_dotenv
+
+import traffic
 
 load_dotenv()
 GOOGLE_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
@@ -63,17 +67,12 @@ def _google(origin, dest, mode, arrive_by, steps=False):
         "polylineQuality": "OVERVIEW",
     }
     if mode == "driving":
-        body["routingPreference"] = "TRAFFIC_AWARE"
-        # traffic for when they'll actually drive, not for right now (a rough leave time: the straight-line trip at 25 km/h, plus 10 min)
-        if arrive_by:
-            leave = arrive_by - timedelta(minutes=_distance_km(origin, dest) * 1.4 / 25 * 60 + 10)
-            if leave > datetime.now(timezone.utc) + timedelta(minutes=1):
-                body["departureTime"] = leave.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        body["routingPreference"] = "TRAFFIC_AWARE"  # traffic right now; traffic.py works out the traffic at the leave time
     if mode == "transit" and arrive_by and arrive_by > datetime.now(timezone.utc):
         body["arrivalTime"] = arrive_by.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")  # buses that get you there on time
     r = requests.post("https://routes.googleapis.com/directions/v2:computeRoutes", json=body, timeout=8,
                       headers={"X-Goog-Api-Key": GOOGLE_KEY,
-                               "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
+                               "X-Goog-FieldMask": "routes.duration,routes.staticDuration,routes.distanceMeters,routes.polyline.encodedPolyline"
                                                    + ("," + STEP_FIELDS if steps else "")})
     r.raise_for_status()
     routes = r.json().get("routes")
@@ -81,6 +80,10 @@ def _google(origin, dest, mode, arrive_by, steps=False):
         raise ValueError(f"Google found no {mode} route")
     best = routes[0]
     minutes, path = int(best["duration"].rstrip("s")) / 60, decode_polyline(best["polyline"]["encodedPolyline"])
+    if mode == "driving":
+        static = int(best.get("staticDuration", best["duration"]).rstrip("s")) / 60
+        traffic.log_drive(origin, dest, minutes, static, best.get("distanceMeters"))
+        _meta.update(live=minutes, static=static, meters=best.get("distanceMeters"))
     if not steps:
         return minutes, path
     return minutes, path, best.get("distanceMeters"), [_google_step(s) for leg in best.get("legs", []) for s in leg.get("steps", [])]
@@ -120,6 +123,10 @@ def _google_legacy(origin, dest, mode, arrive_by, steps=False):
     leg = best["legs"][0]
     minutes = (leg.get("duration_in_traffic") or leg["duration"])["value"] / 60
     path = decode_polyline(best["overview_polyline"]["points"])
+    if mode == "driving" and leg.get("duration_in_traffic"):
+        static = leg["duration"]["value"] / 60
+        traffic.log_drive(origin, dest, minutes, static, leg["distance"]["value"])
+        _meta.update(live=minutes, static=static, meters=leg["distance"]["value"])
     if not steps:
         return minutes, path
     return minutes, path, leg["distance"]["value"], [_legacy_step(s) for s in leg["steps"]]
@@ -147,6 +154,9 @@ def _mapbox(origin, dest, mode, steps=False):
     r.raise_for_status()
     best = r.json()["routes"][0]
     minutes, path = best["duration"] / 60, [[lat, lng] for lng, lat in best["geometry"]["coordinates"]]
+    if mode == "driving":  # Mapbox's "typical" time isn't empty roads, but it's the closest it has
+        _meta.update(live=minutes, static=best.get("duration_typical", best["duration"] / 1.1) / 60 if best.get("duration_typical") else minutes / 1.1,
+                     meters=best.get("distance"))
     if not steps:
         return minutes, path
     return minutes, path, best.get("distance"), [
@@ -154,10 +164,45 @@ def _mapbox(origin, dest, mode, steps=False):
          "distance_m": s.get("distance"), "minutes": s.get("duration", 0) / 60} for leg in best["legs"] for s in leg["steps"]]
 
 
-def route(origin, dest, mode="driving", arrive_by=None):
-    """origin and dest are (lat, lng). arrive_by: when they need to be there (timezone-aware), used for transit.
-    Returns (minutes, path as [[lat, lng], ...], source)."""
+_meta = {}  # what the last driving lookup found: live (traffic now), static (empty roads), meters
+
+
+def _with_traffic(minutes, origin, dest, arrive_by, info, source):
+    """Driving: swap the time for the traffic model's, worked back from the arrival time (see traffic.py)."""
+    live, static, meters = _meta.get("live"), _meta.get("static"), _meta.get("meters")
+    if not static:  # no Maps (a straight-line guess): empty roads at ~45 km/h
+        static, live = _distance_km(origin, dest) * 1.3 / 45 * 60, None
+    km = (meters or _distance_km(origin, dest) * 1300) / 1000
+    try:
+        from weather import weather_at
+        wx = lambda t: (lambda w: traffic.condition(w.get("code"), w.get("mm"), w.get("raining")) if w.get("known") else None)(
+            weather_at(dest[0], dest[1], t))
+        est = traffic.leave_time(static, arrive_by or datetime.now(timezone.utc), km, weather=wx if arrive_by else None, live_min=live)
+    except Exception as e:
+        print(f"[travel] traffic model failed: {e}")
+        return minutes
+    if info is not None:
+        info.update(est, source=source)
+    return est["minutes"]
+
+
+def route(origin, dest, mode="driving", arrive_by=None, info=None):
+    """origin and dest are (lat, lng). arrive_by: when they need to be there (timezone-aware, or naive = local time there).
+    Returns (minutes, path as [[lat, lng], ...], source). For driving, `info` (a dict) gets the traffic model's details."""
     mode = mode if mode in MODES else "driving"
+    if mode == "driving":
+        _meta.clear()
+        minutes, path, source = _route(origin, dest, mode, arrive_by)
+        return _with_traffic(minutes, origin, dest, arrive_by, info, source), path, source
+    return _route(origin, dest, mode, arrive_by)
+
+
+def _aware(t):
+    return t if t is None or t.tzinfo else t.replace(tzinfo=traffic.TZ)
+
+
+def _route(origin, dest, mode, arrive_by):
+    arrive_by = _aware(arrive_by)
     if GOOGLE_KEY:
         try:
             return (*_google(origin, dest, mode, arrive_by), "google")
@@ -179,6 +224,16 @@ def route(origin, dest, mode="driving", arrive_by=None):
 def directions(origin, dest, mode="driving", arrive_by=None):
     """Turn-by-turn directions, like Google Maps: {minutes, distance_m, path, steps, source}."""
     mode = mode if mode in MODES else "driving"
+    _meta.clear()
+    d = _directions(origin, dest, mode, _aware(arrive_by))
+    if mode == "driving":
+        info = {}
+        d["minutes"] = _with_traffic(d["minutes"], origin, dest, _aware(arrive_by), info, d["source"])
+        d["traffic"] = info or None
+    return d
+
+
+def _directions(origin, dest, mode, arrive_by):
     if GOOGLE_KEY:
         try:
             minutes, path, meters, steps = _google(origin, dest, mode, arrive_by, steps=True)
@@ -196,13 +251,13 @@ def directions(origin, dest, mode="driving", arrive_by=None):
             return {"minutes": minutes, "distance_m": meters, "path": path, "steps": steps, "source": "mapbox"}
         except Exception as e:
             print(f"[travel] Mapbox {mode} directions failed: {e}")
-    minutes, path, source = route(origin, dest, mode, arrive_by)
+    minutes, path, source = _route(origin, dest, mode, arrive_by)
     return {"minutes": minutes, "distance_m": round(_distance_km(origin, dest) * 1300), "path": path, "steps": [], "source": source}
 
 
-def travel_minutes(origin, dest, mode="driving", arrive_by=None):
+def travel_minutes(origin, dest, mode="driving", arrive_by=None, info=None):
     """origin and dest are (lat, lng). Returns (minutes, source)."""
-    minutes, _, source = route(origin, dest, mode, arrive_by)
+    minutes, _, source = route(origin, dest, mode, arrive_by, info)
     return minutes, source
 
 
