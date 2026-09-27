@@ -13,7 +13,7 @@ import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebase
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, arrayUnion, arrayRemove, collection, query, where, onSnapshot, writeBatch,
-  deleteDoc, serverTimestamp, getDocs,
+  deleteDoc, serverTimestamp, getDocs, disableNetwork, enableNetwork,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
@@ -743,6 +743,46 @@ window.lockInHangout = async details => {
 };
 
 // ---------- your unique friend ID ----------
+// last launch's profile, for an instant start (small fields only; pictures can be big)
+const remembered = uid => { try { return JSON.parse(localStorage.getItem(`profile:${uid}`)); } catch { return null; } };
+const remember = (uid, p) => { try {
+  const { photo, upload, ...rest } = p;
+  localStorage.setItem(`profile:${uid}`, JSON.stringify({ ...rest, photo: photo && photo.length < 150000 ? photo : "" }));
+} catch { /* full or private mode */ } };
+
+// one-time setup at sign-in; each step on its own, retried a few times if the connection is bad
+async function setUp(user, ref, attempt = 0) {
+  const stillMe = () => me?.uid === user.uid;
+  const step = async fn => { try { await fn(); return true; } catch (e) { console.warn("setup:", e.message); return false; } };
+  // first your saved profile, for real (not last launch's copy): the steps after it need your actual ID and picture
+  const loaded = await step(async () => {
+    let s = await getDoc(ref);
+    if (!s.exists()) {  // your profile, the first time
+      await setDoc(ref, { name: user.displayName || (user.email || "friend").split("@")[0], travelMode: "driving" });
+      s = await getDoc(ref);
+    }
+    if (stillMe()) profile = s.data() || profile;
+  });
+  const ok = !loaded ? [false] : [
+    await step(async () => {  // your picture (your photo, an upload or a character)
+      const photo = await photoFor(profile.avatar, user, profile.upload, profile.photo);
+      if (photo && profile.photo !== photo) await setDoc(ref, { photo }, { merge: true });
+    }),
+    await step(() => ensureId(user)),
+    await step(() => ensureCalToken(user)),
+  ];
+  if (ok.includes(false) && attempt < 4 && stillMe()) setTimeout(() => stillMe() && setUp(user, ref, attempt + 1), [1500, 3000, 5000, 8000][attempt]);
+}
+
+// back from the background (phones pause the app): give the database connection a nudge so it doesn't stay stuck
+let hiddenAt = 0;
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  if (!db || !me || Date.now() - hiddenAt < 60e3) return;
+  try { await disableNetwork(db); await enableNetwork(db); } catch { /* it reconnects by itself anyway */ }
+  if (!profile.code) setUp(me, doc(db, "users", me.uid));
+});
+
 async function ensureId(user) {
   // keep your ID if you already own it; otherwise claim a random unused one
   if (profile.code) {
@@ -1130,20 +1170,17 @@ if (configured) {
     hangoutDocs = {}; calToken = "";
     if (!user) return publish();
 
-    // create your profile the first time, then make sure you own a unique friend ID
+    // show your profile straight away (last launch's copy), then keep it live. The one-time setup (first-time profile,
+    // picture, friend ID, calendar link) runs on its own afterwards and retries, so a slow or dropped connection at
+    // launch can't leave the app without your profile.
     const ref = doc(db, "users", user.uid);
-    const existing = await getDoc(ref);
-    if (!existing.exists()) {
-      await setDoc(ref, { name: user.displayName || (user.email || "friend").split("@")[0], travelMode: "driving" });
-    }
-    profile = (await getDoc(ref)).data();
-    const photo = await photoFor(profile.avatar, user, profile.upload, profile.photo);  // your photo, upload or character
-    if (profile.photo !== photo) await setDoc(ref, { photo }, { merge: true });
-    profile = { ...profile, photo };
-    await ensureId(user);
-    await ensureCalToken(user);
-
-    stop.push(onSnapshot(ref, s => { profile = s.data() || {}; renderMe(); publish(); shareLive(); }));
+    const cached = remembered(user.uid);
+    if (cached) { profile = cached; renderMe(); publish(); }
+    stop.push(onSnapshot(ref, s => {
+      if (!s.exists()) return;  // brand new: setUp() creates it
+      profile = s.data(); remember(user.uid, profile); renderMe(); publish(); shareLive();
+    }, err => console.warn("profile:", err.message)));
+    setUp(user, ref);
     // each friend's profile stays live, so their new check-ins show up on the leaderboard right away
     const friendStops = {};
     stop.push(() => Object.values(friendStops).forEach(f => f()));
