@@ -5,3 +5,4 @@ __pycache__/
 node_modules/
 models/traffic.json
 data/traffic_weather.csv
+data/real_checkins.csv

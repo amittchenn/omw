@@ -2,6 +2,7 @@
 Loads the trained model and predicts one person's departure delay for an upcoming hangout.
 Uses the same feature code as training, so the app and the model always agree.
 """
+import os
 from datetime import datetime, timedelta
 
 import joblib
@@ -12,6 +13,9 @@ from features import build_features
 
 MODEL = joblib.load("models/lateness.pkl")
 HISTORY = pd.read_csv("data/hangouts.csv", parse_dates=["start_time", "alert_time", "left_at", "arrived_at"])
+if os.path.exists("data/real_checkins.csv"):  # real people's check-ins (retrain.py): their history, the same way as everyone's
+    HISTORY = pd.concat([HISTORY, pd.read_csv("data/real_checkins.csv", parse_dates=["start_time", "alert_time", "left_at", "arrived_at"])],
+                        ignore_index=True)
 
 
 def _feature_row(user_id, start_time, travel_minutes, travel_mode, hangout_type, raining, came_from_event,

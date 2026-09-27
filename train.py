@@ -44,13 +44,13 @@ def split_by_time(df):
     return np.where(pos < 0.6, "train", np.where(pos < 0.8, "warmup", "test"))
 
 
-def train_quantile(X, y, alpha):
+def train_quantile(X, y, alpha, weight=None):
     model = lgb.LGBMRegressor(
         objective="quantile", alpha=alpha,
         n_estimators=300, learning_rate=0.05, num_leaves=15, min_child_samples=20,
         verbose=-1, random_state=42,
     )
-    return model.fit(X, y)
+    return model.fit(X, y, sample_weight=weight)
 
 
 def add_personal_correction(df):

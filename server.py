@@ -29,6 +29,8 @@ from weather import hours_around, weather_at, weather_now
 
 app = FastAPI(title="omw! API")
 traffic.start_background()  # the driving traffic model: retrains every hour on the last 2 weeks of drives (traffic.py)
+import retrain
+retrain.start_background()  # the lateness model: retrains daily on real check-ins next to the simulated data (retrain.py)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory="web"), name="static")  # serves web/auth.js, web/firebase-config.js
 

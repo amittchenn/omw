@@ -35,6 +35,9 @@ minutes after their alert each person really leaves.
 - **The alert** uses the p90: leave early enough to be on time on a bad day.
 - **Real people:** until someone has checked in once, omw! doesn't guess, and their alert is the Maps time. After that,
   each check-in teaches it their habit, blended with the model: 5 check-ins count as much as the model (`predictor.learn_from`).
+- **It keeps learning from real use:** every check-in is a real example (when you were told to leave vs. when you did).
+  Once a day the server retrains the model on those check-ins next to the simulated data, with each real one counting
+  5× as much, and keeps the new model only if it isn't worse on data it never saw (`retrain.py`).
 
 Results on the held-out test set (last 20% of hangouts, synthetic friends from `generate_data.py`):
 
