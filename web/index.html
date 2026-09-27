@@ -1624,9 +1624,9 @@ renderTypes();
 const selectedType = () => document.querySelector("input[name=type]:checked")?.value || "food";
 $("types").onchange = () => venue && setVenue(venue, venueName, venueAddress);
 
-const tomorrow = new Date(Date.now() + 864e5);
-tomorrow.setHours(19, 0, 0, 0);
-$("start").value = new Date(tomorrow - tomorrow.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+// starts on the next full hour (10:13pm → 11pm; after 11pm that's midnight, tomorrow)
+{ const first = new Date(); first.setMinutes(0, 0, 0); first.setHours(first.getHours() + 1);
+  $("start").value = new Date(first - first.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); }
 
 // ---------- when: quick day and time chips (the datetime box underneath is still what everything reads) ----------
 const nextHour = () => { const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1); return d; };  // the first time still worth suggesting
@@ -1643,8 +1643,9 @@ function showWhen() {
   const row = $("timeChips");
   row.innerHTML = hours.map(h => `<button class="${hm && h === hm[0] && !hm[1] ? "on" : ""}" data-time="${h}:0">${(h + 11) % 12 + 1}${h < 12 ? "am" : "pm"}</button>`).join("");
   // bring the chosen hour (or, on another day, the evening) into view without moving the page
-  const target = row.querySelector(".on") || (first ? row.firstElementChild : row.querySelector(`[data-time="${hm ? Math.max(0, hm[0] - 1) : 17}:0"]`));
-  row.scrollLeft = target ? Math.max(0, target.offsetLeft - row.offsetLeft - (row.querySelector(".on") ? 70 : 0)) : 0;
+  // (worked out from the chip size, so it's right even before the row is on screen)
+  const at = hm ? hours.indexOf(hm[0]) : -1;
+  row.scrollLeft = at > 0 ? (at - 1) * 68 : 0;
   $("whenCustom").classList.toggle("on", !$("start").hidden);
 }
 function setWhen(d) {
