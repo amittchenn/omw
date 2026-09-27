@@ -151,6 +151,27 @@
     .cal-confirm small { display: block; margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
     .cal-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 10px; }
     .mini.danger { background: #ffe3e8; color: #d0213f; }
+    .plan-from { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--muted); }
+    .plan-from > svg { width: 16px; height: 16px; flex: none; }
+    .plan-from span { flex: 1; min-width: 0; }
+    .plan-from b { color: var(--ink); }
+    .plan-from .mini { height: 30px; padding: 0 12px; font-size: 12px; }
+    .from-panel { margin-top: 8px; padding: 10px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+    .from-opts { display: flex; gap: 6px; }
+    .from-opts button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; height: 38px; border: 0; border-radius: 12px;
+                        background: var(--soft); font: inherit; font-size: 13px; font-weight: 900; color: var(--ink); cursor: pointer; }
+    .from-opts button.on { background: var(--ink); color: #fff; }
+    .from-opts button:disabled { opacity: .4; }
+    .from-opts svg { width: 15px; height: 15px; }
+    .from-search { width: 100%; margin-top: 8px; height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--soft); font: inherit; font-weight: 700; }
+    .from-found { display: grid; gap: 4px; margin-top: 6px; }
+    .from-found .opt { display: flex; gap: 8px; align-items: center; width: 100%; padding: 8px; border: 0; border-radius: 12px; background: var(--soft); text-align: left; font: inherit; cursor: pointer; }
+    .from-found .opt b { display: block; font-size: 13px; } .from-found .opt span { display: block; font-size: 12px; color: var(--muted); }
+    .from-found .none { font-size: 12px; font-weight: 700; color: var(--muted); padding: 4px; }
+    .trip-sum { display: flex; align-items: center; gap: 6px; margin: 8px 0 2px; padding: 7px 10px; border-radius: 12px; background: var(--soft);
+                font-size: 13px; font-weight: 900; color: var(--muted); width: fit-content; }
+    .trip-sum.all { background: #e3f6ea; color: #1c8f4f; }
+    .trip-sum svg { width: 15px; height: 15px; }
     .id-edit { margin-top: 10px; padding: 12px; border-radius: 18px; background: var(--soft); text-align: left; }
     .id-edit[hidden] { display: none; }
     .id-edit small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
@@ -267,16 +288,26 @@
     .section { margin-top: 18px; }
     .label { font-size: 12px; font-weight: 900; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin: 0 2px 8px; }
     .row { display: flex; gap: 8px; }
-    .when-sum { font-size: 18px; font-weight: 900; letter-spacing: -.02em; margin: 2px 2px 8px; }
-    .when-chips { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: none; }
-    .when-chips::-webkit-scrollbar { display: none; }
-    .when-chips button { flex: none; display: grid; justify-items: center; min-width: 52px; padding: 8px 12px; border: 0; border-radius: 16px; background: var(--soft);
-                    font: inherit; font-size: 14px; font-weight: 900; color: var(--ink); cursor: pointer; line-height: 1.15; }
-    .when-chips button small { font-size: 11px; font-weight: 800; color: var(--muted); }
-    .when-chips button.on { background: var(--ink); color: #fff; }
-    .when-chips button.on small { color: rgba(255,255,255,.7); }
-    .when-chips button:disabled { opacity: .35; cursor: default; }
-    #timeChips button { border-radius: 999px; }
+    /* when: a week strip and a row of times, both exactly as wide as the planner */
+    .when-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 2px 10px; }
+    .when-head b { font-size: 16px; font-weight: 900; letter-spacing: -.01em; }
+    .when-custom { display: flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; border: 0; border-radius: 999px; background: var(--soft);
+                   font: inherit; font-size: 12px; font-weight: 900; color: var(--ink); cursor: pointer; }
+    .when-custom svg { width: 14px; height: 14px; }
+    .when-custom.on { background: var(--ink); color: #fff; }
+    .when-grid { display: grid; gap: 6px; margin-bottom: 8px; }
+    .when-grid.days { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .when-grid.times { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .when-grid button { display: grid; justify-items: center; align-content: center; gap: 1px; min-width: 0; padding: 7px 0; border: 0; border-radius: 14px;
+                        background: var(--soft); font: inherit; color: var(--ink); cursor: pointer; }
+    .when-grid.days button { padding: 8px 0 7px; }
+    .when-grid.days small { font-size: 10px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+    .when-grid.days b { font-size: 17px; font-weight: 900; line-height: 1.1; }
+    .when-grid.times button { font-size: 13px; font-weight: 900; }
+    .when-grid button.on { background: var(--ink); color: #fff; }
+    .when-grid button.on small { color: rgba(255,255,255,.7); }
+    .when-grid button:disabled { opacity: .35; cursor: default; }
+    #start { margin-bottom: 8px; }
     #start[hidden] { display: none; }
     input[type=datetime-local], select { width: 100%; height: 46px; padding: 0 14px; border: 0; border-radius: 16px; background: var(--soft);
                                          font-weight: 800; outline: none; }
@@ -1115,9 +1146,9 @@
 
   <div class="section">
     <div class="label">When</div>
-    <div class="when-sum" id="whenSum"></div>
-    <div class="when-chips" id="dayChips"></div>
-    <div class="when-chips" id="timeChips"></div>
+    <div class="when-head"><b id="whenSum"></b><button class="when-custom" id="whenCustom" type="button"><i data-ic="calendar"></i> Custom</button></div>
+    <div class="when-grid days" id="dayChips"></div>
+    <div class="when-grid times" id="timeChips"></div>
     <input type="datetime-local" id="start" hidden>
     <button class="find" id="findBtn"><i data-ic="sparkles"></i> Find a time everyone's free</button>
     <div id="slots"></div>
@@ -1164,7 +1195,7 @@
       <div id="hangoutList"></div>
     </div>
     <div class="section" id="pastSection" hidden>
-      <div class="label">Past</div>
+      <div class="label">Past trips <span id="pastCount"></span></div>
       <div id="pastList"></div>
     </div>
   </div>
@@ -1607,32 +1638,32 @@ tomorrow.setHours(19, 0, 0, 0);
 $("start").value = new Date(tomorrow - tomorrow.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
 
 // ---------- when: quick day and time chips (the datetime box underneath is still what everything reads) ----------
-const TIMES = [[11, 0], [12, 0], [13, 0], [15, 0], [17, 0], [18, 0], [18, 30], [19, 0], [19, 30], [20, 0], [21, 0]];
+const TIMES = [[6, 0], [9, 0], [12, 0], [15, 0], [18, 0], [21, 0]];  // every 3 hours; Custom for anything else
 function showWhen() {
   const cur = $("start").value ? new Date($("start").value) : null, now = new Date(), sameDay = (a, b) => a && b && a.toDateString() === b.toDateString();
-  $("whenSum").textContent = cur ? cur.toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Pick a time";
+  $("whenSum").textContent = cur ? `${cur.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })} · ${cur.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Pick a day and time";
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(now.getDate() + i); return d; });
-  const inList = days.some(d => sameDay(d, cur));
-  $("dayChips").innerHTML = days.map((d, i) => `<button class="${sameDay(d, cur) ? "on" : ""}" data-day="${i}">
-      ${i === 0 ? "Today" : i === 1 ? "Tmrw" : d.toLocaleDateString([], { weekday: "short" })}<small>${d.toLocaleDateString([], { month: "short", day: "numeric" })}</small></button>`).join("")
-    + `<button class="${cur && !inList ? "on" : ""}" data-day="pick">${icon("calendar")}<small>${cur && !inList ? cur.toLocaleDateString([], { month: "short", day: "numeric" }) : "Other"}</small></button>`;
+  $("dayChips").innerHTML = days.map((d, i) => `<button class="${sameDay(d, cur) ? "on" : ""}" data-day="${i}" title="${d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}">
+      <small>${i === 0 ? "Today" : d.toLocaleDateString([], { weekday: "short" })}</small><b>${d.getDate()}</b></button>`).join("");
   const hm = cur ? [cur.getHours(), cur.getMinutes()] : null, today = sameDay(cur, now);
-  const onList = hm && TIMES.some(([h, m]) => h === hm[0] && m === hm[1]);
   $("timeChips").innerHTML = TIMES.map(([h, m]) => {
     const past = today && (h < now.getHours() || (h === now.getHours() && m <= now.getMinutes()));
     return `<button class="${hm && h === hm[0] && m === hm[1] ? "on" : ""}" data-time="${h}:${m}" ${past ? "disabled" : ""}>${(h + 11) % 12 + 1}${m ? ":" + String(m).padStart(2, "0") : ""}${h < 12 ? "am" : "pm"}</button>`;
-  }).join("") + `<button class="${hm && !onList ? "on" : ""}" data-time="pick">${hm && !onList ? cur.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Other"}</button>`;
-  // the chosen chip stays in view
-  for (const row of [$("dayChips"), $("timeChips")]) { const on = row.querySelector(".on"); if (on && (on.offsetLeft < row.scrollLeft || on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth)) row.scrollLeft = on.offsetLeft - 40; }
+  }).join("");
+  $("whenCustom").classList.toggle("on", !$("start").hidden);
 }
 function setWhen(d) {
   $("start").value = localIso(d);
   $("start").dispatchEvent(new Event("change"));
 }
+$("whenCustom").onclick = () => {
+  $("start").hidden = !$("start").hidden;
+  showWhen();
+  if (!$("start").hidden) { $("start").focus(); try { $("start").showPicker(); } catch { } }
+};
 $("dayChips").onclick = e => {
   const b = e.target.closest("button");
   if (!b) return;
-  if (b.dataset.day === "pick") { $("start").hidden = false; $("start").focus(); try { $("start").showPicker(); } catch { } return; }
   const cur = $("start").value ? new Date($("start").value) : null, d = new Date();
   d.setDate(d.getDate() + +b.dataset.day);
   d.setHours(cur ? cur.getHours() : 19, cur ? cur.getMinutes() : 0, 0, 0);
@@ -1642,7 +1673,6 @@ $("dayChips").onclick = e => {
 $("timeChips").onclick = e => {
   const b = e.target.closest("button");
   if (!b || b.disabled) return;
-  if (b.dataset.time === "pick") { $("start").hidden = false; $("start").focus(); try { $("start").showPicker(); } catch { } return; }
   const [h, m] = b.dataset.time.split(":").map(Number), d = $("start").value ? new Date($("start").value) : new Date();
   d.setHours(h, m, 0, 0);
   setWhen(d);
@@ -1803,10 +1833,10 @@ const TURN = [[/uturn/i, "undo-2"], [/sharp.?left|SHARP_LEFT/i, "corner-up-left"
 const turnIcon = m => icon((TURN.find(([re]) => re.test(m || "")) || [0, "arrow-up"])[1]);
 let dirState = null;  // { venue, name, start, mode, origin, originLabel, results: { mode: directions } }
 
-async function openDirections({ venue: dest, name, start, mode, from }) {
+async function openDirections({ venue: dest, name, start, mode, from, fromLabel }) {
   const live = window.myFix && Date.now() - window.myFix.at < 5 * 6e4 ? window.myFix.here : null;
   const home = myFriends().find(p => p.isMe)?.home;
-  const origin = live || home || from;
+  const origin = live || from || home;  // where you are right now, else where you said you're leaving from, else home
   $("dir").hidden = false;
   $("dirTitle").textContent = `To ${name || "the spot"}`;
   if (!origin) {
@@ -1814,7 +1844,7 @@ async function openDirections({ venue: dest, name, start, mode, from }) {
     return $("dirSum").textContent = "Allow location, or set your home in your profile, to get directions.";
   }
   dirState = { venue: dest, name, start, mode: DIR_MODES[mode] ? mode : "driving", origin,
-               originLabel: live ? "From your location" : "From home", results: {} };
+               originLabel: live ? "From your location" : from ? fromLabel || "From where you're leaving" : "From home", results: {} };
   $("dirFrom").textContent = dirState.originLabel;
   renderDirections();
   // every way at once, so the tabs show their times like Google Maps

@@ -481,7 +481,11 @@ function planCard(h, { past = false, next = false } = {}) {
         <small>${esc(whenText(h))}${h.address ? ` · ${esc(h.address)}` : ""}</small>
         <small>Planned by ${mine ? "you" : esc(h.createdByName || "a friend")}</small></div>
       ${past ? "" : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">${icon("x")}</button>`}</div>
+    ${past ? `<div class="trip-sum ${everyoneArrived(h) ? "all" : ""}">${icon(everyoneArrived(h) ? "circle-check" : "flag")} ${esc(tripSummary(h))}</div>` : ""}
     ${!past && leaveTime(h) ? `<div class="plan-you">${icon("bell")} You leave at ${leaveTime(h)}</div>` : ""}
+    ${past ? "" : `<div class="plan-from">${icon(originOf(h) ? "map-pin" : "house")}<span>Leaving from <b>${esc(originOf(h)?.name || (profile.home ? "Home" : "home (not set yet)"))}</b>${h.travel?.[me.uid] ? ` · ${Math.round(h.travel[me.uid])} min trip` : ""}</span>
+      <button class="mini" data-from="${esc(h.id)}">${fromEditing === h.id ? "Done" : "Change"}</button></div>
+      ${fromEditing === h.id ? fromPanel(h) : ""}`}
     ${past ? "" : modeChips(h, myModeFor(h), "data-my-mode")}
     <div class="plan-people">${h.attendees.map(u => personLine(h, u, past)).join("")}</div>
     ${waiting.length || declined.length ? `<small class="note">${[waiting.length && `Waiting on ${names(waiting)}`,
@@ -510,8 +514,17 @@ function renderWeek(upcoming) {
       ${leaveTime(h) ? `<small class="leave">${icon("bell")} leave ${leaveTime(h)}</small>` : ""}</button>`).join("");
 }
 
+// a hangout is a past trip once everyone going has checked in as arrived (or, if someone never checks in, once it's over)
+const everyoneArrived = h => h.attendees.length > 0 && h.attendees.every(u => h.arrivals?.[u]);
+const isPastTrip = h => everyoneArrived(h) || new Date(endOf(h)) <= new Date();
+function tripSummary(h) {  // "Everyone made it · 2 on time, 1 late"
+  const lates = h.attendees.filter(u => h.arrivals?.[u]).map(u => (new Date(h.arrivals[u]) - new Date(h.start)) / 6e4);
+  const onTime = lates.filter(m => m <= 5).length, late = lates.length - onTime;
+  const head = everyoneArrived(h) ? "Everyone made it" : lates.length ? `${lates.length} of ${h.attendees.length} checked in` : "Nobody checked in";
+  return [head, [onTime && `${onTime} on time`, late && `${late} late`].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+}
 function renderHangouts() {
-  const over = h => new Date(endOf(h)) <= new Date();
+  const over = isPastTrip;
   const upcoming = hangouts.filter(h => !over(h)).sort((a, b) => a.start.localeCompare(b.start));
   const past = hangouts.filter(over).sort((a, b) => b.start.localeCompare(a.start));  // newest first
   $("hangoutList").innerHTML = upcoming.length
@@ -519,6 +532,7 @@ function renderHangouts() {
     : `<div class="nobody">Nothing planned yet. Plan one with your friends and tap "Send invites", or accept an invitation.</div>`;
   $("pastSection").hidden = !past.length;
   renderWeek(upcoming);
+  $("pastCount").textContent = past.length ? `(${past.length})` : "";
   $("pastList").innerHTML = past.map(h => planCard(h, { past: true })).join("");
 }
 
@@ -545,17 +559,20 @@ const modeChips = (h, current, attr) => `<div class="modes">${Object.entries(MOD
 const localIso = iso => { const d = new Date(iso); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); };
 
 // your leave-now time for this hangout if you go this way (same model and Google trip time as the planner used)
-async function myAlert(h, mode) {
+// where you're leaving from for this hangout: your home unless you picked somewhere else ({ lat, lng, name } in h.origins)
+const originOf = h => { const o = h.origins?.[me.uid]; return o && typeof o.lat === "number" ? o : null; };
+const homeOf = () => profile.home ? { lat: profile.home.lat, lng: profile.home.lng, name: "Home" } : null;
+async function myAlert(h, mode, origin = originOf(h) || homeOf()) {
   const res = await fetch("/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
     user_ids: [me.uid], venue: h.venue, start_time: localIso(h.start), hangout_type: h.type || "food", modes: { [me.uid]: mode },
     utc_offset_min: -new Date().getTimezoneOffset(),
-    guests: [{ user_id: me.uid, name: profile.name || "Me", travel_mode: mode, home: profile.home ? [profile.home.lat, profile.home.lng] : null,
+    guests: [{ user_id: me.uid, name: profile.name || "Me", travel_mode: mode, home: origin ? [origin.lat, origin.lng] : null,
                habits: window.myFriends?.find(p => p.isMe)?.habits || [] }] }) });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
   const [r] = await res.json();
   return { alert: new Date(r.alert_time).toISOString(), travel: Math.round(r.travel_minutes * 10) / 10 };
 }
-async function myWayThere(h, mode) {  // { modes.me, alerts.me } to save; keeps the old alert if the planner can't be reached
+async function myWayThere(h, mode) {  // { modes.me, alerts.me } to save (from where you're leaving); keeps the old alert if the planner can't be reached
   const update = { [`modes.${me.uid}`]: mode };
   if (h.venue && (mode !== h.modes?.[me.uid] || !h.alerts?.[me.uid])) {
     try {
@@ -585,6 +602,28 @@ async function cantMakeIt(h) {
   if (!confirm(`Can't make it to ${h.title}? You'll be taken off it, and the others will get a message that you can't come.`)) return;
   await postLeft(h).catch(() => {});  // while you're still in the group, so you're allowed to post
   await rsvp(h.id, "declined");
+}
+// pick where you're leaving from: your trip time and leave-now alert are worked out again from there
+// (null = back to home). The check-in later compares against this same trip time, so the lateness model stays fair.
+async function setOrigin(h, origin) {
+  const from = origin || homeOf();
+  if (!from) throw new Error("Set your home in your profile, or pick where you're leaving from.");
+  const { alert, travel } = await myAlert(h, myModeFor(h), from);
+  await updateDoc(doc(db, "hangouts", h.id), { [`origins.${me.uid}`]: origin || null, [`alerts.${me.uid}`]: alert, [`travel.${me.uid}`]: travel });
+  fromEditing = "";
+}
+let fromEditing = "", fromFound = [], fromTimer, fromSession = null;
+function fromPanel(h) {
+  const o = originOf(h);
+  return `<div class="from-panel">
+    <div class="from-opts">
+      <button class="${o ? "" : "on"}" data-from-home="${esc(h.id)}" ${profile.home ? "" : "disabled"}>${icon("house")} Home</button>
+      <button data-from-here="${esc(h.id)}">${icon("locate-fixed")} Where I am now</button>
+    </div>
+    <input class="from-search" data-from-search="${esc(h.id)}" placeholder="Or search a place (work, campus…)" autocomplete="off">
+    <div class="from-found" id="fromFound"></div>
+    <small class="note" id="fromMsg"></small>
+  </div>`;
 }
 const changeMode = async (id, mode) => updateDoc(doc(db, "hangouts", id), await myWayThere(hangoutDocs[id], mode));
 
@@ -887,6 +926,35 @@ if (configured) {
     $("homeInput").value = ""; $("homeSuggest").innerHTML = ""; homeFound = [];
   });
   $("homeInput").onblur = () => setTimeout(() => ($("homeSuggest").innerHTML = ""), 200);
+  // "Leaving from": search any place for one hangout (same place search as your home)
+  $("hangoutList").addEventListener("input", e => {
+    if (!e.target.dataset.fromSearch) return;
+    clearTimeout(fromTimer);
+    const q = e.target.value.trim(), box = document.getElementById("fromFound");
+    if (q.length < 3) { box.innerHTML = ""; return; }
+    fromTimer = setTimeout(async () => {
+      fromSession ||= crypto.randomUUID?.() || String(Math.random()).slice(2);
+      const c = profile.home || (window.myFix && { lat: window.myFix.here[0], lng: window.myFix.here[1] }) || { lat: 39.8, lng: -98.6 };
+      const list = await fetch(`/places/suggest?q=${encodeURIComponent(q)}&lat=${c.lat}&lng=${c.lng}&session=${fromSession}`).then(r => r.json()).catch(() => []);
+      if (e.target.value.trim() !== q) return;
+      fromFound = list.filter(p => p.kind === "place");
+      box.innerHTML = fromFound.length
+        ? fromFound.map((p, i) => `<button class="opt" data-from-pick="${i}" data-hid="${esc(e.target.dataset.fromSearch)}"><i>${icon("map-pin")}</i><div><b>${esc(p.name)}</b><span>${esc(p.address || "")}</span></div></button>`).join("")
+        : `<div class="none">No matches yet. Keep typing.</div>`;
+    }, 250);
+  });
+  $("hangoutList").addEventListener("click", run(async e => {
+    const b = e.target.closest("[data-from-pick]");
+    if (!b) return;
+    let p = fromFound[+b.dataset.fromPick];
+    if (!p) return;
+    const m = document.getElementById("fromMsg"); if (m) m.textContent = "Working out your leave time…";
+    if (p.lat == null) p = { ...p, ...(await fetch(`/places/details?id=${encodeURIComponent(p.id)}&session=${fromSession}`).then(r => r.json())) };
+    fromSession = null;
+    if (p.lat == null) throw new Error("Couldn't find that place. Try another.");
+    await setOrigin(hangoutDocs[b.dataset.hid], { lat: p.lat, lng: p.lng, name: p.name });
+    renderHangouts();
+  }));
   $("requests").onclick = run(async e => {
     const b = e.target.closest("button");
     if (!b) return;
@@ -904,8 +972,24 @@ if (configured) {
     if (b?.dataset.chat) { $("plans").hidden = true; return window.openChat(b.dataset.chat); }
     if (b?.dataset.cal) return window.open(googleLink(hangoutDocs[b.dataset.cal]), "_blank", "noopener");
     if (b?.dataset.dir) { const h = hangoutDocs[b.dataset.dir]; $("plans").hidden = true;
-      const d = new Date(h.start);
-      return window.openDirections({ venue: h.venue, name: h.venueName || h.title, start: new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16), mode: myModeFor(h) }); }
+      const d = new Date(h.start), o = originOf(h);
+      return window.openDirections({ venue: h.venue, name: h.venueName || h.title, start: new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16), mode: myModeFor(h),
+                                     from: o ? [o.lat, o.lng] : null, fromLabel: o ? `From ${o.name}` : "" }); }
+    if (b?.dataset.from) { fromEditing = fromEditing === b.dataset.from ? "" : b.dataset.from; fromFound = []; renderHangouts();
+      if (fromEditing) setTimeout(() => document.querySelector(".from-search")?.focus(), 0); return; }
+    const fromMsg = t => { const m = document.getElementById("fromMsg"); if (m) m.textContent = t; };
+    if (b?.dataset.fromHome) { fromMsg("Working out your leave time…"); await setOrigin(hangoutDocs[b.dataset.fromHome], null); return renderHangouts(); }
+    if (b?.dataset.fromHere) {
+      const h = hangoutDocs[b.dataset.fromHere];
+      fromMsg("Finding you…");
+      // the app's latest location fix if it's fresh, otherwise ask for one (a minute-old reading is fine)
+      const fresh = window.myFix && Date.now() - window.myFix.at < 2 * 6e4 ? window.myFix.here : null;
+      const [lat, lng] = fresh || await new Promise((ok, no) => navigator.geolocation.getCurrentPosition(p => ok([p.coords.latitude, p.coords.longitude]),
+        () => no(new Error("Couldn't get your location. Allow it, or search a place instead.")), { maximumAge: 6e4, timeout: 15000 }));
+      fromMsg("Working out your leave time…");
+      await setOrigin(h, { lat, lng, name: `where you were at ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` });
+      return renderHangouts();
+    }
     if (b?.dataset.myMode && !b.classList.contains("on")) {
       // light up the new way right away; the leave time updates when the save comes back
       const row = b.parentElement, was = row.querySelector(".on");
