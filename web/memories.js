@@ -255,6 +255,8 @@ async function save(m) {  // share sheet on phones (Save Image), a download else
 
 // ---------- taps ----------
 document.addEventListener("click", async e => {
+  // only taps inside the memories screens and prompts (other screens have their own "save" and "delete" buttons)
+  if (!e.target.closest("#memView, #memCompose, #memCam, #snapPrompt, #memList, .mem-take-row, .mem-strip")) return;
   const cb = e.target.closest("[data-cam-close], [data-cam-shoot], [data-cam-timer], [data-cam-flip], [data-cam-upload]");
   if (cb) {
     e.stopPropagation(); e.preventDefault();
