@@ -247,7 +247,8 @@
     .dir-steps li small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
     .line-badge { display: inline-block; padding: 1px 7px; border-radius: 6px; font-weight: 900; font-size: 12px; }
 
-    .map-hint { position: fixed; top: 80px; left: calc(50% + 216px); transform: translateX(-50%); z-index: 800; background: var(--ink);
+    .map-hint { display: none !important; }  /* the planner already says "search above or tap the map" */
+    .map-hint-old { position: fixed; top: 80px; left: calc(50% + 216px); transform: translateX(-50%); z-index: 800; background: var(--ink);
                 color: #fff; padding: 10px 18px; border-radius: 999px; font-weight: 800; font-size: 14px; box-shadow: var(--shadow-sm);
                 pointer-events: none; white-space: nowrap; }
 
@@ -266,6 +267,17 @@
     .section { margin-top: 18px; }
     .label { font-size: 12px; font-weight: 900; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin: 0 2px 8px; }
     .row { display: flex; gap: 8px; }
+    .when-sum { font-size: 18px; font-weight: 900; letter-spacing: -.02em; margin: 2px 2px 8px; }
+    .when-chips { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: none; }
+    .when-chips::-webkit-scrollbar { display: none; }
+    .when-chips button { flex: none; display: grid; justify-items: center; min-width: 52px; padding: 8px 12px; border: 0; border-radius: 16px; background: var(--soft);
+                    font: inherit; font-size: 14px; font-weight: 900; color: var(--ink); cursor: pointer; line-height: 1.15; }
+    .when-chips button small { font-size: 11px; font-weight: 800; color: var(--muted); }
+    .when-chips button.on { background: var(--ink); color: #fff; }
+    .when-chips button.on small { color: rgba(255,255,255,.7); }
+    .when-chips button:disabled { opacity: .35; cursor: default; }
+    #timeChips button { border-radius: 999px; }
+    #start[hidden] { display: none; }
     input[type=datetime-local], select { width: 100%; height: 46px; padding: 0 14px; border: 0; border-radius: 16px; background: var(--soft);
                                          font-weight: 800; outline: none; }
     input[type=datetime-local]:focus, select:focus { box-shadow: 0 0 0 3px var(--sun); }
@@ -334,9 +346,16 @@
     .pick-all:empty { display: none; }
     .pick-list { display: flex; flex-direction: column; gap: 4px; max-height: 216px; overflow-y: auto; margin-top: 8px; }
     .pick-list:empty { display: none; }
-    .pick-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 16px; cursor: pointer; user-select: none; }
-    .pick-row:hover { background: var(--soft); }
-    .pick-row .avatar { width: 38px; height: 38px; }
+    /* the same rows as "My friends" in your profile */
+    .pick-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 18px; background: var(--soft); cursor: pointer; user-select: none; }
+    .pick-row:hover { background: #ececf1; }
+    .pick-row .avatar { width: 42px; height: 42px; }
+    .pick-list { gap: 6px !important; }
+    .who-pick[hidden] { display: none; }
+    .friend.add-tile { display: grid; justify-items: center; border: 0; background: none; padding: 0; font: inherit; color: var(--ink); }
+    .add-tile i { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; border: 2px dashed #c9c9d4; background: #fff; }
+    .add-tile.on i { border-style: solid; border-color: var(--ink); background: var(--ink); color: #fff; }
+    .add-tile svg { width: 22px; height: 22px; }
     .pick-row .who { flex: 1; min-width: 0; }
     .pick-row b { display: block; font-weight: 900; }
     .pick-row small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
@@ -749,14 +768,24 @@
     .avatar.big { width: 88px; height: 88px; margin: 0 auto; border: 4px solid #fff; box-shadow: 0 0 0 4px var(--sun), var(--shadow-sm); }
     .avatar.big span { font-size: 28px; }
     .avatar[style*="background-image"] { background-size: cover; background-position: center; }
-    #meName { display: block; width: 100%; margin: 12px 0 4px; border: 0; background: none; text-align: center; font-size: 24px;
-              font-weight: 900; outline: none; border-radius: 12px; }
-    #meName:focus { background: var(--soft); }
+    .av-wrap { position: relative; width: 88px; margin: 0 auto; }
+    .av-pencil { position: absolute; right: -6px; bottom: -4px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0;
+                 border: 3px solid #fff; border-radius: 50%; background: var(--ink); color: #fff; cursor: pointer; }
+    .av-pencil svg { width: 14px; height: 14px; }
+    .name-edit { display: flex; align-items: center; justify-content: center; gap: 6px; width: fit-content; max-width: 100%; margin: 10px auto 4px;
+                 padding: 2px 10px; border-radius: 12px; cursor: text; }
+    .name-edit:focus-within { background: var(--soft); }
+    .name-edit i { display: grid; color: var(--muted); }
+    .name-edit svg { width: 16px; height: 16px; }
+    #meName { min-width: 3ch; max-width: 100%; border: 0; background: none; text-align: center; font-size: 24px; font-weight: 900; outline: none; padding: 0; }
     .code-box { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding: 12px 14px;
                 border-radius: 20px; background: var(--sun); }
     .code-box small { display: block; font-size: 12px; font-weight: 800; }
     .code-box > div { flex: 1; min-width: 0; }
-    .code-box b { display: block; font-size: 24px; font-weight: 900; letter-spacing: .08em; overflow-wrap: anywhere; line-height: 1.15; }
+    .code-box > div { text-align: left; }
+    /* always one line: longer IDs get smaller text (friends.js sets --len) */
+    .code-box b { display: block; font-size: clamp(15px, calc(34px - var(--len, 6) * 1.35px), 26px); font-weight: 900;
+                  letter-spacing: calc(.12em - var(--len, 6) * .006em); line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .mini { height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--soft); font-size: 13px; font-weight: 900;
             cursor: pointer; flex: none; }
     .mini.yes, .mini.dark { background: var(--ink); color: #fff; }
@@ -795,7 +824,7 @@
             font-weight: 900; cursor: pointer; box-shadow: 0 5px 0 #0f9a63, var(--shadow-sm); }
     .lock:disabled { opacity: .75; cursor: default; }
     .sched { width: 100%; min-height: 84px; padding: 12px 14px; border: 0; border-radius: 16px; background: var(--soft);
-             font-weight: 700; resize: vertical; outline: none; }
+             font: inherit; font-size: 15px; font-weight: 700; line-height: 1.4; resize: vertical; outline: none; }
     .sched:focus { box-shadow: 0 0 0 3px var(--sun); }
     #schedChips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     .busy-chip { padding: 5px 10px; border-radius: 999px; background: #ffe3e8; color: #b0183a; font-size: 12px; font-weight: 800; }
@@ -1048,12 +1077,14 @@
   <div class="section">
     <div class="label">Who <span id="whoCount"></span></div>
     <div class="friends" id="friends"></div>
+    <div class="who-pick" id="whoPick" hidden>
     <div class="pick-search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7a7a86" stroke-width="3" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg>
       <input id="friendSearch" placeholder="Search your friends" autocomplete="off">
       <button class="pick-all" id="pickAll"></button>
     </div>
     <div class="pick-list" id="friendPick"></div>
+    </div>
   </div>
 
   <div class="section">
@@ -1084,7 +1115,10 @@
 
   <div class="section">
     <div class="label">When</div>
-    <input type="datetime-local" id="start">
+    <div class="when-sum" id="whenSum"></div>
+    <div class="when-chips" id="dayChips"></div>
+    <div class="when-chips" id="timeChips"></div>
+    <input type="datetime-local" id="start" hidden>
     <button class="find" id="findBtn"><i data-ic="sparkles"></i> Find a time everyone's free</button>
     <div id="slots"></div>
   </div>
@@ -1152,10 +1186,10 @@
   <div class="drawer-card">
     <button class="x" id="drawerClose" title="Close" data-ic="x"></button>
     <div class="me-card">
-      <div class="avatar big" id="meAvatar"></div>
-      <div class="av-hint">Tap your avatar to change it</div>
+      <div class="av-wrap"><div class="avatar big" id="meAvatar"></div><button class="av-pencil" id="avPencil" title="Change your picture" data-ic="pencil"></button></div>
+      <div class="av-hint">Tap your picture to change it</div>
       <div class="av-editor" id="avatarEditor" hidden></div>
-      <input id="meName" maxlength="30" title="Tap to change your name">
+      <label class="name-edit" title="Tap to change your name"><input id="meName" maxlength="30"><i data-ic="pencil"></i></label>
       <div class="code-box">
         <div><small>Your friend ID</small><b id="meCode">······</b></div>
         <button class="mini" id="editCode">Change</button>
@@ -1572,6 +1606,53 @@ const tomorrow = new Date(Date.now() + 864e5);
 tomorrow.setHours(19, 0, 0, 0);
 $("start").value = new Date(tomorrow - tomorrow.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
 
+// ---------- when: quick day and time chips (the datetime box underneath is still what everything reads) ----------
+const TIMES = [[11, 0], [12, 0], [13, 0], [15, 0], [17, 0], [18, 0], [18, 30], [19, 0], [19, 30], [20, 0], [21, 0]];
+function showWhen() {
+  const cur = $("start").value ? new Date($("start").value) : null, now = new Date(), sameDay = (a, b) => a && b && a.toDateString() === b.toDateString();
+  $("whenSum").textContent = cur ? cur.toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Pick a time";
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(now.getDate() + i); return d; });
+  const inList = days.some(d => sameDay(d, cur));
+  $("dayChips").innerHTML = days.map((d, i) => `<button class="${sameDay(d, cur) ? "on" : ""}" data-day="${i}">
+      ${i === 0 ? "Today" : i === 1 ? "Tmrw" : d.toLocaleDateString([], { weekday: "short" })}<small>${d.toLocaleDateString([], { month: "short", day: "numeric" })}</small></button>`).join("")
+    + `<button class="${cur && !inList ? "on" : ""}" data-day="pick">${icon("calendar")}<small>${cur && !inList ? cur.toLocaleDateString([], { month: "short", day: "numeric" }) : "Other"}</small></button>`;
+  const hm = cur ? [cur.getHours(), cur.getMinutes()] : null, today = sameDay(cur, now);
+  const onList = hm && TIMES.some(([h, m]) => h === hm[0] && m === hm[1]);
+  $("timeChips").innerHTML = TIMES.map(([h, m]) => {
+    const past = today && (h < now.getHours() || (h === now.getHours() && m <= now.getMinutes()));
+    return `<button class="${hm && h === hm[0] && m === hm[1] ? "on" : ""}" data-time="${h}:${m}" ${past ? "disabled" : ""}>${(h + 11) % 12 + 1}${m ? ":" + String(m).padStart(2, "0") : ""}${h < 12 ? "am" : "pm"}</button>`;
+  }).join("") + `<button class="${hm && !onList ? "on" : ""}" data-time="pick">${hm && !onList ? cur.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Other"}</button>`;
+  // the chosen chip stays in view
+  for (const row of [$("dayChips"), $("timeChips")]) { const on = row.querySelector(".on"); if (on && (on.offsetLeft < row.scrollLeft || on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth)) row.scrollLeft = on.offsetLeft - 40; }
+}
+function setWhen(d) {
+  $("start").value = localIso(d);
+  $("start").dispatchEvent(new Event("change"));
+}
+$("dayChips").onclick = e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.day === "pick") { $("start").hidden = false; $("start").focus(); try { $("start").showPicker(); } catch { } return; }
+  const cur = $("start").value ? new Date($("start").value) : null, d = new Date();
+  d.setDate(d.getDate() + +b.dataset.day);
+  d.setHours(cur ? cur.getHours() : 19, cur ? cur.getMinutes() : 0, 0, 0);
+  if (d < new Date()) d.setHours(Math.min(23, new Date().getHours() + 1), 0, 0, 0);  // today, but that time has passed: the next hour
+  setWhen(d);
+};
+$("timeChips").onclick = e => {
+  const b = e.target.closest("button");
+  if (!b || b.disabled) return;
+  if (b.dataset.time === "pick") { $("start").hidden = false; $("start").focus(); try { $("start").showPicker(); } catch { } return; }
+  const [h, m] = b.dataset.time.split(":").map(Number), d = $("start").value ? new Date($("start").value) : new Date();
+  d.setHours(h, m, 0, 0);
+  setWhen(d);
+};
+$("start").addEventListener("change", showWhen);
+// Muse, "find a time" and opening a plan set the time directly: keep the chips in step
+{ const box = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value"), el = $("start");
+  Object.defineProperty(el, "value", { get() { return box.get.call(this); }, set(v) { box.set.call(this, v); queueMicrotask(showWhen); } }); }
+showWhen();
+
 // ---------- weather: the forecast at the spot for the chosen hour (the model uses it too) ----------
 const here = () => venue || [map.getCenter().lat, map.getCenter().lng];
 // °F in the US, °C everywhere else
@@ -1621,14 +1702,16 @@ function showFriends() {
   const chosen = everyone.filter(p => p.isMe || picked.has(p.user_id));
   $("friends").innerHTML = chosen.map(p =>
     `<label class="friend ${p.isMe ? "" : "removable"}" style="--c:${colorOf[p.user_id]}" ${p.isMe ? "" : `data-unpick="${esc(p.user_id)}"`}
-       title="${p.isMe ? "You're always in" : "Tap to remove"}"><input type="checkbox" checked disabled>${avatar(p)}<small>${esc(p.name)}</small></label>`).join("");
+       title="${p.isMe ? "You're always in" : "Tap to remove"}"><input type="checkbox" checked disabled>${avatar(p)}<small>${esc(p.name)}</small></label>`).join("")
+    // the rest of your friends stay tucked away until you tap Add
+    + `<button class="friend add-tile ${$("whoPick").hidden ? "" : "on"}" id="whoAdd" type="button"><i>${icon($("whoPick").hidden ? "plus" : "check")}</i><small>${$("whoPick").hidden ? "Add" : "Done"}</small></button>`;
   $("whoCount").textContent = picked.size ? `· ${picked.size + 1} people` : "";
 
   // your friends list, filtered by the search box (name or friend ID)
   const q = $("friendSearch").value.trim().toLowerCase();
   const match = others.filter(p => !q || p.name.toLowerCase().includes(q) || (p.code || "").toLowerCase().includes(q));
   $("friendSearch").parentElement.hidden = !others.length;
-  $("pickAll").textContent = others.length > 1 ? (others.every(p => picked.has(p.user_id)) ? "Clear" : "All") : "";
+  $("pickAll").textContent = others.length > 1 ? (others.every(p => picked.has(p.user_id)) ? "Clear all" : "Select all") : "";
   $("friendPick").innerHTML = !others.length
     ? `<div class="pick-empty">No friends yet. Add some from your profile (top left) to plan with them.</div>`
     : match.length ? match.map(p => `<div class="pick-row ${picked.has(p.user_id) ? "on" : ""}" data-pick="${esc(p.user_id)}">${avatar(p)}
@@ -1643,6 +1726,12 @@ $("friendPick").onclick = e => {
   showFriends();
 };
 $("friends").onclick = e => {
+  if (e.target.closest("#whoAdd")) {
+    $("whoPick").hidden = !$("whoPick").hidden;
+    showFriends();
+    if (!$("whoPick").hidden) setTimeout(() => $("friendSearch").focus({ preventScroll: true }), 0);
+    return;
+  }
   const face = e.target.closest("[data-unpick]");
   if (!face) return;
   e.preventDefault();

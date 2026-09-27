@@ -119,6 +119,17 @@ function publish() {
   window.dispatchEvent(new Event("friends-changed"));
 }
 
+// your friend ID always on one line: longer IDs get smaller text until they fit (whatever the font)
+function fitCode() {
+  const b = $("meCode");
+  b.style.fontSize = ""; b.style.setProperty("--len", b.textContent.length);
+  requestAnimationFrame(() => {
+    let size = parseFloat(getComputedStyle(b).fontSize);
+    while (b.scrollWidth > b.clientWidth + 1 && size > 13) b.style.fontSize = (size -= 1) + "px";
+  });
+}
+window.addEventListener("resize", () => $("meCode") && fitCode());
+
 // ---------- drawing the panel ----------
 function renderMe() {
   $("meAvatar").outerHTML = pic(profile, "big").replace('class="avatar', 'id="meAvatar" title="Change your avatar" class="avatar');
@@ -126,7 +137,9 @@ function renderMe() {
   if (safePhoto(profile.photo)) { $("userPic").style.backgroundImage = `url("${safePhoto(profile.photo)}")`; $("userPic").textContent = ""; }
   if (!$("avatarEditor").hidden) renderAvatarEditor();  // your draft stays as it is
   if (document.activeElement !== $("meName")) $("meName").value = profile.name || "";
+  $("meName").style.width = Math.max(3, $("meName").value.length) + 1 + "ch";
   $("meCode").textContent = profile.code || "······";
+  fitCode();
   $("meModes").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === (profile.travelMode || "driving")));
   $("meHome").innerHTML = profile.home
     ? `${icon("circle-check")} <b>${esc(profile.homeName || "Home set")}</b>${profile.homeAddress ? `<small>${esc(profile.homeAddress)}</small>` : ""}`
@@ -750,6 +763,8 @@ if (configured) {
     $("copyCode").textContent = "Copied!";
     setTimeout(() => ($("copyCode").textContent = "Copy"), 1500);
   };
+  $("meName").addEventListener("input", () => { $("meName").style.width = Math.max(3, $("meName").value.length) + 1 + "ch"; });
+  $("avPencil").onclick = () => $("meAvatar").click();
   $("meName").onchange = run(async () => {
     const name = $("meName").value.trim() || profile.name;
     await saveProfile({ name });
