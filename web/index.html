@@ -554,7 +554,33 @@
     .card .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
     .card .detail { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 13px; color: var(--ink); }
     .card .detail .ic { margin: 0; }
-    .card .compare { margin-top: 3px; font-size: 12px; }
+    .card .compare { margin-top: 6px; font-size: 12px; }
+    .two-times { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+    .tt { display: grid; gap: 1px; padding: 8px 10px; border-radius: 12px; background: var(--soft); min-width: 0; }
+    .tt small { display: flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+    .tt small .ic { width: 12px; height: 12px; margin: 0; }
+    .tt b { font-size: 16px; font-weight: 900; }
+    .tt span { font-size: 11.5px; font-weight: 700; color: var(--muted); line-height: 1.25; }
+    .tt.rec { background: color-mix(in srgb, var(--c, #ffb000) 14%, #fff); }
+    .tt.maps { background: #eef4ff; }
+    .tt.maps small { color: #1a73e8; }
+    .card-top .time { display: none; }
+    .from-line { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 12px; font-weight: 800; color: var(--muted); }
+    .from-line .ic { width: 14px; height: 14px; margin: 0; }
+    .from-line.live { color: #0b8a55; }
+    .share-live { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 12px; border-radius: 14px; background: var(--soft); cursor: pointer; }
+    .share-live input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--ink); }
+    .share-live span { display: grid; gap: 2px; }
+    .share-live b { font-size: 14px; }
+    .share-live small { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .plan-you { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .plan-you > div { display: grid; gap: 1px; padding: 8px 10px; border-radius: 12px; background: #fff6bf; min-width: 0; }
+    .plan-you > div.maps { background: #eef4ff; }
+    .plan-you small { display: flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+    .plan-you small svg { width: 12px; height: 12px; }
+    .plan-you .maps small { color: #1a73e8; }
+    .plan-you b { font-size: 15px; font-weight: 900; color: var(--ink); }
+    .plan-you span { font-size: 11.5px; font-weight: 700; color: var(--muted); }
     .dir-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 38px; margin-top: 8px; border: 0; border-radius: 12px;
                background: #e8f0fe; color: #1a73e8; font: inherit; font-size: 14px; font-weight: 900; cursor: pointer; }
     .dir-btn:hover { background: #d7e5fd; }
@@ -743,7 +769,7 @@
     .plan-head .who { flex: 1; min-width: 0; }
     .plan-head b { display: block; font-weight: 900; }
     .plan-head small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
-    .plan-you { margin-top: 10px; padding: 8px 12px; border-radius: 14px; background: #fff; font-size: 14px; font-weight: 900; }
+    .plan-you { margin-top: 10px; }
     .plan-people { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
     .plan-people div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 800; }
     .plan-people span { color: var(--muted); font-weight: 700; text-align: right; }
@@ -1396,6 +1422,8 @@
         <div class="home-suggest" id="homeSuggest"></div>
       </div>
       <button class="wide" id="setHome">Use my current location</button>
+      <label class="share-live"><input type="checkbox" id="shareLive" checked>
+        <span><b>Share my live location with friends</b><small>So plans work out your trip from where you are, not your home. Only friends can see it.</small></span></label>
     </div>
 
     <button class="wide sign-out" id="signOut">Sign out</button>
@@ -1575,8 +1603,11 @@ $("clearPlace").onclick = clearVenue;
 map.on("click", async e => {
   const latlng = [e.latlng.lat, e.latlng.lng];
   setVenue(latlng, "Finding this spot…");
-  const place = await (await fetch(`${API}/place-name?lat=${latlng[0]}&lng=${latlng[1]}`)).json();
-  if (venue === latlng) setVenue(latlng, place.name, place.address);
+  const place = await fetch(`${API}/place-name?lat=${latlng[0]}&lng=${latlng[1]}`).then(r => r.json()).catch(() => ({}));
+  if (venue !== latlng) return;  // they tapped somewhere else meanwhile
+  // tapped right next to a place (a cafe, a park…): meet at the place itself, like tapping it in Google Maps
+  const spot = place.kind === "place" && place.lat != null ? [place.lat, place.lng] : latlng;
+  setVenue(spot, place.name || `${latlng[0].toFixed(5)}, ${latlng[1].toFixed(5)}`, place.address || "");
 });
 
 // ---------- search box, like Google Maps ----------
@@ -2328,7 +2359,7 @@ $("fairForm").onsubmit = async e => {
   if (!query) return;
   if (ids.length < 2) return $("fairList").innerHTML = `<div class="note">Pick at least one friend under Who first.</div>`;
   const people = myFriends().filter(p => ids.includes(p.user_id))
-    .map(p => ({ id: p.user_id, name: p.isMe ? "You" : p.name, home: (p.isMe ? window.myFix?.here : null) || p.home || null, mode: modeFor[p.user_id] || p.travel_mode }));
+    .map(p => ({ id: p.user_id, name: p.isMe ? "You" : p.name, home: startPoint(p).at, mode: modeFor[p.user_id] || p.travel_mode }));
   $("fairConfirm").hidden = true; $("fairDone").hidden = true;
   $("fairList").innerHTML = `<div class="note">Checking everyone's trip to each place…</div>`;
   try {
@@ -2388,8 +2419,8 @@ async function runPlan() {
       body: JSON.stringify({ user_ids, venue, start_time: $("start").value,
                              hangout_type: selectedType(), modes: modeFor, utc_offset_min: -new Date().getTimezoneOffset(),
                              guests: myFriends().filter(p => user_ids.includes(p.user_id))
-                               .map(({ user_id, name, travel_mode, home, habits, isMe }) => ({ user_id, name, travel_mode, habits,
-                                 home: (isMe ? window.myFix?.here : null) || home || null })) }),  // you leave from where you are now
+                               .map(p => { startOf[p.user_id] = startPoint(p);  // live location first, then home
+                                 return { user_id: p.user_id, name: p.name, travel_mode: p.travel_mode, habits: p.habits, home: startOf[p.user_id].at }; }) }),
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
     showResults(await res.json());
@@ -2403,6 +2434,32 @@ async function runPlan() {
 }
 
 let routeCasing = {};  // the white outline under each route line
+// where each person leaves from when you plan: where they are right now if their app shared it recently, otherwise home
+const LIVE_MIN = 30;
+function startPoint(p) {
+  if (p.isMe && window.myFix && Date.now() - window.myFix.at < LIVE_MIN * 6e4) return { at: window.myFix.here, kind: "live", when: window.myFix.at };
+  if (p.live) return { at: p.live, kind: "live", when: p.liveAt };
+  if (p.home) return { at: p.home, kind: "home" };
+  return { at: null, kind: "none" };
+}
+const fromText = s => !s ? "" : s.kind === "live" ? `Live location · ${agoText(s.when)}` : s.kind === "home" ? "From home (no live location)" : "Location unknown · guessed";
+const agoText = t => { const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} hr ago`; };
+let startOf = {};  // user id -> the start point the plan used
+// while the plan is on screen, someone who moves (their live location changed a lot) gets their trip and leave time redone
+const lastRedo = {};
+const kmApart = ([a, b], [c, d]) => { const r = Math.PI / 180, x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2;
+                                     return 12742 * Math.asin(Math.sqrt(x)); };
+window.addEventListener("friends-changed", () => {
+  if (!lastPlan || !$("lockBtn") || $("lockBtn").disabled) return;  // only a plan you haven't sent yet
+  for (const r of lastPlan) {
+    const p = myFriends().find(x => x.user_id === r.user_id), used = startOf[r.user_id], now = p && startPoint(p);
+    if (!now?.at || now.kind !== "live" || !used?.at || kmApart(used.at, now.at) < 0.3 || Date.now() - (lastRedo[r.user_id] || 0) < 60e3) continue;
+    lastRedo[r.user_id] = Date.now();
+    const card = document.querySelector(`#results .card[data-user="${r.user_id}"]`);
+    if (card) switchMode(r.user_id, r.travel_mode, card, true);
+  }
+});
+
 const enrich = r => {
   const person = people.find(p => p.user_id === r.user_id);
   r.photo = person?.photo || "";
@@ -2442,14 +2499,19 @@ function cardHtml(r) {
     <div class="card-main">
       <div class="card-top">
         <div class="who"><div class="name">${esc(r.name)}</div><span class="chip" title="${esc(r.label)}">${esc(r.learning ? "Learning" : r.label)}</span></div>
-        <div class="time"><small>Leave at</small>${fmt(r.alert_time)}</div>
+        <div class="time"><small>Recommended</small>${fmt(r.alert_time)}</div>
       </div>
+      <div class="two-times">
+        <div class="tt rec"><small>${icon("bell")} Recommended leave</small><b>${fmt(r.alert_time)}</b>
+          <span>${r.learning ? "Maps time for now: learns after the first check-in" : `allows for ${mine ? "your" : "their"} usual ${Math.max(0, Math.round(r.typical_delay_min))}–${Math.max(0, Math.round(r.bad_day_delay_min))} min delay`}</span></div>
+        <div class="tt maps"><small>${icon("map")} Google Maps</small><b>${Math.round(r.travel_minutes)} min trip</b>
+          <span>latest leave ${fmt(r.maps_only_alert_time)}</span></div>
+      </div>
+      <div class="from-line ${startOf[r.user_id]?.kind || ""}">${icon(startOf[r.user_id]?.kind === "live" ? "locate-fixed" : startOf[r.user_id]?.kind === "home" ? "house" : "map-pin")} ${esc(fromText(startOf[r.user_id]) || r.label)}</div>
       <div class="detail">${icon(MODE_ICON[r.travel_mode] || "car")} ${how[0].toUpperCase() + how.slice(1)} · ${Math.round(r.travel_minutes)} min${
         r.traffic ? trafficNote(r.traffic) : r.travel_source === "google" ? " · Google Maps" : r.travel_source === "estimate" ? " · rough estimate" : ""}</div>
-      <div class="compare">${r.learning ? `Uses the Maps time until ${mine ? "your" : esc(r.name) + "'s"} first check-in`
-        : `Maps says ${fmt(r.maps_only_alert_time)}
-        <span class="badge ${earlier > 2 ? "" : "ok"}">${earlier > 2 ? `${earlier} min earlier` : "right on time"}</span>
-        <span>· usually leaves ${Math.max(0, Math.round(r.typical_delay_min))} min after the alert (up to ${Math.max(0, Math.round(r.bad_day_delay_min))})</span>`}</div>
+      ${r.learning ? "" : `<div class="compare"><span class="badge ${earlier > 2 ? "" : "ok"}">${earlier > 2 ? `${earlier} min before Maps` : "same as Maps"}</span>
+        <span>${earlier > 2 ? `so ${mine ? "you" : esc(r.name)} still get${mine ? "" : "s"} there on time` : `${mine ? "you're" : "they're"} usually on time`}</span></div>`}
       <div class="modes">${Object.entries(MODE).map(([m, label]) =>
         `<button class="mode-chip ${m === r.travel_mode ? "on" : ""}" data-user="${r.user_id}" data-mode="${m}" title="${label}">${icon(MODE_ICON[m])}${label}</button>`).join("")}</div>
       ${mine ? `<button class="dir-btn" data-dir="1">${icon("route")} Directions</button>` : ""}
@@ -2498,20 +2560,21 @@ function showResults(plan) {
 }
 
 // switch how one person gets there: only their card, route and dot change (no reloading the whole plan)
-async function switchMode(uid, mode, card) {
+async function switchMode(uid, mode, card, again = false) {
   const old = lastPlan.find(r => r.user_id === uid);
-  if (!old || old.travel_mode === mode || card.classList.contains("busy")) return;
+  if (!old || (old.travel_mode === mode && !again) || card.classList.contains("busy")) return;
   stopSim();
   card.classList.add("busy");
   card.querySelectorAll(".mode-chip").forEach(x => x.classList.toggle("on", x.dataset.mode === mode));  // feels instant
   $(`st-${uid}`).textContent = "";
   try {
     const guest = myFriends().find(p => p.user_id === uid);
+    if (guest) startOf[uid] = startPoint(guest);
     const res = await fetch(`${API}/plan`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_ids: [uid], group_size: lastPlan.length, venue, start_time: $("start").value,
                              hangout_type: selectedType(), modes: { [uid]: mode }, utc_offset_min: -new Date().getTimezoneOffset(),
-                             guests: guest ? [{ user_id: uid, name: guest.name, travel_mode: guest.travel_mode, home: guest.home, habits: guest.habits }] : [] }),
+                             guests: guest ? [{ user_id: uid, name: guest.name, travel_mode: guest.travel_mode, home: startOf[uid].at, habits: guest.habits }] : [] }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
     const r = enrich((await res.json())[0]);

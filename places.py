@@ -55,14 +55,52 @@ def search_places(q, lat, lng, limit=6):
 
 
 def place_name(lat, lng):
+    """What's at a tapped spot, like Google Maps: the place there (a cafe, a park, a building) if there is one within
+    ~60 m (and its exact spot), otherwise the street address. Google first, then OpenStreetMap, then Mapbox."""
+    if GOOGLE_KEY:
+        try:  # a named place right there?
+            data = _google("places:searchNearby", {
+                "locationRestriction": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": 60.0}},
+                "maxResultCount": 5, "rankPreference": "DISTANCE"},
+                "places.displayName,places.formattedAddress,places.location,places.types")
+            for p in data.get("places", []):
+                where = (p["location"]["latitude"], p["location"]["longitude"])
+                if _meters((lat, lng), where) <= 60 and p.get("displayName", {}).get("text"):
+                    return {"name": p["displayName"]["text"], "address": p.get("formattedAddress", ""), "lat": where[0], "lng": where[1],
+                            "kind": "place"}
+        except Exception as e:
+            print(f"[places] Google nearby failed: {e}")
+        try:  # no place: the street address
+            r = requests.get("https://maps.googleapis.com/maps/api/geocode/json", timeout=5,
+                             params={"latlng": f"{lat},{lng}", "key": GOOGLE_KEY})
+            r.raise_for_status()
+            res = [x for x in r.json().get("results", []) if "plus_code" not in x.get("types", [])]
+            if res:
+                full = res[0]["formatted_address"]
+                return {"name": full.split(",")[0], "address": full, "kind": "address"}
+        except Exception as e:
+            print(f"[places] Google geocoding failed: {e}")
     try:
         r = requests.get(f"{OSM}/reverse", headers=OSM_HEADERS, timeout=5, params={
-            "lat": lat, "lon": lng, "format": "jsonv2", "zoom": 18})
+            "lat": lat, "lon": lng, "format": "jsonv2", "zoom": 18, "addressdetails": 1})
         r.raise_for_status()
         p = r.json()
-        return {"name": p.get("name") or p["display_name"].split(",")[0], "address": p["display_name"]}
+        a = p.get("address", {})
+        street = " ".join(x for x in (a.get("house_number"), a.get("road")) if x)
+        return {"name": p.get("name") or street or p["display_name"].split(",")[0], "address": p["display_name"],
+                "kind": "place" if p.get("name") else "address"}
     except Exception:
-        return {"name": "Dropped pin", "address": f"{lat:.4f}, {lng:.4f}"}
+        pass
+    if TOKEN:
+        try:
+            r = requests.get("https://api.mapbox.com/search/geocode/v6/reverse", timeout=5,
+                             params={"longitude": lng, "latitude": lat, "access_token": TOKEN, "limit": 1})
+            r.raise_for_status()
+            f = r.json()["features"][0]["properties"]
+            return {"name": f.get("name") or f.get("full_address", "").split(",")[0], "address": f.get("full_address", ""), "kind": "address"}
+        except Exception:
+            pass
+    return {"name": f"{lat:.5f}, {lng:.5f}", "address": "", "kind": "coords"}
 
 
 # ---------- Google Places (New) ----------

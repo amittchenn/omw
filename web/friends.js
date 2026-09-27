@@ -104,10 +104,35 @@ const pic = (p, cls = "") => safePhoto(p.photo)
   ? `<div class="avatar ${cls}" style="background-image:url('${esc(safePhoto(p.photo))}')"></div>`
   : `<div class="avatar ${cls}" style="--c:#ffb000"><span>${esc((p.name || "?").slice(0, 2).toUpperCase())}</span></div>`;
 
+// friends' live locations (locations/{uid} = { lat, lng, at }), for planning from where everyone actually is
+const LIVE_FRESH_MIN = 30;  // older than this and we fall back to their home
+let locs = {};
+function liveOf(uid) {
+  if (uid === me?.uid) {
+    const f = window.myFix;
+    return f && Date.now() - f.at < LIVE_FRESH_MIN * 6e4 ? { live: f.here, liveAt: f.at } : { live: null };
+  }
+  const l = locs[uid], at = l ? new Date(l.at).getTime() : 0;
+  return l && Date.now() - at < LIVE_FRESH_MIN * 6e4 ? { live: [l.lat, l.lng], liveAt: at } : { live: null };
+}
+// share yours as you move (at most every minute, or right away after a big move), unless you turned it off in your profile
+let sharedAt = 0, sharedHere = null;
+function shareLive() {
+  const f = window.myFix;
+  if (!me || !db || !f || profile.shareLive === false) return;
+  const moved = sharedHere ? metersApart(sharedHere, f.here) : Infinity;
+  if (Date.now() - sharedAt < 60e3 && moved < 500) return;
+  if (Date.now() - sharedAt < 5 * 6e4 && moved < 100) return;
+  sharedAt = Date.now(); sharedHere = f.here;
+  setDoc(doc(db, "locations", me.uid), { lat: f.here[0], lng: f.here[1], at: new Date().toISOString() }).catch(() => {});
+}
+
 // tell the planner who's in "My friends" (you + everyone who accepted)
 function publish() {
   const toPerson = (uid, p) => ({ user_id: uid, name: p.name || "Friend", travel_mode: p.travelMode || "driving",
-                                  home: p.home ? [p.home.lat, p.home.lng] : null, photo: safePhoto(p.photo), real: true, code: p.code || "",
+                                  home: p.home ? [p.home.lat, p.home.lng] : null,
+                                  // where they are right now (their app shares it with friends for planning), if it's fresh
+                                  ...liveOf(uid), photo: safePhoto(p.photo), real: true, code: p.code || "",
                                   busy: p.busy || [],
                                   // how many minutes after their alert they really left, from their check-ins (the model learns from these)
                                   habits: (Array.isArray(p.habits) ? p.habits : []).filter(x => typeof x?.delay === "number").slice(-30).map(x => x.delay),
@@ -133,6 +158,7 @@ window.addEventListener("resize", () => $("meCode") && fitCode());
 
 // ---------- drawing the panel ----------
 function renderMe() {
+  if ($("shareLive")) $("shareLive").checked = profile.shareLive !== false;
   $("meAvatar").outerHTML = pic(profile, "big").replace('class="avatar', 'id="meAvatar" title="Change your avatar" class="avatar');
   $("meAvatar").onclick = () => { $("avatarEditor").hidden = !$("avatarEditor").hidden; draft = null; if (!$("avatarEditor").hidden) openAvatarEditor(); };
   if (safePhoto(profile.photo)) { $("userPic").style.backgroundImage = `url("${safePhoto(profile.photo)}")`; $("userPic").textContent = ""; }
@@ -447,6 +473,8 @@ function googleLink(h) {  // one-tap "add this one event" link
 // names: newer hangouts keep a {uid: name} map; older ones kept a list next to attendees
 const nameOf = (h, u) => u === me?.uid ? "You" : h.names?.[u] || h.attendeeNames?.[h.attendees.indexOf(u)] || "A friend";
 const leaveTime = (h, u = me.uid) => h.alerts?.[u] ? new Date(h.alerts[u]).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+// the latest you could leave by Google Maps alone (the start minus the trip), vs. the recommended time that also allows for your habits
+const mapsLeave = (h, u = me.uid) => h.travel?.[u] ? new Date(new Date(h.start) - h.travel[u] * 6e4).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
 function whoIsComing(h) {  // "Going: You, Priya · Waiting: Sam · Can't: Leo"
   const invited = h.invited || h.attendees, rsvp = h.rsvp || {};
   const list = us => us.map(u => esc(nameOf(h, u))).join(", ");
@@ -484,7 +512,10 @@ function planCard(h, { past = false, next = false } = {}) {
       ${past ? "" : `<button class="mini" data-leave="${esc(h.id)}" title="I can't make it">${icon("x")}</button>`}</div>
     ${past ? `<div class="trip-sum ${everyoneArrived(h) ? "all" : ""}">${icon(everyoneArrived(h) ? "circle-check" : "flag")} ${esc(tripSummary(h))}</div>` : ""}
     ${window.memoryCard?.(h) || ""}
-    ${!past && leaveTime(h) ? `<div class="plan-you">${icon("bell")} You leave at ${leaveTime(h)}</div>` : ""}
+    ${!past && leaveTime(h) ? `<div class="plan-you">
+        <div><small>${icon("bell")} Recommended</small><b>Leave ${leaveTime(h)}</b><span>allows for how late you usually leave</span></div>
+        ${mapsLeave(h) ? `<div class="maps"><small>${icon("map")} Google Maps</small><b>${Math.round(h.travel[me.uid])} min trip</b><span>latest you could leave: ${mapsLeave(h)}</span></div>` : ""}
+      </div>` : ""}
     ${past ? "" : `<div class="plan-from">${icon(originOf(h) ? (originOf(h).home ? "house" : "map-pin") : liveNow() || !profile.home ? "locate-fixed" : "house")}<span>Leaving from <b>${esc(fromLabel(h))}</b>${h.travel?.[me.uid] ? ` · ${Math.round(h.travel[me.uid])} min trip` : ""}</span>
       <button class="mini" data-from="${esc(h.id)}">${fromEditing === h.id ? "Done" : "Change"}</button></div>
       ${fromEditing === h.id ? fromPanel(h) : ""}`}
@@ -648,7 +679,7 @@ async function followMe() {
     }
   } finally { liveBusy = false; }
 }
-window.addEventListener("my-fix", () => followMe());
+window.addEventListener("my-fix", () => { followMe(); shareLive(); publish(); });
 window.addEventListener("memories-changed", () => me && renderHangouts());
 function fromPanel(h) {
   const o = originOf(h);
@@ -918,6 +949,11 @@ if (configured) {
       $("readSched").disabled = false; $("readSched").innerHTML = `${icon("sparkles")} Read my schedule`;
     }
   };
+  $("shareLive").onchange = async e => {
+    await saveProfile({ shareLive: e.target.checked });
+    if (!e.target.checked) await deleteDoc(doc(db, "locations", me.uid)).catch(() => {});  // stop sharing: take it down now
+    else { sharedAt = 0; shareLive(); }
+  };
   $("setHome").onclick = () => {
     if (!navigator.geolocation) return say("This browser can't share location.");
     $("setHome").textContent = "Finding you…"; $("setHome").dataset.busy = "1";
@@ -1082,7 +1118,7 @@ if (configured) {
     await ensureId(user);
     await ensureCalToken(user);
 
-    stop.push(onSnapshot(ref, s => { profile = s.data() || {}; renderMe(); publish(); }));
+    stop.push(onSnapshot(ref, s => { profile = s.data() || {}; renderMe(); publish(); shareLive(); }));
     // each friend's profile stays live, so their new check-ins show up on the leaderboard right away
     const friendStops = {};
     stop.push(() => Object.values(friendStops).forEach(f => f()));
@@ -1091,10 +1127,13 @@ if (configured) {
       for (const id of Object.keys(friendStops)) if (!friendIds.includes(id)) { friendStops[id](); delete friendStops[id]; delete friends[id]; }
       for (const id of friendIds) {
         if (friendStops[id]) continue;
-        friendStops[id] = onSnapshot(doc(db, "users", id), p => {
+        const stopProfile = onSnapshot(doc(db, "users", id), p => {
           if (p.exists()) friends[id] = p.data();
           renderFriends(); publish();
         }, () => {});
+        // their live location (only if they share it)
+        const stopLoc = onSnapshot(doc(db, "locations", id), l => { locs[id] = l.exists() ? l.data() : null; publish(); }, () => {});
+        friendStops[id] = () => { stopProfile(); stopLoc(); delete locs[id]; };
       }
       renderFriends(); publish();
     }));
