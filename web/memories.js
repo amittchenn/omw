@@ -60,9 +60,72 @@ window.memoryCard = h => {
 // ---------- taking it ----------
 function pickPhoto(id, camera) {
   snapFor = id;
+  // phones open their own camera from the file input; laptops ignore that, so they get omw's camera instead
+  if (camera && !phoneCamera() && navigator.mediaDevices?.getUserMedia) return openCamera();
   const input = $(camera ? "snapCamera" : "snapLibrary");
   input.value = "";
   input.click();
+}
+const phoneCamera = () => matchMedia("(pointer: coarse)").matches && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+// ---------- the camera on laptops: live preview, shutter, 3-second timer so the person taking it can get in too ----------
+let cam = null;  // { stream, facing, timer, counting }
+async function openCamera(facing = cam?.facing || "user") {
+  closeCamera(false);
+  cam = { facing, timer: cam?.timer ?? true, counting: false };
+  const el = $("memCam");
+  el.hidden = false;
+  el.innerHTML = `<div class="mem-card cam-card">
+    <button class="x" data-cam-close title="Close">${icon("x")}</button>
+    <h2 class="board-title">Group photo</h2>
+    <div class="cam-view"><video id="camVideo" autoplay playsinline muted></video><div class="cam-count" id="camCount"></div>
+      <div class="cam-msg" id="camMsg">Starting the camera…</div></div>
+    <div class="cam-bar">
+      <button class="cam-side ${cam.timer ? "on" : ""}" data-cam-timer title="3-second timer">${icon("clock")}<small>${cam.timer ? "3s" : "Off"}</small></button>
+      <button class="cam-shutter" data-cam-shoot title="Take the photo" disabled></button>
+      <button class="cam-side" data-cam-flip title="Switch camera" hidden>${icon("refresh-cw")}<small>Flip</small></button>
+    </div>
+    <button class="wide cam-upload" data-cam-upload>${icon("image")} Upload a photo instead</button>
+  </div>`;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+    if (!cam || $("memCam").hidden) return stream.getTracks().forEach(t => t.stop());  // closed while it was starting
+    cam.stream = stream;
+    const v = $("camVideo");
+    v.srcObject = stream;
+    v.classList.toggle("mirror", facing === "user");
+    await v.play().catch(() => {});
+    $("camMsg").hidden = true;
+    el.querySelector("[data-cam-shoot]").disabled = false;
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+    el.querySelector("[data-cam-flip]").hidden = cams.length < 2;
+  } catch (e) {
+    $("camMsg").innerHTML = e.name === "NotAllowedError"
+      ? `${icon("triangle-alert")}<b>Camera blocked</b>Allow the camera in your browser (the camera icon in the address bar), then try again. Or upload a photo.`
+      : e.name === "NotFoundError" ? `${icon("triangle-alert")}<b>No camera found</b>Upload a photo instead.`
+      : `${icon("triangle-alert")}<b>Couldn't start the camera</b>${esc(e.message)}`;
+  }
+}
+function closeCamera(hide = true) {
+  cam?.stream?.getTracks().forEach(t => t.stop());
+  if (cam) cam.stream = null;
+  if (hide) { $("memCam").hidden = true; $("memCam").innerHTML = ""; cam = null; }
+}
+async function shoot() {
+  const v = $("camVideo");
+  if (!cam?.stream || cam.counting || !v.videoWidth) return;
+  cam.counting = true;
+  if (cam.timer) for (let n = 3; n > 0; n--) { $("camCount").textContent = n; await new Promise(r => setTimeout(r, 1000)); if (!cam) return; }
+  $("camCount").textContent = "";
+  const c = document.createElement("canvas");
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  const g = c.getContext("2d");
+  if (cam.facing === "user") { g.translate(c.width, 0); g.scale(-1, 1); }  // save it the way you saw it, like a selfie
+  g.drawImage(v, 0, 0);
+  $("memCam").querySelector(".cam-view").classList.add("flash");
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", .92));
+  closeCamera();
+  gotFile(blob);
 }
 async function shrink(file) {  // at most 1280px and ~700 KB, as a JPEG (it's stored in the database)
   const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("That file isn't a photo."));
@@ -193,6 +256,17 @@ async function save(m) {  // share sheet on phones (Save Image), a download else
 
 // ---------- taps ----------
 document.addEventListener("click", async e => {
+  const cb = e.target.closest("[data-cam-close], [data-cam-shoot], [data-cam-timer], [data-cam-flip], [data-cam-upload]");
+  if (cb) {
+    e.stopPropagation(); e.preventDefault();
+    if (cb.hasAttribute("data-cam-close")) return closeCamera();
+    if (cb.hasAttribute("data-cam-shoot")) return shoot();
+    if (cb.hasAttribute("data-cam-flip")) return openCamera(cam?.facing === "user" ? "environment" : "user");
+    if (cb.hasAttribute("data-cam-upload")) { closeCamera(); return pickPhoto(snapFor, false); }
+    if (cb.hasAttribute("data-cam-timer")) { cam.timer = !cam.timer; cb.classList.toggle("on", cam.timer); cb.querySelector("small").textContent = cam.timer ? "3s" : "Off"; }
+    return;
+  }
+  if (e.target.id === "memCam") return closeCamera();
   const t = e.target.closest("[data-snap], [data-snap-upload], [data-snap-skip], [data-memory], [data-snap-again], [data-post], [data-compose-close], [data-view-close], [data-save], [data-retake], [data-delete], [data-hide]");
   if (!t) {
     if (e.target.id === "memView") { $("memView").hidden = true; viewing = null; }
@@ -205,7 +279,7 @@ document.addEventListener("click", async e => {
   if (ds.snapUpload) return pickPhoto(ds.snapUpload, false);
   if (ds.snapSkip) { store.set(`memSkip:${me.uid}:${ds.snapSkip}`, true); return renderPrompt(); }
   if (ds.memory) return open(ds.memory);
-  if (ds.snapAgain) return pickPhoto(draft.h.id, ds.snapAgain === "camera");
+  if (ds.snapAgain) { $("memCompose").hidden = true; return pickPhoto(draft.h.id, ds.snapAgain === "camera"); }
   if (t.hasAttribute("data-post")) return post();
   if (t.hasAttribute("data-compose-close")) { $("memCompose").hidden = true; draft = null; return; }
   if (t.hasAttribute("data-view-close")) { $("memView").hidden = true; viewing = null; return; }
@@ -227,6 +301,7 @@ $("snapLibrary").onchange = e => gotFile(e.target.files[0]);
 $("memoriesBtn").onclick = () => { $("memories").hidden = false; render(); };
 $("memoriesClose").onclick = () => { $("memories").hidden = true; };
 window.addEventListener("hangouts-changed", renderPrompt);
+document.addEventListener("keydown", e => { if (cam && !$("memCam").hidden) { if (e.key === "Escape") closeCamera(); if (e.key === " " || e.key === "Enter") { e.preventDefault(); shoot(); } } });
 
 if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
