@@ -917,6 +917,7 @@
                                      background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
     .lib-tile > button:first-child.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
     .lib-tile img { width: 100%; height: 100%; display: block; object-fit: cover; }
+    .lib-tile img.gone, .cc-preview img.gone { visibility: hidden; }  /* a picture that won't load: the plain circle, not a broken-image icon */
     .lib-tag { position: absolute; left: 0; right: 0; bottom: 0; height: 18px; display: grid; place-items: center; background: rgba(0,0,0,.45); color: #fff; }
     .lib-tag svg { width: 11px; height: 11px; }
     .lib-del, .lib-inuse { position: absolute; top: -4px; right: -4px; width: 22px; height: 22px; display: grid; place-items: center; padding: 0;

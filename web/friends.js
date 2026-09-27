@@ -20,7 +20,7 @@ import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
 import { liveHangouts, sharingNow, shareStart } from "./live.js";
 import * as chat from "./chat.js";  // (a namespace import: an old cached chat.js can't stop this whole file from loading)
 const { chatHangouts, unreadCount, postLeft } = chat, chatOpen = h => chat.chatOpen ? chat.chatOpen(h) : true;
-import { COLOR_PARTS, ADJUST, optionsFor, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
+import { COLOR_PARTS, ADJUST, LABELS as PART_NAMES, optionsFor, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -42,7 +42,21 @@ const ID_RULE = /^[A-Z0-9_]{3,15}$/;  // friend IDs you pick: 3-15 letters, numb
 const AV_BGS = ["ffd66b", "ffb3c7", "c7b8ff", "9fe6c8", "a8d8ff", "ffc49c", "f1f0f7", "2b2b3a"];
 const LIBRARY_MAX = 40;
 const usesUpload = (a, upload) => !!(a?.useUpload && upload);
-const usesPhoto = (a, user) => !a?.useUpload && !!user?.photoURL && (a?.style ? !!a.usePhoto : true);
+const usesPhoto = (a, user) => !a?.useUpload && !!accountPhoto(user) && (a?.style ? !!a.usePhoto : true);
+// your sign-in account's photo: the Google one if you signed in with Google (a linked Facebook photo's link expires after a while),
+// asked for at 256 px instead of Google's blurry 96 px
+const accountPhoto = u => (u?.providerData?.find(p => p.providerId === "google.com")?.photoURL || u?.photoURL || "").replace(/=s\d+(-c)?$/, "=s256-c");
+// a copy of it we keep as a small JPEG, so it still shows when Google won't hand the picture to this page (or the link changes).
+// If the copy can't be made, the link itself.
+async function accountCopy(u) {
+  const url = accountPhoto(u);
+  if (!url) return "";
+  try {
+    const r = await fetch(url, { referrerPolicy: "no-referrer" });
+    if (!r.ok) throw new Error(r.status);
+    return await shrinkPhoto(await r.blob());
+  } catch { return url; }
+}
 const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("Couldn't load that picture.")); i.src = src; });
 // an AI drawing (see-through) on its color, as a 256 px JPEG
 async function onColor(src, bg) {
@@ -55,10 +69,10 @@ async function onColor(src, bg) {
 }
 // the picture friends see for a profile, worked out again each time you sign in
 async function photoFor(a, user, upload, saved) {
-  if (a?.kind === "account" || usesPhoto(a, user)) return user.photoURL;
+  if (a?.kind === "account" || usesPhoto(a, user)) return accountCopy(user);
   if (usesUpload(a, upload)) return upload;
   // characters are drawn again whenever the drawing style changes (v)
-  if (a?.style === "real") return a.v === 3 && /^data:image\/jpeg/.test(saved || "") ? saved : renderJpeg(a.look);
+  if (a?.style === "real") return a.v === 4 && /^data:image\/jpeg/.test(saved || "") ? saved : renderJpeg(a.look);
   if (a?.style && saved) return saved;  // an AI avatar or upload: already saved
   return renderJpeg(randomLook(user.uid));  // no photo at all: a character to start with
 }
@@ -194,19 +208,18 @@ const nice = v => LABELS[v] || (v === "none" ? "None" : v.replace(/^./, c => c.t
 let aiReady = null;  // is the server set up to draw avatars?
 let making = 0;      // which AI request is drawing right now (0: none)
 
-const TABS = { gender: "Gender", adjust: "Adjust", skin: "Skin", face: "Face", hair: "Hair", hairColor: "Hair color", hat: "Hat", hatColor: "Hat color",
-               eyes: "Eyes", eyeColor: "Eye color", brows: "Brows", nose: "Nose", mouth: "Mouth", beard: "Beard", glasses: "Glasses",
-               top: "Outfit", topColor: "Outfit color", bg: "Background" };
-const ZOOM = { face: "head", hair: "head", eyes: "face", eyeColor: "face", brows: "face", nose: "face", mouth: "face", beard: "head", glasses: "face", hat: "head" };
+const TABS = { gender: "Man / Woman", skin: "Skin", hair: "Hair", hairColor: "Hair color", eyes: "Eyes", mouth: "Mouth",
+               top: "Shirt", topColor: "Shirt color", bg: "Background" };
+const ZOOM = { gender: "head", hair: "head", hairColor: "head", eyes: "head", mouth: "head", skin: "head" };
 const GENDERS = { man: "Man", woman: "Woman" };
-const partName = v => GENDERS[v] || (v === "none" ? "None" : v.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase()));
+const partName = v => GENDERS[v] || PART_NAMES[v] || (v === "none" ? "None" : v.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase()));
 const KIND_NAME = { ai: "AI avatar", upload: "Your photo", character: "Your character", account: "Your account photo" };
 
 // the one in use, as a My pictures entry
 function inUse() {
   const a = profile.avatar || {};
   if (a.kind && a.kind !== "account") return (library || []).find(x => x.id === a.id) || null;
-  if (a.kind === "account" || usesPhoto(a, me)) return me.photoURL ? { id: "account", kind: "account", art: me.photoURL } : null;
+  if (a.kind === "account" || usesPhoto(a, me)) return accountPhoto(me) ? { id: "account", kind: "account", art: accountPhoto(me) } : null;
   return null;
 }
 const sameAsInUse = s => { const u = inUse(), a = profile.avatar || {};
@@ -287,15 +300,15 @@ function renderAvatarEditor() {
                  rows: Object.fromEntries([...document.querySelectorAll("#avatarEditor [data-row]")].map(r => [r.dataset.row, r.scrollLeft])) };
   const status = busy ? "Drawing your avatar… about 20 seconds." : s.old ? "Your picture now." : sameAsInUse(s) ? "This is your picture now."
     : s.id ? "Tap Use this picture to switch to it." : "New! Tap Use this picture to keep it.";
-  const items = [...(me.photoURL ? [{ id: "account", kind: "account", art: me.photoURL }] : []), ...(library || [])];
+  const items = [...(accountPhoto(me) ? [{ id: "account", kind: "account", art: accountPhoto(me) }] : []), ...(library || [])];
   const used = inUse();
 
   // the builder
   const l = draft.look || (s.kind === "character" ? s.look : null);
   let builder = "";
   if (draft.pane === "build") {
-    const tabs = Object.keys(TABS).filter(k => k === "adjust" || COLOR_PARTS[k] || optionsFor(l, k).length > 1);
-    if (!tabs.includes(ccTab)) ccTab = "gender";
+    const tabs = Object.keys(TABS).filter(k => k === "adjust" ? Object.keys(ADJUST).length : COLOR_PARTS[k] || optionsFor(l, k).length > 1);
+    if (!tabs.includes(ccTab)) ccTab = tabs[0];
     const colors = COLOR_PARTS[ccTab], opts = ccTab === "adjust" ? [] : colors || optionsFor(l, ccTab);
     builder = `<div class="cc-tabs">${tabs.map(k => `<button class="${k === ccTab ? "on" : ""}" data-tab="${k}">${TABS[k]}</button>`).join("")}</div>
       ${ccTab === "adjust" ? `<div class="cc-adjust">${Object.entries(ADJUST).map(([k, [label]]) => `<label><span>${label}</span>
@@ -304,7 +317,7 @@ function renderAvatarEditor() {
       : `<div class="cc-opts ${colors ? "colors" : ""}">${colors
         ? opts.map(c => `<button class="${c === l[ccTab] ? "on" : ""}" style="background:#${c}" data-set="${ccTab}" data-val="${c}" title="Color"></button>`).join("")
         : opts.map(v => `<button class="${v === l[ccTab] ? "on" : ""}" data-set="${ccTab}" data-val="${v}" title="${partName(v)}">
-            <img src="${esc(characterSrc(ccTab === "gender" ? withGender(l, v) : { ...l, [ccTab]: v }, ZOOM[ccTab] || "full"))}" alt="${partName(v)}" loading="lazy">${v === "none" || GENDERS[v] ? `<small>${partName(v)}</small>` : ""}</button>`).join("")}</div>`}`;
+            <img src="${esc(characterSrc(ccTab === "gender" ? withGender(l, v) : { ...l, [ccTab]: v }, ZOOM[ccTab] || "full"))}" alt="${partName(v)}">${v === "none" || GENDERS[v] || ccTab === "mouth" ? `<small>${partName(v)}</small>` : ""}</button>`).join("")}</div>`}`;
   }
 
   // the AI
@@ -335,7 +348,7 @@ function renderAvatarEditor() {
   $("avatarEditor").innerHTML = `
     <div class="cc-top">
       <div class="cc-preview ${s.kind === "ai" ? "pick ai" : ""} ${busy ? "busy" : ""}" style="${s.kind === "ai" ? `background:#${s.bg}` : ""}">
-        ${preview ? `<img src="${esc(preview)}" alt="Preview">` : ""}${busy ? `<i class="av-spin"></i>` : ""}</div>
+        ${preview ? `<img src="${esc(preview)}" alt="Preview" referrerpolicy="no-referrer" onerror="this.classList.add('gone')">` : ""}${busy ? `<i class="av-spin"></i>` : ""}</div>
       <div><b>${s.old ? "Your picture" : KIND_NAME[s.kind]}</b><small>${status}</small>
         ${s.kind === "ai" ? `<div class="cc-bgs small">${AV_BGS.map(c => `<button class="${c === s.bg ? "on" : ""}" style="background:#${c}" data-bg="${c}" title="Background color"></button>`).join("")}</div>` : ""}
         ${s.kind === "character" && draft.pane !== "build" ? `<div class="cc-actions"><button data-pane="build">${icon("pencil")} Edit</button></div>` : ""}
@@ -345,7 +358,7 @@ function renderAvatarEditor() {
     ${items.length ? `<div class="lib"><div class="lib-head"><b>My pictures</b><small>${library ? `${items.length}` : "Loading…"}</small></div>
       <div class="lib-row">${items.map((x, i) => `<div class="lib-tile">
         <button class="${x.id === s.id ? "on" : ""}" style="${x.kind === "ai" ? `background:#${x.id === s.id ? s.bg : x.bg}` : ""}" data-lib="${i}" title="${KIND_NAME[x.kind]}">
-          <img src="${esc(tileSrc(x))}" alt="" loading="lazy">${x.kind === "account" ? `<i class="lib-tag">${icon("user")}</i>` : ""}</button>
+          <img src="${esc(tileSrc(x))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.classList.add('gone')">${x.kind === "account" ? `<i class="lib-tag">${icon("user")}</i>` : ""}</button>
         ${used && x.id === used.id ? `<i class="lib-inuse" title="Your picture now">${icon("check")}</i>`
           : x.kind !== "account" ? `<button class="lib-del" data-del="${esc(x.id)}" title="Delete">${icon("x")}</button>` : ""}</div>`).join("")}</div></div>` : ""}
     <div class="lib-head"><b>Make a new one</b></div>
@@ -409,8 +422,8 @@ async function saveAvatar() {
     await setDoc(doc(db, "private", me.uid, "avatars", s.id), { bg: s.bg }, { merge: true });
     library = library.map(x => x.id === s.id ? { ...x, bg: s.bg } : x);
   }
-  const photo = s.kind === "account" ? me.photoURL : s.kind === "upload" ? s.art : s.kind === "ai" ? await onColor(s.art, s.bg) : await renderJpeg(s.look);
-  const avatar = { kind: s.kind, id: s.id, style: s.kind === "character" ? "real" : s.kind, v: 3, usePhoto: s.kind === "account", useUpload: false,
+  const photo = s.kind === "account" ? await accountCopy(me) : s.kind === "upload" ? s.art : s.kind === "ai" ? await onColor(s.art, s.bg) : await renderJpeg(s.look);
+  const avatar = { kind: s.kind, id: s.id, style: s.kind === "character" ? "real" : s.kind, v: 4, usePhoto: s.kind === "account", useUpload: false,
                    ...(s.kind === "character" ? { look: cleanLook(s.look) } : {}), ...(s.kind === "ai" ? { bg: s.bg } : {}) };
   profile = { ...profile, avatar, photo };  // show it right away
   draft = null;
@@ -765,6 +778,7 @@ async function followMe() {
 }
 window.addEventListener("my-fix", () => { followMe(); shareLive(); publish(); });
 window.addEventListener("memories-changed", () => me && renderHangouts());
+window.addEventListener("characters-ready", () => { if (draft && !$("avatarEditor").hidden) renderAvatarEditor(); });  // its pictures finished loading
 function fromPanel(h) {
   const o = originOf(h);
   return `<div class="from-panel">
@@ -1015,7 +1029,7 @@ if (configured) {
       if (draft.pane === "build") draft.look = draft.sel.kind === "character" ? draft.sel.look : cleanLook(profile.avatar?.look || randomLook(me.uid));
     }
     if (b.dataset.lib) {
-      const x = [...(me.photoURL ? [{ id: "account", kind: "account", art: me.photoURL }] : []), ...library][+b.dataset.lib];
+      const x = [...(accountPhoto(me) ? [{ id: "account", kind: "account", art: accountPhoto(me) }] : []), ...library][+b.dataset.lib];
       draft.sel = x.id === inUse()?.id ? newDraft().sel : { ...x };
       if (x.kind === "character" && draft.pane === "build") draft.look = x.look;
       if (draft.pane === "build" && x.kind !== "character") draft.pane = null;
