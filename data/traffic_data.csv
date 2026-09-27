@@ -3944,3 +3944,4 @@ timestamp,origin,destination,traffic_minutes,static_minutes,traffic_ratio,distan
 2026-09-26T21:06:46.370561-04:00,"265 Park Ave W NW, Atlanta, GA 30313","101 E Court Square, Decatur, GA 30030",22.72,24.13,0.941,11227
 2026-09-26T21:06:46.992987-04:00,"205 Lawrence St, Marietta, GA 30060","265 Park Ave W NW, Atlanta, GA 30313",25.38,26.02,0.976,30558
 2026-09-26T21:06:47.569535-04:00,"265 Park Ave W NW, Atlanta, GA 30313","205 Lawrence St, Marietta, GA 30060",27.88,26.78,1.041,29214
+2026-09-27T03:50:58.244480-04:00,"33.7720,-84.3919","33.7770,-84.3958",2.5,2.92,0.857,821

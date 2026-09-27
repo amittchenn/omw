@@ -1247,9 +1247,19 @@ if (configured) {
     }
     if (b?.dataset.leave) await cantMakeIt(hangoutDocs[b.dataset.leave]);
   });
+  // a plan from "This week": open My plans at that plan and flash it, so you land on its leave time, chat and directions
+  const openPlan = id => {
+    $("plansBtn").click();
+    requestAnimationFrame(() => {
+      const el = $("hangoutList").querySelector(`.plan-card[data-show="${CSS.escape(id)}"]`);
+      if (!el) return;
+      el.scrollIntoView({ block: "start", behavior: "smooth" });
+      el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+    });
+  };
   $("weekList").onclick = e => {
     const card = e.target.closest("[data-week]");
-    if (card) window.showHangout(hangoutDocs[card.dataset.week]);
+    if (card) openPlan(card.dataset.week);
   };
   $("inviteList").onclick = run(async e => {
     const b = e.target.closest("button");
