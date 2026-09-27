@@ -700,7 +700,7 @@ async function changeId() {
   try {
     const mine = old ? await getDoc(doc(db, "codes", old)) : null;
     const batch = writeBatch(db);
-    batch.set(doc(db, "codes", code), { uid: me.uid, name: profile.name || "", ...(mine?.data()?.fbId ? { fbId: mine.data().fbId } : {}) });
+    batch.set(doc(db, "codes", code), { uid: me.uid, name: profile.name || "" });
     batch.set(doc(db, "users", me.uid), { code }, { merge: true });
     if (old && mine?.exists() && mine.data().uid === me.uid) batch.delete(doc(db, "codes", old));
     await batch.commit();  // all or nothing: if someone grabbed it a moment ago, nothing changes
