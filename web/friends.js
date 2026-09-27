@@ -501,6 +501,7 @@ function googleLink(h) {  // one-tap "add this one event" link
 const nameOf = (h, u) => u === me?.uid ? "You" : h.names?.[u] || h.attendeeNames?.[h.attendees.indexOf(u)] || "A friend";
 const leaveTime = (h, u = me.uid) => h.alerts?.[u] ? new Date(h.alerts[u]).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
 // the latest you could leave by Google Maps alone (the start minus the trip), vs. the recommended time that also allows for your habits
+const headStart = (h, u = me.uid) => h.alerts?.[u] && h.travel?.[u] ? Math.round((new Date(h.start) - h.travel[u] * 6e4 - new Date(h.alerts[u])) / 6e4) : 0;  // how much earlier than the Maps time the alert goes off
 const mapsLeave = (h, u = me.uid) => h.travel?.[u] ? new Date(new Date(h.start) - h.travel[u] * 6e4).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
 function whoIsComing(h) {  // "Going: You, Priya · Waiting: Sam · Can't: Leo"
   const invited = h.invited || h.attendees, rsvp = h.rsvp || {};
@@ -520,7 +521,7 @@ function arrivedText(h, u) {
   return late < -1 ? `arrived ${-late} min early` : late <= 5 ? "arrived on time" : `arrived ${late} min late`;
 }
 function personLine(h, u, past) {  // "(car) Priya · leaves 6:40pm" (or how it went, once it's over)
-  const status = arrivedText(h, u) || (past ? "no check-in" : h.alerts?.[u] ? `leaves ${timeOf(h.alerts[u])}` : "");
+  const status = arrivedText(h, u) || (past ? "no check-in" : h.alerts?.[u] ? `alert ${timeOf(h.alerts[u])}` : "");
   return `<div><b>${h.modes?.[u] ? icon(MODE_ICON[h.modes[u]]) : ""} ${esc(nameOf(h, u))}</b><span>${esc(status)}</span></div>`;
 }
 // a row of round buttons with a label under each, like the action row on a Google Maps place
@@ -543,7 +544,7 @@ function planCard(h, { past = false, next = false } = {}) {
     ${past ? `<div class="trip-sum ${everyoneArrived(h) ? "all" : ""}">${icon(everyoneArrived(h) ? "circle-check" : "flag")} ${esc(tripSummary(h))}</div>` : ""}
     ${window.memoryCard?.(h) || ""}
     ${!past && leaveTime(h) ? `<div class="plan-you">
-        <div><small>${icon("bell")} Recommended</small><b>Leave ${leaveTime(h)}</b></div>
+        <div><small>${icon("bell")} Alert</small><b>${leaveTime(h)}</b>${mapsLeave(h) && headStart(h) > 1 ? `<span>${headStart(h)} min head start</span>` : ""}</div>
         ${mapsLeave(h) ? `<div class="maps"><small>${icon("map")} Google Maps</small><b>${Math.round(h.travel[me.uid])} min trip</b><span>Latest ${mapsLeave(h)}</span></div>` : ""}
       </div>` : ""}
     ${past ? "" : `<div class="plan-from">${icon(originOf(h) ? (originOf(h).home ? "house" : "map-pin") : liveNow() || !profile.home ? "locate-fixed" : "house")}<span>Leaving from <b>${esc(fromLabel(h))}</b>${h.travel?.[me.uid] ? ` · ${Math.round(h.travel[me.uid])} min trip` : ""}</span>
@@ -641,7 +642,7 @@ function renderWeek(upcoming) {
   $("weekSection").hidden = !soon.length;
   $("weekList").innerHTML = soon.map(h => `<button class="week-card" data-week="${esc(h.id)}">
       <b>${esc(h.title)}</b><small>${day(h)} · ${timeOf(h.start)}</small>
-      ${leaveTime(h) ? `<small class="leave">${icon("bell")} leave ${leaveTime(h)}</small>` : ""}</button>`).join("");
+      ${leaveTime(h) ? `<small class="leave">${icon("bell")} alert ${leaveTime(h)}</small>` : ""}</button>`).join("");
 }
 
 // a hangout is a past trip once everyone going has checked in as arrived (or, if someone never checks in, once it's over)

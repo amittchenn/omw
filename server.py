@@ -439,7 +439,7 @@ def plan(req: PlanRequest):
                               raining, group_size=req.group_size or len(req.user_ids))
         if uid in guests:
             # a real person: no guessing until they've checked in once, then their own habits take over
-            habits = guests[uid].habits[-30:]
+            habits = [d for d in guests[uid].habits if -30 <= d <= 60][-30:]  # (check-ins saved before the app filtered them)
             p50, p90 = learn_from(habits, r["typical_delay_min"], r["bad_day_delay_min"])
             start = datetime.fromisoformat(req.start_time)
             r.update(typical_delay_min=round(p50, 1), bad_day_delay_min=round(p90, 1), hangouts_in_history=len(habits),

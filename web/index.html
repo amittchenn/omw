@@ -2508,11 +2508,11 @@ function cardHtml(r) {
     <div class="card-main">
       <div class="card-top">
         <div class="who"><div class="name">${esc(r.name)}</div><span class="chip" title="${esc(r.label)}">${esc(r.learning ? "Learning" : r.label)}</span></div>
-        <div class="time"><small>Recommended</small>${fmt(r.alert_time)}</div>
+        <div class="time"><small>Alert</small>${fmt(r.alert_time)}</div>
       </div>
       <div class="two-times">
-        <div class="tt rec"><small>${icon("bell")} Recommended leave</small><b>${fmt(r.alert_time)}</b>
-          <span>${r.learning ? "Same as Maps for now" : `${earlier > 2 ? `${earlier} min before Maps` : "Same as Maps"}`}</span></div>
+        <div class="tt rec"><small>${icon("bell")} Alert</small><b>${fmt(r.alert_time)}</b>
+          <span>${r.learning ? "Same as Maps for now" : r.typical_delay_min >= 1 ? `Usually heads out ~${Math.round(r.typical_delay_min)} min after` : "Usually heads out right away"}</span></div>
         <div class="tt maps"><small>${icon("map")} Google Maps</small><b>${Math.round(r.travel_minutes)} min trip</b>
           <span>Latest ${fmt(r.maps_only_alert_time)}</span></div>
       </div>

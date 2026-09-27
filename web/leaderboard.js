@@ -5,6 +5,7 @@ import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebase
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, updateDoc, setDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+const LEARN_WITHIN_MIN = 30;         // check-ins later than this after the start still count as arrivals, but aren't learned from
 const LATE_AFTER_MIN = 5;           // more than 5 minutes after the start counts as late
 const JUST_MS = 3 * 36e5;           // "just arrived" shows on the board for 3 hours
 const AUTO_NEAR_M = 150, TAP_NEAR_M = 300;
@@ -46,7 +47,10 @@ async function record(h) {
   catch (e) { recorded.delete(h.id); throw e; }
   const alert = h.alerts?.[uid], travel = h.travel?.[uid];
   const habit = { id: h.id, late: Math.round(minutesLate(h, now) * 10) / 10 };
-  if (alert && typeof travel === "number") habit.delay = Math.round(((now - new Date(alert)) / 6e4 - travel) * 10) / 10;
+  const delay = alert && typeof travel === "number" ? (now - new Date(alert)) / 6e4 - travel : null;
+  // only teach the model from a believable check-in: within half an hour of the start, and not leaving absurdly early or late.
+  // (Checking in long after you really got there would look like you left late, and push your alerts way earlier.)
+  if (delay !== null && habit.late <= LEARN_WITHIN_MIN && delay >= -30 && delay <= 60) habit.delay = Math.round(delay * 10) / 10;
   await setDoc(doc(db, "users", uid), { habits: arrayUnion(habit) }, { merge: true }).catch(() => {});
   window.dispatchEvent(new CustomEvent("checked-in", { detail: { h, late: habit.late } }));  // the group chat announces it
 }

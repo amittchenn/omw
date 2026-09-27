@@ -33,12 +33,13 @@ def firestore_client():
 
 def hangouts_for_token(token):
     """Find whose feed this is, then every hangout they're attending. Returns (uid, hangouts) or (None, [])."""
+    from google.cloud.firestore_v1.base_query import FieldFilter
     db = firestore_client()
-    owners = list(db.collection("private").where("calToken", "==", token).limit(1).stream())
+    owners = list(db.collection("private").where(filter=FieldFilter("calToken", "==", token)).limit(1).stream())
     if not owners:
         return None, []
     uid = owners[0].id
-    hangouts = [h.to_dict() | {"id": h.id} for h in db.collection("hangouts").where("attendees", "array_contains", uid).stream()]
+    hangouts = [h.to_dict() | {"id": h.id} for h in db.collection("hangouts").where(filter=FieldFilter("attendees", "array_contains", uid)).stream()]
     return uid, hangouts
 
 

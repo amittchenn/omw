@@ -59,8 +59,9 @@ def rows_from_hangouts(hangouts, raining_at=lambda h, start: False):
             except Exception:
                 continue
             delay = (arrived_at - alert_at).total_seconds() / 60 - travel  # minutes after the alert they actually left
-            if not -60 <= delay <= 120:
-                continue  # a check-in that far off is a mistake (checked in hours later, GPS glitch), not a habit
+            late = (arrived_at - start).total_seconds() / 60
+            if not -30 <= delay <= 60 or late > 30:
+                continue  # checked in long after arriving, or a GPS glitch: not a real habit (the app skips these too)
             rows.append({
                 "user_id": uid, "persona": "real", "group_id": "real", "hangout_id": h["id"],
                 "start_time": start, "hour": start.hour, "day_of_week": start.weekday(),

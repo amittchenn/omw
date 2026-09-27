@@ -156,13 +156,14 @@ def sync():
     db = _fs()
     if not db:
         return 0
+    from google.cloud.firestore_v1.base_query import FieldFilter  # (the keyword form; positional filters print a warning)
     cutoff = datetime.now(TZ) - timedelta(days=WINDOW_DAYS)
     try:
         have = set()
         if os.path.exists(DATA):
             with open(DATA, newline="") as f:
                 have = {(r["timestamp"], r["origin"], r["destination"]) for r in csv.DictReader(f)}
-        new = [d.to_dict() for d in db.collection("traffic").where("at", ">=", cutoff).stream()]
+        new = [d.to_dict() for d in db.collection("traffic").where(filter=FieldFilter("at", ">=", cutoff)).stream()]
         new = [r for r in new if (r.get("timestamp"), r.get("origin"), r.get("destination")) not in have]
         if new:
             with _lock:
@@ -172,7 +173,7 @@ def sync():
                     if fresh:
                         w.writeheader()
                     w.writerows(new)
-        old = list(db.collection("traffic").where("at", "<", cutoff).limit(400).stream())
+        old = list(db.collection("traffic").where(filter=FieldFilter("at", "<", cutoff)).limit(400).stream())
         if old:
             batch = db.batch()
             for d in old:
