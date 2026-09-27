@@ -175,6 +175,9 @@
     .mem-take { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 46px; margin: 8px 0 2px; border: 0; border-radius: 14px;
                 background: var(--ink); color: #fff; font: inherit; font-weight: 900; font-size: 14px; cursor: pointer; }
     .mem-take svg { width: 18px; height: 18px; }
+    .mem-take-row { display: flex; gap: 6px; }
+    .mem-take-row .mem-take { flex: 1; }
+    .mem-take.up { flex: none; width: auto; padding: 0 14px; background: var(--soft); color: var(--ink); }
     .mem-strip { display: flex; align-items: center; gap: 10px; width: 100%; margin: 8px 0 2px; padding: 6px 10px 6px 6px; border: 0; border-radius: 14px;
                  background: var(--soft); font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
     .mem-strip img { width: 44px; height: 58px; object-fit: cover; border-radius: 10px; flex: none; }
@@ -229,19 +232,25 @@
     .mem-card .wide.dark svg { width: 17px; height: 17px; }
     .mem-card .wide:disabled { opacity: .6; }
     .mem-msg { display: block; margin-top: 8px; text-align: center; color: var(--red); }
-    /* the moment: everyone's there, take the photo (top of the map) */
-    .snap-prompt { position: fixed; z-index: 1200; top: 84px; left: 50%; transform: translateX(-50%); width: 420px; display: flex; align-items: center; gap: 6px;
-                   padding: 6px; border-radius: 22px; background: var(--ink); color: #fff; box-shadow: 0 14px 40px rgba(0, 0, 0, .3); animation: snapIn .35s ease both; }
-    @keyframes snapIn { from { opacity: 0; } }
+    /* the moment: everyone's there, take the photo (top of the planner, so it's the first thing you see) */
+    .snap-prompt { position: relative; margin: 0 0 16px; padding: 14px; border-radius: 22px; background: var(--ink); color: #fff;
+                   box-shadow: 0 10px 28px rgba(0, 0, 0, .18); animation: snapIn .35s ease both; }
     .snap-prompt[hidden] { display: none; }
-    .snap-go { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 8px; border: 0; background: none; color: inherit; font: inherit;
-               text-align: left; cursor: pointer; }
-    .snap-go > svg { width: 38px; height: 38px; padding: 8px; flex: none; border-radius: 14px; background: var(--sun); color: var(--ink); }
-    .snap-go span { display: grid; gap: 1px; min-width: 0; }
-    .snap-go b { font-size: 14px; font-weight: 900; }
-    .snap-go small { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, .72); }
-    .snap-x { width: 34px; height: 34px; flex: none; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; cursor: pointer; }
-    .snap-x svg { width: 16px; height: 16px; }
+    @keyframes snapIn { from { opacity: 0; transform: translateY(-6px); } }
+    .snap-head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
+    .snap-head > svg { width: 42px; height: 42px; padding: 9px; flex: none; border-radius: 14px; background: var(--sun); color: var(--ink); }
+    .snap-head span { display: grid; gap: 2px; min-width: 0; }
+    .snap-head b { font-size: 15px; font-weight: 900; }
+    .snap-head small { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, .72); }
+    .snap-btns { display: flex; gap: 8px; margin-top: 12px; }
+    .snap-btns button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; height: 42px; border: 0; border-radius: 999px;
+                        font: inherit; font-size: 14px; font-weight: 900; cursor: pointer; }
+    .snap-btns svg { width: 17px; height: 17px; }
+    .snap-btns .snap-cam { background: var(--sun); color: var(--ink); }
+    .snap-btns .snap-up { background: rgba(255, 255, 255, .14); color: #fff; }
+    .snap-x { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%;
+              background: rgba(255, 255, 255, .12); color: #fff; cursor: pointer; }
+    .snap-x svg { width: 15px; height: 15px; }
     .trip-sum svg { width: 15px; height: 15px; }
     .id-edit { margin-top: 10px; padding: 12px; border-radius: 18px; background: var(--soft); text-align: left; }
     .id-edit[hidden] { display: none; }
@@ -1009,7 +1018,6 @@
       .chat-edge { display: block; position: fixed; z-index: 860; right: 0; top: 80px; bottom: 0; width: 18px; touch-action: none; }
       .chat-edge.left { right: auto; left: 0; }
       #boardBtn, #memoriesBtn { display: none; }  /* on phones the leaderboard and memories are tabs next to My plans */
-      .snap-prompt { top: calc(76px + env(safe-area-inset-top)); left: 12px; right: 12px; transform: none; width: auto; }
       /* My plans and the leaderboard: one full-screen page from the left (tap the buttons or swipe right), like Chats from the right */
       .drawer.page { background: transparent; }
       .drawer.page .drawer-card { position: fixed; inset: 0; width: 100%; height: 100%; max-height: none; border-radius: 0; overscroll-behavior: contain;
@@ -1158,6 +1166,7 @@
 
 <aside class="sheet" id="sheet">
   <div class="handle" id="handle"></div>
+  <div class="snap-prompt" id="snapPrompt" hidden></div>
   <div class="hello"><div><small class="greet" id="userName"></small><h1>Plan a hangout</h1></div></div>
   <div class="venue-sub" id="venueSub">No spot yet: search above or tap the map</div>
 
@@ -1284,7 +1293,6 @@
 <div class="mem-overlay" id="memCompose" hidden></div>
 <input type="file" id="snapCamera" accept="image/*" capture="user" hidden>
 <input type="file" id="snapLibrary" accept="image/*" hidden>
-<div class="snap-prompt" id="snapPrompt" hidden></div>
 
 <div class="drawer" id="chat" hidden>
   <div class="drawer-card chat-card">

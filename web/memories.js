@@ -39,8 +39,10 @@ function renderPrompt() {
   el.hidden = !h;
   if (!h) return;
   const left = ON_TIME_MIN - (Date.now() - allHereAt(h)) / 6e4;
-  el.innerHTML = `<button class="snap-go" data-snap="${esc(h.id)}">${icon("camera")}<span><b>Everyone's at ${esc(h.venueName || "the spot")}!</b>
-      <small>${left > 0 ? `Take the group photo · ${Math.ceil(left)} min to post on time` : "Take the group photo for your memories"}</small></span></button>
+  el.innerHTML = `<div class="snap-head">${icon("camera")}<span><b>Everyone's at ${esc(h.venueName || "the spot")}!</b>
+      <small>${left > 0 ? `Take the group photo · ${Math.ceil(left)} min left to post on time` : "Add a group photo to your memories"}</small></span></div>
+    <div class="snap-btns"><button class="snap-cam" data-snap="${esc(h.id)}">${icon("camera")} Take photo</button>
+      <button class="snap-up" data-snap-upload="${esc(h.id)}">${icon("image")} Upload</button></div>
     <button class="snap-x" data-snap-skip="${esc(h.id)}" title="Not now">${icon("x")}</button>`;
 }
 setInterval(renderPrompt, 30000);
@@ -51,7 +53,8 @@ window.memoryCard = h => {
   if (m) return `<button class="mem-strip" data-memory="${esc(h.id)}"><img src="${esc(m.photo)}" alt="">
       <span><b>${icon("image")} Memory</b><small>by ${esc(m.by === me?.uid ? "you" : m.byName || "a friend")} · ${lateText(m) || "on time"}</small></span>${icon("chevron-right")}</button>`;
   if (!allHere(h)) return "";
-  return `<button class="mem-take" data-snap="${esc(h.id)}">${icon("camera")} Everyone made it! Take the group photo</button>`;
+  return `<div class="mem-take-row"><button class="mem-take" data-snap="${esc(h.id)}">${icon("camera")} Take the group photo</button>
+    <button class="mem-take up" data-snap-upload="${esc(h.id)}" title="Upload a photo">${icon("image")} Upload</button></div>`;
 };
 
 // ---------- taking it ----------
@@ -190,7 +193,7 @@ async function save(m) {  // share sheet on phones (Save Image), a download else
 
 // ---------- taps ----------
 document.addEventListener("click", async e => {
-  const t = e.target.closest("[data-snap], [data-snap-skip], [data-memory], [data-snap-again], [data-post], [data-compose-close], [data-view-close], [data-save], [data-retake], [data-delete], [data-hide]");
+  const t = e.target.closest("[data-snap], [data-snap-upload], [data-snap-skip], [data-memory], [data-snap-again], [data-post], [data-compose-close], [data-view-close], [data-save], [data-retake], [data-delete], [data-hide]");
   if (!t) {
     if (e.target.id === "memView") { $("memView").hidden = true; viewing = null; }
     if (e.target.id === "memCompose") { $("memCompose").hidden = true; draft = null; }
@@ -199,6 +202,7 @@ document.addEventListener("click", async e => {
   e.stopPropagation(); e.preventDefault();  // don't also open the hangout on the map
   const ds = t.dataset;
   if (ds.snap) return pickPhoto(ds.snap, true);
+  if (ds.snapUpload) return pickPhoto(ds.snapUpload, false);
   if (ds.snapSkip) { store.set(`memSkip:${me.uid}:${ds.snapSkip}`, true); return renderPrompt(); }
   if (ds.memory) return open(ds.memory);
   if (ds.snapAgain) return pickPhoto(draft.h.id, ds.snapAgain === "camera");
