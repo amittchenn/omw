@@ -297,7 +297,10 @@
     .when-custom.on { background: var(--ink); color: #fff; }
     .when-grid { display: grid; gap: 6px; margin-bottom: 8px; }
     .when-grid.days { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-    .when-grid.times { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .when-grid.times { display: flex; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+                       margin-left: -2px; margin-right: -2px; padding: 0 2px; }
+    .when-grid.times::-webkit-scrollbar { display: none; }
+    .when-grid.times button { flex: 0 0 62px; scroll-snap-align: start; padding: 11px 0; }
     .when-grid button { display: grid; justify-items: center; align-content: center; gap: 1px; min-width: 0; padding: 7px 0; border: 0; border-radius: 14px;
                         background: var(--soft); font: inherit; color: var(--ink); cursor: pointer; }
     .when-grid.days button { padding: 8px 0 7px; }
@@ -1626,18 +1629,22 @@ tomorrow.setHours(19, 0, 0, 0);
 $("start").value = new Date(tomorrow - tomorrow.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
 
 // ---------- when: quick day and time chips (the datetime box underneath is still what everything reads) ----------
-const TIMES = [[6, 0], [9, 0], [12, 0], [15, 0], [18, 0], [21, 0]];  // every 3 hours; Custom for anything else
+const nextHour = () => { const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1); return d; };  // the first time still worth suggesting
 function showWhen() {
   const cur = $("start").value ? new Date($("start").value) : null, now = new Date(), sameDay = (a, b) => a && b && a.toDateString() === b.toDateString();
   $("whenSum").textContent = cur ? `${cur.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })} · ${cur.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Pick a day and time";
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(now); d.setDate(now.getDate() + i); return d; });
-  $("dayChips").innerHTML = days.map((d, i) => `<button class="${sameDay(d, cur) ? "on" : ""}" data-day="${i}" title="${d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}">
+  const todayOver = !sameDay(nextHour(), now);  // after 11pm there's nothing left today
+  $("dayChips").innerHTML = days.map((d, i) => `<button class="${sameDay(d, cur) ? "on" : ""}" data-day="${i}" ${i === 0 && todayOver ? "disabled" : ""} title="${d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}">
       <small>${i === 0 ? "Today" : d.toLocaleDateString([], { weekday: "short" })}</small><b>${d.getDate()}</b></button>`).join("");
-  const hm = cur ? [cur.getHours(), cur.getMinutes()] : null, today = sameDay(cur, now);
-  $("timeChips").innerHTML = TIMES.map(([h, m]) => {
-    const past = today && (h < now.getHours() || (h === now.getHours() && m <= now.getMinutes()));
-    return `<button class="${hm && h === hm[0] && m === hm[1] ? "on" : ""}" data-time="${h}:${m}" ${past ? "disabled" : ""}>${(h + 11) % 12 + 1}${m ? ":" + String(m).padStart(2, "0") : ""}${h < 12 ? "am" : "pm"}</button>`;
-  }).join("");
+  // every hour of the chosen day; today starts at the next full hour (10:20pm → 11pm)
+  const first = sameDay(cur, now) ? nextHour().getHours() : 0, hm = cur ? [cur.getHours(), cur.getMinutes()] : null;
+  const hours = sameDay(cur, now) && todayOver ? [] : Array.from({ length: 24 - first }, (_, i) => first + i);
+  const row = $("timeChips");
+  row.innerHTML = hours.map(h => `<button class="${hm && h === hm[0] && !hm[1] ? "on" : ""}" data-time="${h}:0">${(h + 11) % 12 + 1}${h < 12 ? "am" : "pm"}</button>`).join("");
+  // bring the chosen hour (or, on another day, the evening) into view without moving the page
+  const target = row.querySelector(".on") || (first ? row.firstElementChild : row.querySelector(`[data-time="${hm ? Math.max(0, hm[0] - 1) : 17}:0"]`));
+  row.scrollLeft = target ? Math.max(0, target.offsetLeft - row.offsetLeft - (row.querySelector(".on") ? 70 : 0)) : 0;
   $("whenCustom").classList.toggle("on", !$("start").hidden);
 }
 function setWhen(d) {
@@ -1655,12 +1662,12 @@ $("dayChips").onclick = e => {
   const cur = $("start").value ? new Date($("start").value) : null, d = new Date();
   d.setDate(d.getDate() + +b.dataset.day);
   d.setHours(cur ? cur.getHours() : 19, cur ? cur.getMinutes() : 0, 0, 0);
-  if (d < new Date()) d.setHours(Math.min(23, new Date().getHours() + 1), 0, 0, 0);  // today, but that time has passed: the next hour
+  if (d < new Date()) d.setTime(nextHour());  // today, but that time has passed: the next full hour
   setWhen(d);
 };
 $("timeChips").onclick = e => {
   const b = e.target.closest("button");
-  if (!b || b.disabled) return;
+  if (!b) return;
   const [h, m] = b.dataset.time.split(":").map(Number), d = $("start").value ? new Date($("start").value) : new Date();
   d.setHours(h, m, 0, 0);
   setWhen(d);
