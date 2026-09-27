@@ -18,7 +18,8 @@ import {
 import { calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
 import { liveHangouts, sharingNow, shareStart } from "./live.js";
-import { chatHangouts, chatOpen, unreadCount, postLeft } from "./chat.js";
+import * as chat from "./chat.js";  // (a namespace import: an old cached chat.js can't stop this whole file from loading)
+const { chatHangouts, unreadCount, postLeft } = chat, chatOpen = h => chat.chatOpen ? chat.chatOpen(h) : true;
 import { COLOR_PARTS, ADJUST, optionsFor, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
 
 const $ = id => document.getElementById(id);

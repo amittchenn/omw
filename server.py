@@ -31,6 +31,16 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 app.mount("/static", StaticFiles(directory="web"), name="static")  # serves web/auth.js, web/firebase-config.js
 
 
+@app.middleware("http")
+async def always_fresh(request, call_next):
+    """The app's own files: the browser checks for a new version every time (a quick 304 if nothing changed), so after
+    a deploy nobody ends up with a new file talking to a stale old one, which leaves buttons that don't respond."""
+    response = await call_next(request)
+    if request.url.path.startswith("/static/") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 
 class DepartureRequest(BaseModel):
     user_id: str
