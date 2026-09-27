@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 K = 5  # same trust setting as features.py
+MAX_EARLY_MIN = 8  # same as predictor.py: a normal day gets you there at most this early
 
 FEATURES = [
     # the hangout
@@ -113,9 +114,10 @@ if __name__ == "__main__":
         ("Maps-only alerts", 0),
         ("Alerts shifted by personal average", test.shrunk_avg_delay),
         ("Alerts from our model (p90)", test.final_p90),
+        (f"...capped at {MAX_EARLY_MIN} min early (the app)", np.minimum(test.final_p90, test.final_p50 + MAX_EARLY_MIN).clip(lower=0)),
     ]:
         pct, early = on_time_rate(test, shift)
-        print(f"  {name:37} {pct:5.1f}%   (avg {early:.1f} min early)")
+        print(f"  {name:42} {pct:5.1f}%   (avg {early:.1f} min early)")
 
     # Save everything the app needs
     os.makedirs("models", exist_ok=True)

@@ -50,6 +50,16 @@ def _model_input(X):
     return X
 
 
+MAX_EARLY_MIN = 8  # on a normal day you should get there at most this early (the target is 0-10 min early)
+
+
+def alert_buffer(p50, p90):
+    """How many minutes before the Maps leave time the alert goes off.
+    Planned for a bad day (p90), so you're on time even then, but never so much more than your usual delay (p50)
+    that a normal day gets you there more than MAX_EARLY_MIN early. Never after the Maps time."""
+    return max(0.0, min(p90, p50 + MAX_EARLY_MIN))
+
+
 def predict_departure(user_id, start_time, travel_minutes, travel_mode="driving",
                       hangout_type="food", raining=False, came_from_event=False,
                       planned_days_ahead=2, group_size=4):
@@ -65,8 +75,8 @@ def predict_departure(user_id, start_time, travel_minutes, travel_mode="driving"
     p50 = float(MODEL["p50"].predict(X)[0]) + bias
     p90 = max(float(MODEL["p90"].predict(X)[0]) + bias, p50)
 
-    # Alert early enough that they arrive on time even on a bad day (p90)
-    alert_time = start_time - timedelta(minutes=travel_minutes + max(p90, 0))
+    # Alert early enough that they arrive on time even on a bad day (p90), without getting there way too early normally
+    alert_time = start_time - timedelta(minutes=travel_minutes + alert_buffer(p50, p90))
     return {
         "user_id": user_id,
         "typical_delay_min": round(p50, 1),

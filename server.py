@@ -21,7 +21,7 @@ from avatar_ai import TooMany, make_avatar, ready as avatars_ready
 from calendar_feed import build_ics, hangouts_for_token
 from muse_features import fair_spot, plan_from_text
 from places import details, place_name, search, search_places, suggest
-from predictor import HISTORY, learn_from, predict_departure
+from predictor import HISTORY, alert_buffer, learn_from, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
 import traffic
 from travel import MODES, directions, route, travel_minutes
@@ -444,7 +444,7 @@ def plan(req: PlanRequest):
             start = datetime.fromisoformat(req.start_time)
             r.update(typical_delay_min=round(p50, 1), bad_day_delay_min=round(p90, 1), hangouts_in_history=len(habits),
                      learning=not habits,
-                     alert_time=(start - timedelta(minutes=minutes + max(p90, 0))).isoformat(timespec="minutes"))
+                     alert_time=(start - timedelta(minutes=minutes + alert_buffer(p50, p90))).isoformat(timespec="minutes"))
             label = "Learning · Maps time for now" if not habits else f"Learned from {len(habits)} check-in{'s' * (len(habits) > 1)}"
         results.append({**r, "name": name, "label": label, "home": home, "route": path,
                         "travel_mode": mode, "travel_source": source, "traffic": drive or None})

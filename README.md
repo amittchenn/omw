@@ -32,7 +32,8 @@ minutes after their alert each person really leaves.
   and how they act in the rain or in the morning).
 - **Model:** LightGBM quantile regression (p50 and p90), trained on a time-based split so it's always predicting the
   future from the past (`train.py`, features in `features.py`).
-- **The alert** uses the p90: leave early enough to be on time on a bad day.
+- **The alert** plans for a bad day (p90), so you're on time even then, but it's capped so a normal day gets you
+  there at most 8 minutes early (the aim is 0–10 min early, not half an hour).
 - **Real people:** until someone has checked in once, omw! doesn't guess, and their alert is the Maps time. After that,
   each check-in teaches it their habit, blended with the model: 5 check-ins count as much as the model (`predictor.learn_from`).
 - **It keeps learning from real use:** every check-in is a real example (when you were told to leave vs. when you did).
@@ -45,7 +46,7 @@ Results on the held-out test set (last 20% of hangouts, synthetic friends from `
 |---|---|---|
 | Maps only (assume everyone leaves on time) | 7.6 min | 6.6% |
 | Personal average | 4.5 min | 46.9% |
-| **omw! model** | **2.8 min** | **85.8%** |
+| **omw! model** | **2.8 min** | **83.4%** (avg 4 min early) |
 
 The p90 is well calibrated: 88% of real delays fell at or below it (target 90%).
 
