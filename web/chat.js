@@ -2,11 +2,13 @@
 //   "Peggy arrived · 2 min early"   when someone checks in (automatically once they're within 150 m, or "I'm here")
 //   "Peggy is running late · 1.2 km away"   if someone isn't there 5 minutes after the start
 // New messages pop up in omw, and as phone/computer notifications if you allow them.
-// Stored at hangouts/{id}/messages/{auto id} = { from, name, text, kind, at }.
+// Stored at hangouts/{id}/messages/{auto id} = { from, name, text, kind, at, expireAt }.
+// A hangout's chat only lasts until a day after the hangout: then it's gone from everyone's Chats and its messages are deleted
+// (by the first person going who opens omw! after that). Chats people start themselves (dms.js) stay.
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, doc, getDoc, getDocs, writeBatch, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const LATE_AFTER_MIN = 5;
 const $ = id => document.getElementById(id);
@@ -18,13 +20,32 @@ const store = { get: k => { try { return JSON.parse(localStorage.getItem(k)); } 
 let db, me = null, myName = "", hangouts = [], listening = {}, messages = {}, openId = null, loadedAt = Date.now();
 
 const endOf = h => new Date(h.start).getTime() + (h.durationMin || 120) * 6e4;
-const chatOpenFor = h => Date.now() < endOf(h) + 24 * 36e5;  // chats stay live until a day after the hangout
+const expiresAt = h => endOf(h) + 24 * 36e5;  // a day after the hangout ends
+const chatOpenFor = h => Date.now() < expiresAt(h);
+export const chatOpen = chatOpenFor;
 const seen = id => store.get(`chatSeen:${me?.uid}:${id}`) || 0;
 export const unreadCount = id => (messages[id] || []).filter(m => m.from !== me?.uid && new Date(m.at) > seen(id)).length;
 
-function send(h, text, kind = "text") {
+async function send(h, text, kind = "text") {
+  if (!h.start) h = hangouts.find(x => x.id === h.id) || { id: h.id, ...(await getDoc(doc(db, "hangouts", h.id))).data() };  // a brand-new hangout
   return addDoc(collection(db, "hangouts", h.id, "messages"), { from: me.uid, name: myName, text: String(text).slice(0, 500), kind,
-                                                               at: new Date().toISOString() });
+                                                               at: new Date().toISOString(), expireAt: Timestamp.fromMillis(expiresAt(h)) });
+}
+
+// a hangout chat whose day is up: delete its messages
+async function clearChat(h) {
+  const key = `chatCleared:${h.id}`;
+  if (store.get(key)) return;
+  try {
+    const s = await getDocs(collection(db, "hangouts", h.id, "messages"));
+    for (let i = 0; i < s.docs.length; i += 400) {
+      const b = writeBatch(db);
+      s.docs.slice(i, i + 400).forEach(d => b.delete(d.ref || doc(db, "hangouts", h.id, "messages", d.id)));
+      await b.commit();
+    }
+    store.set(key, true);
+    delete messages[h.id];
+  } catch { /* someone else's copy of omw! will get it */ }
 }
 
 // ---------- listening to every chat you're in ----------
@@ -32,6 +53,7 @@ export function chatHangouts(list, name) {
   hangouts = list; myName = name || myName;
   const live = new Set(list.filter(chatOpenFor).map(h => h.id));
   for (const id of Object.keys(listening)) if (!live.has(id)) { listening[id](); delete listening[id]; }
+  list.filter(h => !chatOpenFor(h) && h.attendees?.includes(me?.uid)).forEach(clearChat);
   for (const id of live) {
     if (listening[id]) continue;
     listening[id] = onSnapshot(collection(db, "hangouts", id, "messages"), s => {

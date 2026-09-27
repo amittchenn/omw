@@ -18,7 +18,7 @@ import {
 import { calendarHangouts } from "./gcal.js";
 import { checkInHtml, leaderboardHangouts } from "./leaderboard.js";
 import { liveHangouts, sharingNow, shareStart } from "./live.js";
-import { chatHangouts, unreadCount, postLeft } from "./chat.js";
+import { chatHangouts, chatOpen, unreadCount, postLeft } from "./chat.js";
 import { COLOR_PARTS, ADJUST, optionsFor, cleanLook, randomLook, withGender, characterSrc, renderJpeg } from "./character.js";
 
 const $ = id => document.getElementById(id);
@@ -496,7 +496,7 @@ function planCard(h, { past = false, next = false } = {}) {
     <div class="plan-actions">
       ${!past && h.venue ? act("route", "Directions", `data-dir="${esc(h.id)}"`, "primary") : ""}
       ${h.venue ? act(past ? "map" : "map-pinned", past ? "Map" : "Live map", `data-show="${esc(h.id)}"`) : ""}
-      ${act("message-circle", "Chat", `data-chat="${esc(h.id)}"`, "", unreadCount(h.id))}
+      ${chatOpen(h) ? act("message-circle", "Chat", `data-chat="${esc(h.id)}"`, "", unreadCount(h.id)) : ""}
       ${past ? "" : act("calendar-plus", "Calendar", `data-cal="${esc(h.id)}" title="Add to Google Calendar"`)}
     </div>
   </div>`;
