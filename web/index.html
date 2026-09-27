@@ -1066,7 +1066,8 @@
                padding-top: env(safe-area-inset-top); }
       .inbox .ib-page, .inbox .convo { top: env(safe-area-inset-top); }
       /* a thin strip on the right edge: swipe left from there (even over the map) to open Chats */
-      .chat-edge { display: block; position: fixed; z-index: 860; right: 0; top: 80px; bottom: 0; width: 18px; touch-action: none; }
+      /* under the planner (z 850), so over the planner its own rows get the touch; over the map it catches the swipe */
+      .chat-edge { display: block; position: fixed; z-index: 840; right: 0; top: 80px; bottom: 0; width: 18px; touch-action: none; }
       .chat-edge.left { right: auto; left: 0; }
       #boardBtn, #memoriesBtn { display: none; }  /* on phones the leaderboard and memories are tabs next to My plans */
       /* My plans and the leaderboard: one full-screen page from the left (tap the buttons or swipe right), like Chats from the right */

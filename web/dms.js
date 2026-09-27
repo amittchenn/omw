@@ -279,7 +279,8 @@ window.addEventListener("chat-changed", () => renderInbox());
 // Main screen: swipe left for Chats (from the right), swipe right for My plans + leaderboard (from the left).
 // On those screens, swipe the other way to go back. Swipes start on the planner, the top bar, or a thin strip at either
 // edge of the screen (the strips keep the map from panning instead).
-const sideScroller = el => el.closest(".types, .week, .friends, .cc-tabs, .ib-fresh, .page-tabs, input, textarea, select, .modes, .cal-menu, .plan-actions");
+// rows you scroll sideways yourself (the time chips, categories…): a swipe there scrolls them, it doesn't change screens
+const sideScroller = el => el.closest(".types, .week, .friends, .cc-tabs, .ib-fresh, .page-tabs, input, textarea, select, .modes, .cal-menu, .plan-actions, .when-grid, .mem-others");
 const pageOpen = () => [$("plans"), $("memories"), $("board")].find(d => !d?.hidden);
 const pageCard = () => pageOpen()?.querySelector(".drawer-card");
 let sw = null;
@@ -335,8 +336,13 @@ const onTouch = (el, start) => {
   el.addEventListener("touchend", swipeEnd);
   el.addEventListener("touchcancel", swipeEnd);
 };
+// the whole height of a sideways row counts, edge to edge, so a thumb that starts just outside it still scrolls it
+const inRowBand = e => [...document.querySelectorAll("#sheet .when-grid, #sheet .types, #sheet .week, #sheet .friends")].some(r => {
+  const b = r.getBoundingClientRect(), y = e.touches[0].clientY;
+  return b.height && y >= b.top - 4 && y <= b.bottom + 4;
+});
 for (const el of [$("sheet"), document.querySelector(".topbar")])
-  onTouch(el, e => { if (!$("inbox").classList.contains("ib-open") && !sideScroller(e.target)) swipeStart(e, "main"); });
+  onTouch(el, e => { if (!$("inbox").classList.contains("ib-open") && !sideScroller(e.target) && !inRowBand(e)) swipeStart(e, "main"); });
 onTouch($("chatEdge"), e => swipeStart(e, "chats"));
 onTouch($("pageEdge"), e => { swipeStart(e, "main"); });
 onTouch($("inbox"), e => { if (!e.target.closest("input, textarea, .ib-fresh")) swipeStart(e, $("inbox").classList.contains("in-convo") ? "convo" : "inbox"); });
