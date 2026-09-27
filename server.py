@@ -421,8 +421,9 @@ def plan(req: PlanRequest):
             # real friends have no lateness history yet, so the model starts them at the group average
             g = guests[uid]
             name, usual = g.name, g.travel_mode if g.travel_mode in MODES else "driving"
-            home = g.home if g.home and len(g.home) == 2 else demo_home(uid, usual, req.venue)
-            label = "New here" if g.home else "No home set · guessed where they live"
+            if not (g.home and len(g.home) == 2):
+                raise HTTPException(400, f"{name} has no location yet.")
+            home, label = g.home, "New here"
         elif uid in set(PEOPLE.user_id):
             person = PEOPLE[PEOPLE.user_id == uid].iloc[0]
             name, usual, label = person["name"], person.travel_mode, person.label
@@ -443,8 +444,6 @@ def plan(req: PlanRequest):
                      learning=not habits,
                      alert_time=(start - timedelta(minutes=minutes + max(p90, 0))).isoformat(timespec="minutes"))
             label = "Learning · Maps time for now" if not habits else f"Learned from {len(habits)} check-in{'s' * (len(habits) > 1)}"
-            if not g.home:
-                label = "No home set · guessed where they live"
         results.append({**r, "name": name, "label": label, "home": home, "route": path,
                         "travel_mode": mode, "travel_source": source, "traffic": drive or None})
     return sorted(results, key=lambda r: r["alert_time"])

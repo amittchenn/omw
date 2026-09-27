@@ -88,6 +88,7 @@ window.hangoutChatList = () => hangouts.filter(chatOpenFor).map(h => ({ id: h.id
 
 // the planner posts Muse's invite note as the first message of a new hangout
 window.sendChat = (id, text) => send({ id }, text);
+window.postChat = (id, text, kind) => send(hangouts.find(h => h.id === id) || { id }, text, kind).catch(() => {});
 
 // ---------- automatic messages ----------
 // you checked in (leaderboard.js): tell the group
@@ -137,8 +138,8 @@ function renderChat() {
   if (canAsk) $("notifyBtn").onclick = async () => { await Notification.requestPermission(); renderChat(); };
   $("chatList").innerHTML = list.length ? list.map(m => m.kind === "text"
       ? `<div class="msg ${m.from === me.uid ? "mine" : ""}">${m.from === me.uid ? "" : `<small>${esc(m.name)}</small>`}<p>${esc(m.text)}</p><time>${time(m.at)}</time></div>`
-      : `<div class="msg-auto ${m.kind}">${icon({ arrived: "map-pin-check-inside", late: "clock-alert", left: "user-x" }[m.kind] || "navigation")} <b>${m.from === me.uid ? "You" : esc(m.name)}</b> ${esc(m.from === me.uid ? m.text.replace(/^is /, "are ") : m.text)} <time>${time(m.at)}</time></div>`).join("")
-    : `<div class="nobody">No messages yet. omw! posts here when people are on their way, running late or arrive.</div>`;
+      : `<div class="msg-auto ${m.kind}">${icon({ arrived: "map-pin-check-inside", late: "clock-alert", left: "user-x", added: "user-round-plus" }[m.kind] || "navigation")} <b>${m.from === me.uid ? "You" : esc(m.name)}</b> ${esc(m.from === me.uid ? m.text.replace(/^is /, "are ") : m.text)} <time>${time(m.at)}</time></div>`).join("")
+    : `<div class="nobody">No messages yet.</div>`;
   $("chatList").scrollTop = $("chatList").scrollHeight;
 }
 
@@ -147,7 +148,7 @@ $("chatForm").onsubmit = e => {
   const h = hangouts.find(x => x.id === openId), text = $("chatInput").value.trim();
   if (!h || !text) return;
   $("chatInput").value = "";
-  send(h, text).catch(err => alert(`Couldn't send: ${err.message}`));
+  send(h, text).catch(err => alert(friendly(err, "send it")));
 };
 $("chatQuick").onclick = e => {
   const b = e.target.closest("[data-quick]"), h = hangouts.find(x => x.id === openId);

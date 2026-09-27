@@ -82,7 +82,7 @@ function renderInbox() {
     ${shown.length ? shown.map(r => `<button class="ib-row ${r.unread ? "ib-unread" : ""}" ${r.open}>${r.face}
         <div class="ib-text"><b>${esc(r.title)}</b><small>${r.line}</small></div>
         <div class="ib-meta"><time>${r.at ? ago(r.at) : ""}</time>${r.unread ? `<i class="ib-dot"></i>` : ""}</div></button>`).join("")
-      : `<div class="nobody">${q ? "No chats match that." : friendsList().length ? "No chats yet. Tap a friend above, or the pencil to start a group." : "Add friends first (tap your picture, top left), then chat with them here."}</div>`}`;
+      : `<div class="nobody">${q ? "No chats match that." : friendsList().length ? "No chats yet." : "Add friends to start chatting."}</div>`}`;
 }
 
 // ---------- starting a chat ----------
@@ -94,7 +94,7 @@ function renderNew() {
     ${picked.size > 1 ? `<input class="ib-name" id="ibGroupName" maxlength="40" placeholder="Group name (optional)" value="${esc($("ibGroupName")?.value || "")}">` : ""}
     ${fs.length ? fs.map(f => `<button class="ib-row pick ${picked.has(f.user_id) ? "on" : ""}" data-pick="${esc(f.user_id)}">${face(f.name, f.photo, "ib-face")}
         <div class="ib-text"><b>${esc(f.name)}</b></div><i class="ib-check">${picked.has(f.user_id) ? ic("check") : ""}</i></button>`).join("")
-      : `<div class="nobody">Add friends first (tap your picture, top left).</div>`}
+      : `<div class="nobody">Add friends to start chatting.</div>`}
     <div class="ib-go"><button class="wide dark" id="ibStart" ${picked.size ? "" : "disabled"}>${picked.size > 1 ? `Create group (${picked.size + 1})` : "Chat"}</button></div>`;
 }
 
@@ -190,7 +190,7 @@ function renderInfo() {
     e.preventDefault();
     const title = $("ibTitle").value.trim();
     c.title = title;
-    updateDoc(doc(db, "chats", c.id), { title }).catch(err => alert(`Couldn't rename: ${err.message}`));
+    updateDoc(doc(db, "chats", c.id), { title }).catch(err => alert(friendly(err, "rename it")));
     systemNote(c, title ? `${myName} named the group "${title}"` : `${myName} removed the group name`);
     view = "list"; $("inbox").classList.add("in-convo"); renderConvo();
   };
@@ -262,14 +262,14 @@ $("ibBody").onclick = async e => {
       delete chats[c.id];
       closeConvo(); setView("list");
     }
-  } catch (err) { alert(`Couldn't do that: ${err.message}`); renderInbox(); }
+  } catch (err) { alert(friendly(err)); renderInbox(); }
 };
 $("cvForm").onsubmit = e => {
   e.preventDefault();
   const text = $("cvInput").value.trim();
   if (!text) return;
   $("cvInput").value = "";
-  send(text).catch(err => alert(`Couldn't send: ${err.message}`));
+  send(text).catch(err => alert(friendly(err, "send it")));
 };
 addEventListener("keydown", e => { if (e.key === "Escape" && $("inbox").classList.contains("ib-open")) back(); });
 window.addEventListener("friends-changed", () => { myName = window.myFriends?.find(p => p.isMe)?.realName || myName; renderInbox(); if (openCid) renderConvo(); });

@@ -136,5 +136,18 @@ Object.assign(ICONS, {
   "trash-2": "<path d=\"M3 6h18\"/> <path d=\"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6\"/> <path d=\"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2\"/> <path d=\"M10 11v6\"/> <path d=\"M14 11v6\"/>",
   "images": "<path d=\"m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16\"/> <path d=\"M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2\"/> <circle cx=\"13\" cy=\"7\" r=\"1\" fill=\"currentColor\"/> <rect x=\"8\" y=\"2\" width=\"14\" height=\"14\" rx=\"2\"/>",
 });
+// one friendly line instead of a raw error ("Couldn't send. Try again.")
+window.friendly = (e, what = "do that") => {
+  const m = String(e?.message || e || "");
+  if (/failed to fetch|networkerror|load failed|network request|offline|unavailable/i.test(m) || navigator.onLine === false)
+    return "You're offline. Check your connection and try again.";
+  if (/permission|insufficient|denied/i.test(m) || e?.code === "permission-denied") return "You don't have access to that.";
+  if (/quota|exhausted|too many|429/i.test(m)) return "Too many tries. Wait a minute, then try again.";
+  // our own messages are already written for people ("Priya has no location yet.")
+  if (m.length <= 90 && /^[A-Z][^{}<>\[\]_=]*[.!?]$/.test(m) && !/error|exception|undefined|null|http|status|json|token|\d{3}/i.test(m)) return m;
+  return `Couldn't ${what}. Try again.`;
+};
+// hangout titles without emoji ("☕ Coffee at Klaus" -> "Coffee at Klaus")
+window.plainTitle = t => String(t ?? "").replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\uFE0F\u200D]/gu, "").replace(/\s{2,}/g, " ").trim() || "Hangout";
 window.icon = (name, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.circle}</svg>`;
 window.glyph = (v, cls = "") => ICONS[v] ? icon(v, cls) : String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);

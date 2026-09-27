@@ -157,7 +157,7 @@ function rows(board) {
 function render() {
   const board = friendsBoard();
   $("boardList").innerHTML = board.some(b => b.hangouts) ? rows(board)
-    : `<div class="nobody">No check-ins yet. When anyone gets to a hangout, omw! checks them in automatically and they show up here.</div>`;
+    : `<div class="nobody">No check-ins yet.</div>`;
   $("boardNote").textContent = `Ranked by how often each person arrives within ${LATE_AFTER_MIN} minutes of the start. `
     + "Updates live: omw! checks people in automatically when they get there (with omw! open), or they can tap “I'm here”.";
 }

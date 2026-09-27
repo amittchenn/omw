@@ -42,7 +42,7 @@ async function run(action) {
   say("");
   document.querySelectorAll(".gate button").forEach(b => b.disabled = true);
   try { await action(); }
-  catch (e) { say(MESSAGES[e.code] || e.message); }
+  catch (e) { say(MESSAGES[e.code] || friendly(e, "sign you in")); }
   finally { document.querySelectorAll(".gate button").forEach(b => b.disabled = false); }
 }
 

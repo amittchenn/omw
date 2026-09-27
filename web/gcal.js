@@ -108,7 +108,7 @@ async function sync() {
     store.set(syncedKey, [...now]);
     status = `${now.size ? `${now.size} hangout${now.size === 1 ? "" : "s"} in your omw! calendar` : "Your omw! calendar is ready. New hangouts will appear there"} · synced ${time(new Date().toISOString())}`;
   } catch (e) {
-    if (turnedOn()) status = e.expired ? "Google needs you to confirm again. Tap Sync Google Calendar." : `Couldn't sync: ${e.message}`;
+    if (turnedOn()) status = e.expired ? "Google needs you to confirm again. Tap Sync Google Calendar." : friendly(e, "sync");
   } finally {
     busy = false;
   }
@@ -175,8 +175,7 @@ function render() {
   }
   const again = turnedOn();
   box.innerHTML = `<button class="cal-btn" id="gcalConnect">${googleCalIcon(22)} ${again ? "Sync Google Calendar" : "Connect Google Calendar"}</button>
-    <div class="note">${esc(status) || (again ? "Google asks you to confirm about once an hour. Tap to add any new hangouts."
-      : "Adds a separate omw! calendar to your Google Calendar, so your own calendars stay untouched. Hangouts appear in seconds, with a reminder at your leave-now time.")}</div>`;
+    ${status ? `<div class="note">${esc(status)}</div>` : ""}`;
   $("gcalConnect").onclick = connect;
 }
 

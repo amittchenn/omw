@@ -103,7 +103,7 @@ async function openCamera(facing = cam?.facing || "user") {
     $("camMsg").innerHTML = e.name === "NotAllowedError"
       ? `${icon("triangle-alert")}<b>Camera blocked</b>Allow the camera in your browser (the camera icon in the address bar), then try again. Or upload a photo.`
       : e.name === "NotFoundError" ? `${icon("triangle-alert")}<b>No camera found</b>Upload a photo instead.`
-      : `${icon("triangle-alert")}<b>Couldn't start the camera</b>${esc(e.message)}`;
+      : `${icon("triangle-alert")}<b>Couldn't start the camera</b>Upload a photo instead.`;
   }
 }
 function closeCamera(hide = true) {
@@ -145,7 +145,7 @@ async function gotFile(file) {
   const h = hangoutsList().find(x => x.id === snapFor) || (m && { id: snapFor, title: m.title, venueName: m.venueName, attendees: m.members, names: m.names });
   if (!file || !h) return;
   try { draft = { h, photo: await shrink(file) }; showComposer(); }
-  catch (e) { alert(e.message); }
+  catch (e) { alert(friendly(e, "use that photo")); }
 }
 function showComposer(msg = "") {
   const { h, photo } = draft;
@@ -154,7 +154,7 @@ function showComposer(msg = "") {
   $("memCompose").innerHTML = `<div class="mem-card">
     <button class="x" data-compose-close title="Cancel">${icon("x")}</button>
     <h2 class="board-title">${mine ? "New group photo" : "Your group photo"}</h2>
-    <div class="mem-sub">${esc(h.title)} · ${esc(h.venueName || "")}</div>
+    <div class="mem-sub">${esc(plainTitle(h.title))} · ${esc(h.venueName || "")}</div>
     <div class="mem-photo"><img src="${photo}" alt="Group photo"></div>
     <div class="mem-who">${h.attendees.map(u => `<span>${esc(u === me.uid ? "You" : h.names?.[u] || "Friend")}</span>`).join("")}</div>
     <div class="mem-actions">
@@ -174,14 +174,14 @@ async function post() {
     else await setDoc(doc(db, "memories", h.id), {
       members: h.attendees, names: Object.fromEntries(h.attendees.map(u => [u, h.names?.[u] || (u === me.uid ? myName() : "Friend")])),
       by: me.uid, byName: h.names?.[me.uid] || myName(), photo, at, allHereAt: new Date(allHereAt(h)).toISOString(),
-      title: h.title || "Hangout", venueName: h.venueName || "", address: h.address || "", start: h.start });
-    window.sendChat?.(h.id, "📸 posted the group photo. See it in Memories!").catch?.(() => {});
+      title: plainTitle(h.title), venueName: h.venueName || "", address: h.address || "", start: h.start });
+    window.sendChat?.(h.id, "posted the group photo in Memories").catch?.(() => {});
     draft = null; $("memCompose").hidden = true;
     openWhenSaved = h.id;  // show it as soon as it's saved
     if (memories[h.id]?.photo === photo) { openWhenSaved = null; open(h.id); }
   } catch (e) {
     btn.disabled = false; btn.textContent = "Post for everyone";
-    showComposer(/permission/i.test(e.message) ? "Someone else just posted the photo for this one." : `Couldn't post it: ${e.message}`);
+    showComposer(/permission/i.test(e.message) ? "Someone else just posted the photo for this one." : friendly(e, "post it"));
   }
 }
 const myName = () => me?.displayName || "Friend";
@@ -194,7 +194,7 @@ function render() {
     ? `<b>${list.length}</b> hangout${list.length === 1 ? "" : "s"} together · <b>${onTime}</b> posted on time`
     : "";
   if (!list.length) {
-    $("memList").innerHTML = `<div class="nobody mem-empty">${icon("camera")}<b>No memories yet</b>When everyone in a hangout has arrived, one of you takes a group photo. It shows up here for everyone who went.</div>`;
+    $("memList").innerHTML = `<div class="nobody mem-empty">${icon("camera")}<b>No memories yet</b>Group photos from your hangouts show up here.</div>`;
     return;
   }
   const months = [];
@@ -230,12 +230,11 @@ function open(id) {
   $("memView").innerHTML = `<div class="mem-card">
     <button class="x" data-view-close title="Close">${icon("x")}</button>
     <div class="mem-date">${d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>
-    <h2 class="board-title">${esc(m.title)}</h2>
+    <h2 class="board-title">${esc(plainTitle(m.title))}</h2>
     <div class="mem-sub">${icon("map-pin")} ${esc(m.venueName || m.address || "")} · ${new Date(m.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} ${onTimeBadge(m)}</div>
     <div class="mem-photo"><img src="${esc(m.photo)}" alt="Group photo"></div>
     ${sameDay.length > 1 ? `<div class="mem-others">${sameDay.map(x => `<button class="${x.id === id ? "on" : ""}" data-memory="${esc(x.id)}"><img src="${esc(x.photo)}" alt=""></button>`).join("")}</div>` : ""}
     <div class="mem-who">${m.members.map(u => `<span>${esc(nameOf(m, u))}</span>`).join("")}</div>
-    <small class="note">Photo by ${esc(m.by === me.uid ? "you" : m.byName || "a friend")}</small>
     <div class="mem-actions">
       <button class="mini" data-save>${icon("share")} Save</button>
       ${m.by === me.uid ? `<button class="mini" data-retake="${esc(id)}">${icon("camera")} Retake</button>
@@ -287,12 +286,12 @@ document.addEventListener("click", async e => {
   if (ds.retake) { $("memView").hidden = true; return pickPhoto(ds.retake, true); }
   if (ds.delete) {
     if (!confirm("Delete this photo for everyone who went?")) return;
-    await deleteDoc(doc(db, "memories", ds.delete)).catch(err => alert(`Couldn't delete it: ${err.message}`));
+    await deleteDoc(doc(db, "memories", ds.delete)).catch(err => alert(friendly(err, "delete it")));
     $("memView").hidden = true; viewing = null; return;
   }
   if (ds.hide) {
     if (!confirm("Take this off your memories? The others keep it.")) return;
-    await updateDoc(doc(db, "memories", ds.hide), { members: arrayRemove(me.uid) }).catch(err => alert(`Couldn't remove it: ${err.message}`));
+    await updateDoc(doc(db, "memories", ds.hide), { members: arrayRemove(me.uid) }).catch(err => alert(friendly(err, "remove it")));
     $("memView").hidden = true; viewing = null;
   }
 }, true);

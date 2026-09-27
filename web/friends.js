@@ -304,7 +304,7 @@ function renderAvatarEditor() {
     : `<div class="ai-form">
         ${s.kind === "ai" ? `<div class="ai-mode"><button class="${editing ? "on" : ""}" data-ai-mode="edit">${icon("pencil")} Change this one</button>
           <button class="${editing ? "" : "on"}" data-ai-mode="new">${icon("sparkles")} Make a new one</button></div>
-          <p class="ai-note">${editing ? "Pick only what should change. Everything else stays the same." : "Draws a brand-new avatar from your picks."}</p>` : ""}
+          ${editing ? `<p class="ai-note">Pick only what should change.</p>` : ""}` : ""}
         ${editing ? "" : `<div class="ai-row"><small>Start from a selfie <em>(optional)</em></small><div class="ai-selfie">
           ${draft.selfie ? `<img src="${esc(draft.selfie)}" alt="Your selfie"><button data-no-selfie="1">Remove</button>`
                          : `<label class="cc-upload">${icon("camera")} Add a selfie<input type="file" accept="image/*" id="selfieFile" hidden></label>`}
@@ -315,7 +315,7 @@ function renderAvatarEditor() {
           <input id="aiExtra" maxlength="100" placeholder="${editing ? "e.g. make the cap red, add a nose ring" : "e.g. pink streak, gap tooth, dimples"}" value="${esc(editing ? draft.changeText : draft.extra)}"></div>
         <button class="wide dark ai-go" data-make="1" ${busy ? "disabled" : ""}>${busy ? "Drawing…"
           : editing ? `${icon("pencil")} Apply changes` : `${icon("sparkles")} Create my avatar`}</button>
-        ${draft.selfie && !editing ? `<p class="ai-note">Your selfie is only sent to the AI to draw your avatar. omw! doesn't keep it.</p>` : ""}
+        ${draft.selfie && !editing ? `<p class="ai-note">Your selfie isn't saved.</p>` : ""}
       </div>`;
 
   $("avatarEditor").innerHTML = `
@@ -336,7 +336,7 @@ function renderAvatarEditor() {
           : x.kind !== "account" ? `<button class="lib-del" data-del="${esc(x.id)}" title="Delete">${icon("x")}</button>` : ""}</div>`).join("")}</div></div>` : ""}
     <div class="lib-head"><b>Make a new one</b></div>
     <div class="make">
-      <button class="${draft.pane === "ai" ? "on" : ""}" data-pane="ai"><i>${icon("sparkles")}</i><b>Create with AI</b><small>Pick a look or add a selfie</small></button>
+      <button class="${draft.pane === "ai" ? "on" : ""}" data-pane="ai"><i>${icon("sparkles")}</i><b>Create with AI</b></button>
       <button class="${draft.pane === "build" ? "on" : ""}" data-pane="build"><i>${icon("user")}</i><b>Build your own</b><small>Change every detail</small></button>
       <label class="${draft.pane === "upload" ? "on" : ""}"><i>${icon("upload")}</i><b>Upload photo</b><small>From your phone</small><input type="file" accept="image/*" id="photoFile" hidden></label>
     </div>
@@ -419,7 +419,7 @@ function renderBusy(blocks) {
   const sorted = [...blocks].sort((a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day) || a.start.localeCompare(b.start));
   $("schedChips").innerHTML = sorted.length
     ? sorted.map(b => `<span class="busy-chip"><b>${esc(b.day)}</b> ${ampm(b.start)}–${ampm(b.end)} · ${esc(b.label)}</span>`).join("")
-    : `<div class="note">No busy times saved yet, so the planner assumes you're always free.</div>`;
+    : "";
 }
 
 function updateBadge() {  // friend requests on your avatar, hangout invitations on the calendar button
@@ -513,8 +513,8 @@ function planCard(h, { past = false, next = false } = {}) {
     ${past ? `<div class="trip-sum ${everyoneArrived(h) ? "all" : ""}">${icon(everyoneArrived(h) ? "circle-check" : "flag")} ${esc(tripSummary(h))}</div>` : ""}
     ${window.memoryCard?.(h) || ""}
     ${!past && leaveTime(h) ? `<div class="plan-you">
-        <div><small>${icon("bell")} Recommended</small><b>Leave ${leaveTime(h)}</b><span>allows for how late you usually leave</span></div>
-        ${mapsLeave(h) ? `<div class="maps"><small>${icon("map")} Google Maps</small><b>${Math.round(h.travel[me.uid])} min trip</b><span>latest you could leave: ${mapsLeave(h)}</span></div>` : ""}
+        <div><small>${icon("bell")} Recommended</small><b>Leave ${leaveTime(h)}</b></div>
+        ${mapsLeave(h) ? `<div class="maps"><small>${icon("map")} Google Maps</small><b>${Math.round(h.travel[me.uid])} min trip</b><span>Latest ${mapsLeave(h)}</span></div>` : ""}
       </div>` : ""}
     ${past ? "" : `<div class="plan-from">${icon(originOf(h) ? (originOf(h).home ? "house" : "map-pin") : liveNow() || !profile.home ? "locate-fixed" : "house")}<span>Leaving from <b>${esc(fromLabel(h))}</b>${h.travel?.[me.uid] ? ` · ${Math.round(h.travel[me.uid])} min trip` : ""}</span>
       <button class="mini" data-from="${esc(h.id)}">${fromEditing === h.id ? "Done" : "Change"}</button></div>
@@ -523,16 +523,35 @@ function planCard(h, { past = false, next = false } = {}) {
     <div class="plan-people">${h.attendees.map(u => personLine(h, u, past)).join("")}</div>
     ${waiting.length || declined.length ? `<small class="note">${[waiting.length && `Waiting on ${names(waiting)}`,
                                                                    declined.length && `Can't make it: ${names(declined)}`].filter(Boolean).join(" · ")}</small>` : ""}
-    ${past ? "" : sharingNow(h) ? `<small class="note">${icon("radio")} Sharing your location with the people going until you get there</small>`
-      : `<small class="note">${icon("radio")} Your location is shared with the group from ${timeOf(new Date(shareStart(h)).toISOString())} (when you should leave) until you arrive</small>`}
+    ${!past && sharingNow(h) ? `<small class="note">${icon("radio")} Sharing your location</small>` : ""}
     ${past ? "" : checkInHtml(h)}
     <div class="plan-actions">
       ${!past && h.venue ? act("route", "Directions", `data-dir="${esc(h.id)}"`, "primary") : ""}
       ${h.venue ? act(past ? "map" : "map-pinned", past ? "Map" : "Live map", `data-show="${esc(h.id)}"`) : ""}
       ${chatOpen(h) ? act("message-circle", "Chat", `data-chat="${esc(h.id)}"`, "", unreadCount(h.id)) : ""}
+      ${past ? "" : act("user-round-plus", "Invite", `data-add-people="${esc(h.id)}" title="Invite more friends"`, addingTo === h.id ? "on" : "")}
       ${past ? "" : act("calendar-plus", "Calendar", `data-cal="${esc(h.id)}" title="Add to Google Calendar"`)}
     </div>
+    ${!past && addingTo === h.id ? addPeoplePanel(h) : ""}
   </div>`;
+}
+
+// invite more friends to a plan that's already made (anyone going can). They get an invite like everyone else,
+// work out their own leave time when they accept, and join the group chat (it's for everyone going).
+let addingTo = "";
+function addPeoplePanel(h) {
+  const inIt = new Set(h.invited || h.attendees);
+  const more = friendIds.filter(id => friends[id] && !inIt.has(id));
+  return `<div class="add-people">${more.length
+    ? more.map(id => `<button class="add-person" data-invite="${esc(h.id)}" data-uid="${esc(id)}">${pic({ name: friends[id].name, photo: friends[id].photo })}
+        <span>${esc(friends[id].name || "Friend")}</span>${icon("plus")}</button>`).join("")
+    : `<div class="nobody">All your friends are already invited.</div>`}</div>`;
+}
+async function invitePerson(h, uid) {
+  const name = friends[uid]?.name || "Friend";
+  await updateDoc(doc(db, "hangouts", h.id), { invited: arrayUnion(uid), [`names.${uid}`]: name,
+                                              [`modes.${uid}`]: friends[uid]?.travelMode || "driving" });
+  window.postChat?.(h.id, `invited ${name}`, "added");  // tell the group; they join the chat once they accept
 }
 
 // "This week" on the main screen: your plans in the next 7 days, tap one to see it on the map
@@ -562,7 +581,7 @@ function renderHangouts() {
   const past = hangouts.filter(over).sort((a, b) => b.start.localeCompare(a.start));  // newest first
   $("hangoutList").innerHTML = upcoming.length
     ? upcoming.map((h, i) => planCard(h, { next: i === 0 })).join("")
-    : `<div class="nobody">Nothing planned yet. Plan one with your friends and tap "Send invites", or accept an invitation.</div>`;
+    : `<div class="nobody">Nothing planned yet.</div>`;
   $("pastSection").hidden = !past.length;
   renderWeek(upcoming);
   $("pastCount").textContent = past.length ? `(${past.length})` : "";
@@ -636,7 +655,7 @@ async function cantMakeIt(h) {
     if (!confirm("Cancel this hangout? Nobody else is going.")) return;
     return h.createdBy === me.uid ? deleteDoc(doc(db, "hangouts", h.id)) : rsvp(h.id, "declined");
   }
-  if (!confirm(`Can't make it to ${h.title}? You'll be taken off it, and the others will get a message that you can't come.`)) return;
+  if (!confirm(`Can't make it to ${h.title}? The group will be told.`)) return;
   await postLeft(h).catch(() => {});  // while you're still in the group, so you're allowed to post
   await rsvp(h.id, "declined");
 }
@@ -838,8 +857,8 @@ function run(action) {
     try { await action(...args); }
     catch (e) {
       say(e.code === "permission-denied"
-        ? "The database refused that. Check the Firestore rules (see setup steps)."
-        : `Something went wrong: ${e.message}`);
+        ? "You don't have access to that."
+        : friendly(e));
     }
   };
 }
@@ -1045,6 +1064,12 @@ if (configured) {
     const show = e.target.closest("[data-show]");
     if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
     if (b?.dataset.chat) { $("plans").hidden = true; return window.openChat(b.dataset.chat); }
+    if (b?.dataset.addPeople) { addingTo = addingTo === b.dataset.addPeople ? "" : b.dataset.addPeople; return renderHangouts(); }
+    if (b?.dataset.invite) {
+      b.disabled = true;
+      await invitePerson(hangoutDocs[b.dataset.invite], b.dataset.uid);
+      return;
+    }
     if (b?.dataset.cal) return window.open(googleLink(hangoutDocs[b.dataset.cal]), "_blank", "noopener");
     if (b?.dataset.dir) { const h = hangoutDocs[b.dataset.dir]; $("plans").hidden = true;
       const d = new Date(h.start), o = originOf(h);
@@ -1150,7 +1175,7 @@ if (configured) {
         seenBy[field] = new Set(s.docs.map(d => d.id));
         // older hangouts started their title with an emoji ("🍔 Food at ..."): show it without
         s.docs.forEach(d => { const h = { ...d.data(), id: d.id };
-          h.title = String(h.title || "Hangout").replace(/^(\p{Extended_Pictographic}|\uFE0F|\u200D|\s)+/u, "");
+          h.title = plainTitle(h.title);  // no emoji in titles
           hangoutDocs[d.id] = h; });
         for (const id in hangoutDocs) {  // cancelled: gone from both lists
           if (!seenBy.attendees.has(id) && !seenBy.invited.has(id)) delete hangoutDocs[id];
