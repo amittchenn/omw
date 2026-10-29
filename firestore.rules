@@ -158,7 +158,10 @@ service cloud.firestore {
           // a post: just you
           (newPost().get('kind', '') == 'post' && newPost().members == [me()] && text(newPost().get('caption', ''), 500)
             && text(newPost().get('venueName', ''), 120) && newPost().get('public', false) is bool
-            && (!('photos' in newPost()) || photosOk(newPost().photos)))
+            && (!('photos' in newPost()) || photosOk(newPost().photos))
+            // tagged friends (they can already see it) and everyone's usernames
+            && newPost().get('tagged', []) is list && newPost().get('tagged', []).size() <= 20 && newPost().viewers.hasAll(newPost().get('tagged', []))
+            && newPost().get('handles', {}) is map && newPost().get('handles', {}).size() <= 21)
           // a group photo from Memories: posted by whoever took it, for exactly the people who went
           || (newPost().get('kind', '') == '' && newPost().get('public', false) == false
             && get(/databases/$(database)/documents/memories/$(hid)).data.by == me()

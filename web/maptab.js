@@ -11,6 +11,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const first = n => String(n || "Friend").split(" ")[0];
 const map = () => window.omwMap;
 let db, me = null, saved = [], stop = null, on = false, place = null, list = "", layers = null, meMarker = null;
+window.savedPlaces = () => saved;  // feed.js suggests them when you add a place to a post
 
 const isSaved = p => p && saved.some(s => Math.abs(s.lat - p.lat) < 1e-5 && Math.abs(s.lng - p.lng) < 1e-5);
 const ago = t => { const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };

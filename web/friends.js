@@ -841,7 +841,9 @@ async function setUp(user, ref, attempt = 0) {
   const loaded = await step(async () => {
     let s = await getDoc(ref);
     if (!s.exists()) {  // your profile, the first time
-      await setDoc(ref, { name: user.displayName || (user.email || "friend").split("@")[0], travelMode: "driving" });
+      // location stays off until you turn it on (or share it for a hangout); feed.js makes the new profile public
+      await setDoc(ref, { name: user.displayName || (user.email || "friend").split("@")[0], travelMode: "driving", shareLive: false });
+      window.omwNewAccount = true;
       s = await getDoc(ref);
     }
     if (stillMe()) profile = s.data() || profile;

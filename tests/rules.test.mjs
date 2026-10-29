@@ -150,6 +150,8 @@ test("posts and comments: friends only", async () => {
   await assertSucceeds(setDoc(doc(db("alice"), "feed", "p3"), { ...post, photos: [JPEG, JPEG, JPEG] }));  // several photos
   await assertFails(setDoc(doc(db("alice"), "feed", "p4"), { ...post, photos: [JPEG, JPEG, JPEG, JPEG, JPEG] }));
   await assertFails(setDoc(doc(db("alice"), "feed", "p5"), { ...post, photos: [JPEG, "data:text/html;base64,AAAA"] }));
+  await assertSucceeds(setDoc(doc(db("alice"), "feed", "p6"), { ...post, tagged: ["bob"], handles: { alice: "alice", bob: "bob" } }));  // tag a friend
+  await assertFails(setDoc(doc(db("alice"), "feed", "p7"), { ...post, tagged: ["eve"] }));  // not someone who can't see it
   await assertSucceeds(getDoc(doc(db("bob"), "feed", "p1")));
   await assertFails(getDoc(doc(db("eve"), "feed", "p1")));
   await assertFails(updateDoc(doc(db("alice"), "feed", "p1"), { kind: "" }));

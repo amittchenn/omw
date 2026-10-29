@@ -42,6 +42,10 @@ const friends = () => (window.myFriends || []).filter(p => !p.isMe);
 const friendOf = uid => (window.myFriends || []).find(p => p.user_id === uid);
 const myName = () => (window.myFriends || []).find(p => p.isMe)?.realName || me?.displayName || "Me";
 const first = n => String(n || "Friend").split(" ")[0];
+const myHandle = () => ((window.myFriends || []).find(p => p.isMe)?.code || "").toLowerCase();
+// someone's username (their friend ID, lowercase, like Instagram), or their first name before they had one
+const handle = (uid, p, name) => uid === me?.uid ? myHandle() || first(myName())
+  : p?.handles?.[uid] || friendOf(uid)?.code?.toLowerCase() || cards[uid]?.code?.toLowerCase() || first(name || p?.names?.[uid]);
 const ago = iso => {
   const m = Math.round((Date.now() - new Date(iso)) / 6e4);
   return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 2880 ? "yesterday"
@@ -191,10 +195,13 @@ const skeleton = () => [1, 2].map(() => `<div class="sk-post"><div class="sk-hea
 
 // someone's post, like Instagram
 function postHtml(p) {
-  const liked = p.likes?.includes(me.uid), name = p.by === me.uid ? "You" : p.names?.[p.by] || p.byName;
+  const liked = p.likes?.includes(me.uid), name = p.names?.[p.by] || p.byName, who = handle(p.by, p, name);
+  const tags = (p.tagged || []).filter(u => u !== p.by);
+  const withWho = tags.length ? ` <span class="fp-with">with <b data-profile="${esc(tags[0])}">${esc(handle(tags[0], p))}</b>${tags.length > 1
+    ? ` and <b data-post-tags="${esc(p.id)}">${tags.length - 1} ${tags.length === 2 ? "other" : "others"}</b>` : ""}</span>` : "";
   return `<article class="fpost" data-post="${esc(p.id)}">
     <header><span class="fp-faces" data-profile="${esc(p.by)}">${face(p.by, name)}</span>
-      <span class="fp-who"><b data-profile="${esc(p.by)}">${esc(name)}</b><small>${esc([p.venueName, ago(p.at)].filter(Boolean).join(" · "))}</small></span>
+      <span class="fp-who"><span class="fp-line"><b data-profile="${esc(p.by)}">${esc(who)}</b>${withWho}</span><small>${esc([p.venueName, ago(p.at)].filter(Boolean).join(" · "))}</small></span>
       <button class="fp-more" data-post-menu="${esc(p.id)}" aria-label="More options">${icon("ellipsis")}</button></header>
     <div class="fp-photo ${p.photos?.length > 1 ? "many" : ""}" data-like-twice="${esc(p.id)}">${(p.photos?.length > 1 ? p.photos : [p.photo])
       .map(ph => `<img src="${esc(ph)}" alt="${esc(p.caption || "Photo")}" loading="lazy">`).join("")}
@@ -203,7 +210,7 @@ function postHtml(p) {
         <span class="fp-pname"><b>${esc(p.venueName)}</b><small>${esc([p.address, away(p.venue)].filter(Boolean).join(" · "))}</small></span></div>` : ""}
     </div>
     ${actions(p, liked)}
-    ${p.caption ? `<p class="fp-caption"><b>${esc(first(name))}</b> ${esc(p.caption)}</p>` : ""}
+    ${p.caption ? `<p class="fp-caption"><b data-profile="${esc(p.by)}">${esc(who)}</b> ${esc(p.caption)}</p>` : ""}
     ${commentsHtml(p)}
   </article>`;
 }
@@ -248,7 +255,7 @@ function commentsHtml(p) {
   const list = comments[p.id] || [], open = openComments.has(p.id), shown = open ? list : list.slice(-2);
   return `<div class="fp-comments">
     ${!open && list.length > 2 ? `<button class="fc-more" data-comments="${esc(p.id)}">View all ${list.length} comments</button>` : ""}
-    ${shown.map(c => `<p class="fc"><b>${esc(c.from === me.uid ? "You" : first(c.name))}</b> ${esc(c.text)}
+    ${shown.map(c => `<p class="fc"><b data-profile="${esc(c.from)}">${esc(handle(c.from, null, c.name))}</b> ${esc(c.text)}
       ${c.from === me.uid || p.by === me.uid ? `<button class="fc-x" data-del-comment="${esc(p.id)}/${esc(c.id)}">Delete</button>`
         : `<button class="fc-x" data-report-comment="${esc(p.id)}/${esc(c.id)}">Report</button>`}</p>`).join("")}
     ${open ? `<form class="fc-form" data-comment-form="${esc(p.id)}"><input class="fc-input" maxlength="300" placeholder="Add a comment…" aria-label="Add a comment">
@@ -279,13 +286,13 @@ const weekLabel = d => {
   const f = x => x.toLocaleDateString([], { month: "short", day: "numeric" });
   return `${f(d)} – ${f(end)}`;
 };
-function openProfile(uid) {
+function openProfile(uid, preview = false) {
   profileStop?.(); profilePosts = {}; profileTab = "posts";
-  profile = { uid, loading: true };
+  profile = { uid, loading: true, preview };  // preview: your own profile as people who aren't your friends see it
   $("profile").hidden = false; $("profileCard").scrollTop = 0;
   renderProfile();
   // what you're allowed to see: everything with you in it (yourself, friends), or only public posts (everyone else)
-  const friend = uid === me.uid || !!friendOf(uid);
+  const friend = (uid === me.uid && !preview) || !!friendOf(uid);
   const q = friend ? query(collection(db, "feed"), where("by", "==", uid), where("viewers", "array-contains", me.uid), limit(90))
                    : query(collection(db, "feed"), where("by", "==", uid), where("public", "==", true), limit(90));
   profileStop = onSnapshot(q, s => {
@@ -305,14 +312,18 @@ function openProfile(uid) {
   if (!cards[uid] && !friend) onSnapshot(doc(db, "publicProfiles", uid), d => { cards[uid] = d.data() || {}; renderProfile(); }, () => {});
 }
 window.openProfile = openProfile;
+document.addEventListener("click", e => {  // Settings -> See what others see
+  if (!e.target.closest?.("#previewProfile")) return;
+  tick(); $("drawerClose")?.click(); go("me"); openProfile(me.uid, true);
+});
 function renderProfile() {
-  const { uid } = profile, mine = uid === me.uid, f = friendOf(uid), card = cards[uid] || {};
-  const name = mine ? myName() : f?.name || card.name || Object.values(profilePosts)[0]?.byName || "omw! user";
-  const code = mine ? (window.myFriends || []).find(p => p.isMe)?.code : f?.code || card.code;
+  const { uid, preview } = profile, self = uid === me.uid, mine = self && !preview, f = friendOf(uid), card = cards[uid] || {};
+  const name = self ? myName() : f?.name || card.name || Object.values(profilePosts)[0]?.byName || "omw! user";
+  const code = self ? (window.myFriends || []).find(p => p.isMe)?.code : f?.code || card.code;
   const list = Object.values(profilePosts).filter(p => !blocked().includes(p.by)).sort((a, b) => b.at.localeCompare(a.at));
   const board = (window.standings?.() || []).find(b => b.user_id === uid);
-  const onTime = board?.hangouts ? `${Math.round(100 * board.on_time / board.hangouts)}%` : "";
-  const photo = mine ? (window.myFriends || []).find(p => p.isMe)?.photo : f?.photo || card.photo;
+  const onTime = preview ? "" : board?.hangouts ? `${Math.round(100 * board.on_time / board.hangouts)}%` : "";
+  const photo = self ? (window.myFriends || []).find(p => p.isMe)?.photo : f?.photo || card.photo;
   const avatar = photo ? `<span class="ff" style="background-image:url('${esc(photo)}')"></span>` : `<span class="ff">${esc(first(name).slice(0, 1))}</span>`;
   const outgoing = (window.myRequestsOut || []).includes(uid);
   let body;
@@ -323,28 +334,29 @@ function renderProfile() {
       : `<div class="pf-empty">${icon("star")}<b>Your places</b>After a hangout, rank the spot. Your list builds itself, best first.</div>`;
   } else if (profileTab === "posts") {
     if (profile.loading) body = `<div class="pf-empty">Loading…</div>`;
-    else if (!list.length) body = mine ? `<div class="pf-empty">${icon("camera")}<b>Share your first memory</b>Photos you share, and group photos from your hangouts, show up here by week.
-        <button class="fe-go" data-new-post>${icon("camera")} New memory</button></div>`
-      : `<div class="pf-empty">${icon(f ? "images" : "lock")}<b>${f ? "No memories yet" : "This account is private"}</b>${f ? "" : `Add ${esc(first(name))} as a friend to see their memories.`}</div>`;
+    else if (!list.length) body = mine ? `<div class="pf-empty">${icon("camera")}<b>Share your first post</b>Photos you share, and group photos from your hangouts, show up here by week.
+        <button class="fe-go" data-new-post>${icon("camera")} New post</button></div>`
+      : (open => `<div class="pf-empty">${icon(open ? "images" : "lock")}<b>${open ? "No posts yet" : "This account is private"}</b>${open ? ""
+          : `Add ${esc(first(name))} as a friend to see their posts.`}</div>`)(f || (preview ? myPublic : card.public));
     else {
       const weeks = [];
       for (const p of list) { const w = weekOf(p.at).getTime(); (weeks.at(-1)?.w === w ? weeks.at(-1).items : (weeks.push({ w, items: [] }), weeks.at(-1).items)).push(p); }
       body = weeks.map(w => `<div class="label">${esc(weekLabel(new Date(w.w)))}</div>
-        <div class="pf-grid">${w.items.map(p => `<button data-view-post="${esc(p.id)}" style="background-image:url('${esc(p.photo)}')" aria-label="${esc(p.caption || p.title || "Memory")}">
+        <div class="pf-grid">${w.items.map(p => `<button data-view-post="${esc(p.id)}" style="background-image:url('${esc(p.photo)}')" aria-label="${esc(p.caption || p.title || "Post")}">
           ${p.photos?.length > 1 ? `<span class="pf-many">${icon("images")}</span>` : ""}</button>`).join("")}</div>`).join("");
     }
   }
   setHtml($("profileCard"), `<button class="x" data-close-profile aria-label="Close">${icon("x")}</button>
   <div class="pf">
     <div class="pf-top">${avatar}<div class="pf-name"><b>${esc(name)}</b><small>${esc(code ? `@${code.toLowerCase()}` : "")}</small></div></div>
-    <div class="pf-stats"><span><b>${list.length}</b>${list.length === 1 ? "memory" : "memories"}</span>${mine ? `<span><b>${friends().length}</b>friends</span>` : ""}
+    <div class="pf-stats"><span><b>${list.length}</b>${list.length === 1 ? "post" : "posts"}</span>${mine ? `<span><b>${friends().length}</b>friends</span>` : ""}
       ${onTime ? `<span><b>${onTime}</b>on time</span>` : ""}</div>
-    <div class="pf-actions">${mine
-      ? `<button class="main" data-new-post>${icon("camera")} New memory</button><button data-edit-profile>${icon("pencil")} Edit profile</button>
-         <button data-invite>${icon("share")} Invite friends</button>`
+    ${preview ? `<div class="pf-preview">${icon("eye")}<span>This is what people who aren't your friends see.</span><button data-preview-done>Done</button></div>` : ""}
+    <div class="pf-actions">${preview ? `<button class="main" disabled>${icon("user-round-plus")} Add friend</button>` : mine
+      ? `<button data-edit-profile>Edit profile</button><button data-invite>Share profile</button>`
       : f ? `<button class="main" data-plan-with="${esc(uid)}">${icon("plus")} Plan something</button><button data-message="${esc(uid)}">${icon("message-circle")} Message</button>`
       : `<button class="main" data-add-friend="${esc(uid)}" ${outgoing ? "disabled" : ""}>${icon("user-round-plus")} ${outgoing ? "Requested" : "Add friend"}</button>`}</div>
-    ${mine ? `<div class="pf-tabs"><button class="${profileTab === "posts" ? "on" : ""}" data-pf-tab="posts">${icon("images")} Memories</button>
+    ${mine ? `<div class="pf-tabs"><button class="${profileTab === "posts" ? "on" : ""}" data-pf-tab="posts">${icon("images")} Posts</button>
       <button class="${profileTab === "places" ? "on" : ""}" data-pf-tab="places">${icon("star")} Places</button>
       <button data-my-calendar>${icon("calendar-days")} Calendar</button></div>` : ""}
     ${body}
@@ -379,7 +391,9 @@ function syncCard() {
   const next = { name: mine.realName || "", photo: mine.photo && mine.photo.length < 300000 ? mine.photo : "", code: mine.code || "" };
   if (JSON.stringify(next) === JSON.stringify(myCard)) return;
   myCard = next;
-  setDoc(doc(db, "publicProfiles", me.uid), next, { merge: true }).catch(() => (myCard = null));
+  const fresh = window.omwNewAccount && !syncCard.opened;  // a new account starts public (basic profile and posts); Settings makes it private
+  if (fresh) syncCard.opened = true;
+  setDoc(doc(db, "publicProfiles", me.uid), fresh ? { ...next, public: true } : next, { merge: true }).catch(() => (myCard = null));
 }
 
 // your posts on your Memories calendar, next to the group photos (memories.js)
@@ -502,12 +516,38 @@ async function pickPhoto() {
   input.click();
 }
 const budget = n => n > 1 ? 210000 : 380000;  // a post stays under the database's 1 MB per document
-function startDraft(photos) { draft = { photos, caption: "", place: null, found: [] }; compose(); }
+function startDraft(photos) { draft = { photos, caption: "", place: null, found: [], near: null, tagged: [], tagOpen: false }; compose(); nearby(); }
+// places to suggest before you type, like Instagram: where you are, then your saved places, friends' spots and your plans, closest first
+async function nearby() {
+  const d = draft, here = window.myFix?.here, list = [];
+  const add = (name, address, ll) => { if (name && ll && !list.some(x => x.name === name)) list.push({ name, address: address || "", lat: ll[0], lng: ll[1] }); };
+  (window.savedPlaces?.() || []).forEach(x => add(x.name, x.address, [x.lat, x.lng]));
+  (window.friendSpots?.() || []).forEach(x => add(x.name, x.address, x.venue));
+  (window.myHangouts || []).forEach(h => h.venue && add(h.venueName, h.address, h.venue));
+  list.sort((a, b) => (kmFromMe([a.lat, a.lng]) ?? 1e9) - (kmFromMe([b.lat, b.lng]) ?? 1e9));
+  if (here) {
+    const at = await fetch(`/place-name?lat=${here[0]}&lng=${here[1]}`).then(r => r.json()).catch(() => ({}));
+    if (at?.name && !list.some(x => x.name === at.name)) list.unshift({ name: at.name, address: at.address || "", lat: here[0], lng: here[1] });
+  }
+  if (draft !== d) return;
+  d.near = list.slice(0, 8);
+  if ($("pcNear")) $("pcNear").innerHTML = nearHtml();
+}
+const nearHtml = () => (draft.near || []).map((p, i) => `<button data-pc-near="${i}">${esc(p.name)}</button>`).join("");
+function tagHtml() {
+  const people = friends(), on = new Set(draft.tagged);
+  const names = draft.tagged.map(u => handle(u)).join(", ");
+  return `<button class="pc-row" data-pc-tag aria-expanded="${draft.tagOpen}">${icon("user-round-plus")}<span>Tag people</span>
+      <small>${esc(names)}</small>${icon("chevron-right")}</button>
+    ${draft.tagOpen ? people.length ? `<div class="pc-people">${people.map(f => `<button class="${on.has(f.user_id) ? "on" : ""}" data-pc-who="${esc(f.user_id)}"
+        aria-pressed="${on.has(f.user_id)}">${face(f.user_id, f.name)}<span>${esc(first(f.name))}</span></button>`).join("")}</div>`
+      : `<small class="pc-note">Add friends to tag them.</small>` : ""}`;
+}
 function drawAlbum() {
   const box = $("postCompose"), last = album.items.find(i => i.id === album.picked.at(-1)) || album.items[0];
   box.hidden = false;
-  box.innerHTML = `<div class="pc-card album" role="dialog" aria-label="New memory">
-    <div class="pc-head"><button class="pc-cancel" data-pc-cancel>Cancel</button><b>New memory</b>
+  box.innerHTML = `<div class="pc-card album" role="dialog" aria-label="New post">
+    <div class="pc-head"><button class="pc-cancel" data-pc-cancel>Cancel</button><b>New post</b>
       <button class="pc-next" data-album-next ${album.picked.length ? "" : "disabled"}>Next</button></div>
     <div class="al-preview"><img src="${last.thumb}" alt=""></div>
     <div class="al-bar"><b>Recents</b><small>${album.picked.length ? `${album.picked.length} selected` : `Pick up to ${MAX_PHOTOS}`}</small></div>
@@ -544,8 +584,8 @@ async function albumNext() {
 function compose(msg = "") {
   const box = $("postCompose");
   box.hidden = false;
-  box.innerHTML = `<div class="pc-card" role="dialog" aria-label="New memory">
-    <div class="pc-head"><button class="pc-cancel" data-pc-cancel>Cancel</button><b>New memory</b>
+  box.innerHTML = `<div class="pc-card" role="dialog" aria-label="New post">
+    <div class="pc-head"><button class="pc-cancel" data-pc-cancel>Cancel</button><b>New post</b>
       <button class="pc-share" data-pc-share>Share</button></div>
     <div class="pc-photo ${draft.photos.length > 1 ? "many" : ""}">${draft.photos.map(ph => `<img src="${ph}" alt="Your photo">`).join("")}</div>
     <textarea class="pc-caption" id="pcCaption" maxlength="500" placeholder="Write a caption…" aria-label="Caption">${esc(draft.caption)}</textarea>
@@ -553,7 +593,9 @@ function compose(msg = "") {
       ? `<div class="pc-picked">${icon("map-pin")}<span><b>${esc(draft.place.name)}</b><small>${esc(draft.place.address || "")}</small></span>
          <button data-pc-unplace aria-label="Remove the place">${icon("x")}</button></div>`
       : `<label class="pc-search">${icon("map-pin")}<input id="pcPlace" placeholder="Add a place" autocomplete="off" aria-label="Add a place"></label>
+         <div class="pc-near" id="pcNear">${nearHtml()}</div>
          <div class="pc-found" id="pcFound"></div>`}</div>
+    <div class="pc-tags" id="pcTags">${tagHtml()}</div>
     <small class="pc-note">Your friends see it in their feed.</small>
     <small class="pc-msg">${esc(msg)}</small>
   </div>`;
@@ -561,6 +603,7 @@ function compose(msg = "") {
   if (input) input.oninput = () => {
     clearTimeout(compose.timer);
     const q = input.value.trim();
+    $("pcNear").hidden = q.length > 0;
     if (q.length < 2) { $("pcFound").innerHTML = ""; return; }
     compose.timer = setTimeout(async () => {
       compose.session ||= crypto.randomUUID?.() || String(Math.random()).slice(2);
@@ -590,7 +633,9 @@ async function share() {
   const p = draft.place;
   try {
     await addDoc(collection(db, "feed"), {
-      kind: "post", by: me.uid, byName: myName(), members: [me.uid], names: { [me.uid]: myName() },
+      kind: "post", by: me.uid, byName: myName(), members: [me.uid],
+      names: Object.fromEntries([[me.uid, myName()], ...draft.tagged.map(u => [u, friendOf(u)?.name || ""])]),
+      handles: Object.fromEntries([me.uid, ...draft.tagged].map(u => [u, handle(u)]).filter(([, h]) => h)), tagged: draft.tagged,
       // one photo: it's the post; several: they're in photos, and photo is a small cover for grids
       photo: draft.photos.length > 1 ? await toJpeg(draft.photos[0], 60000) : draft.photos[0],
       ...(draft.photos.length > 1 ? { photos: draft.photos } : {}),
@@ -664,6 +709,7 @@ document.addEventListener("touchend", () => {
 const ORDER = ["feed", "map", "plans", "me"];
 let sw = null;
 const scrollsSideways = el => el.closest?.(".ff-row, .fp-photo.many, .map-chips, .pf-tabs, .types, .when-grid, .week, .friends, .rank-vs, .al-grid, input, textarea, .leaflet-marker-icon");
+const screenOf = t => t === "feed" ? $("feed") : t === "map" ? $("map") : t === "plans" ? $("plans").querySelector(".drawer-card") : t === "me" ? $("profileCard") : null;
 document.addEventListener("touchstart", e => {
   sw = null;
   if (!document.documentElement.classList.contains("has-tabs") || e.touches.length > 1 || !ORDER.includes(tab)) return;
@@ -672,19 +718,47 @@ document.addEventListener("touchstart", e => {
     : t.closest?.(".drawer.instant:not([hidden])");  // Plans and your profile, opened from their tab
   if (!onScreen || scrollsSideways(t) || $("postCompose") && !$("postCompose").hidden) return;
   if (tab !== "map" && x < 28 && !t.closest?.(".drawer.instant")) return;
-  sw = { x, y: e.touches[0].clientY, at: Date.now() };
+  sw = { x, y: e.touches[0].clientY, at: Date.now(), dx: 0, on: false, el: screenOf(tab) };
 }, { passive: true });
-document.addEventListener("touchend", e => {
+// the screen follows your finger; let go and it carries on to the next tab, or springs back if you didn't mean it
+document.addEventListener("touchmove", e => {
+  if (!sw || !sw.el) return;
+  const dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y;
+  if (!sw.on) {
+    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { sw = null; return; }
+    if (Math.abs(dx) < 10) return;
+    sw.on = true; sw.x += dx > 0 ? 10 : -10; sw.el.style.transition = "none";
+  }
+  const d = e.touches[0].clientX - sw.x, next = ORDER[ORDER.indexOf(tab) + (d < 0 ? 1 : -1)];
+  sw.vx = (d - sw.dx) / Math.max(1, Date.now() - (sw.t || sw.at)); sw.t = Date.now(); sw.dx = d;
+  sw.el.style.transform = `translateX(${next ? d : d / 3}px)`;  // nothing that way: it gives a little, like the end of a list
+}, { passive: true });
+const settle = (el, to, ms) => new Promise(ok => {
+  el.style.transition = `transform ${ms}ms cubic-bezier(.25, .8, .25, 1)`; el.style.transform = to;
+  setTimeout(() => { el.style.transition = ""; ok(); }, ms);
+});
+document.addEventListener("touchend", async () => {
   if (!sw) return;
-  const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y, quick = Date.now() - sw.at < 600;
+  const { el, dx, on, vx = 0 } = sw;
   sw = null;
-  if (!quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+  if (!on || !el) return;
   const next = ORDER[ORDER.indexOf(tab) + (dx < 0 ? 1 : -1)];
-  if (!next) return;
+  const flick = Math.abs(vx) > .45 && Math.sign(vx) === Math.sign(dx);
+  if (!next || !(Math.abs(dx) > innerWidth * .3 || flick && Math.abs(dx) > 30)) { await settle(el, "", 260); el.style.transform = ""; return; }
+  const ms = Math.round(Math.max(120, Math.min(220, (innerWidth - Math.abs(dx)) / Math.max(Math.abs(vx), 1.6))));
+  await settle(el, `translateX(${dx < 0 ? -innerWidth : innerWidth}px)`, ms);
   tick(); go(next);
-  const el = next === "feed" ? $("feed") : next === "plans" ? $("plans").querySelector(".drawer-card") : next === "me" ? $("profileCard") : null;
-  if (el) { el.classList.remove("tab-from-right", "tab-from-left"); void el.offsetWidth; el.classList.add(dx < 0 ? "tab-from-right" : "tab-from-left"); }
+  el.style.transform = "";
+  const into = screenOf(next);
+  if (into) {
+    into.style.transition = "none"; into.style.transform = `translateX(${dx < 0 ? innerWidth : -innerWidth}px)`;
+    void into.offsetWidth;
+    await settle(into, "", 300);
+    into.style.transform = "";
+    if (next === "map") window.invalidateMap?.();
+  }
 }, { passive: true });
+document.addEventListener("touchcancel", () => { if (sw?.on && sw.el) settle(sw.el, "", 200); sw = null; }, { passive: true });
 
 const native = !!window.Capacitor?.isNativePlatform?.();
 function setUpTabs() {
@@ -700,10 +774,10 @@ matchMedia("(max-width: 860px)").addEventListener("change", setUpTabs);
 document.addEventListener("click", async e => {
   const t = e.target.closest(`[data-tab], [data-tab-go], [data-free-menu], [data-free], [data-plan-with], [data-plan-at], [data-open-plan],
     [data-like], [data-rank], [data-rank-feel], [data-rank-pick], [data-rank-same], [data-post-menu], [data-report], [data-block], [data-hide-post], [data-unshare-post], [data-comments],
-    [data-del-comment], [data-report-comment], [data-new-post], [data-pc-cancel], [data-pc-share], [data-pc-place], [data-pc-unplace], #feedChats,
+    [data-del-comment], [data-report-comment], [data-new-post], [data-pc-cancel], [data-pc-share], [data-pc-place], [data-pc-unplace], [data-pc-near], [data-pc-tag], [data-pc-who], [data-post-tags], #feedChats,
     [data-profile], [data-open-board], [data-close-profile], [data-close-post], [data-view-post], [data-edit-profile], [data-message],
     [data-add-friend], [data-my-calendar], [data-invite], [data-add-friends], [data-sheet-cancel], [data-pf-tab], [data-privacy-yes],
-    [data-album], [data-album-next]`);
+    [data-album], [data-album-next], [data-preview-done]`);
   if (e.target.id === "actionSheet") return closeSheet();  // tapped outside the sheet
   if (!t || !t.closest("#feed, #tabs, #postCompose, #profile, #postView, #memories, #actionSheet")) return;
   const ds = t.dataset;
@@ -717,6 +791,7 @@ document.addEventListener("click", async e => {
   if (t.hasAttribute("data-close-profile")) { profileStop?.(); profileStop = null; profile = null; $("profile").hidden = true; return; }
   if (t.hasAttribute("data-close-post")) { viewing = null; $("postView").hidden = true; return; }
   if (ds.viewPost) return viewPost(ds.viewPost);
+  if (t.hasAttribute("data-preview-done")) return openProfile(me.uid);
   if (t.hasAttribute("data-edit-profile")) return $("userPic").click();
   if (t.hasAttribute("data-add-friends")) { $("userPic").click(); return setTimeout(() => { $("addInput").scrollIntoView({ block: "center" }); $("addInput").focus(); }, 300); }
   if (t.hasAttribute("data-invite")) return invite();
@@ -748,6 +823,17 @@ document.addEventListener("click", async e => {
     if (p?.lat == null) return compose("Couldn't find that place. Try another.");
     draft.caption = $("pcCaption").value; draft.place = { name: p.name, address: p.address || "", lat: p.lat, lng: p.lng };
     return compose();
+  }
+  if (ds.postTags) {  // "and 2 others": everyone tagged
+    const p = getPost(ds.postTags); if (!p) return;
+    t.closest(".fp-with").innerHTML = `with ${(p.tagged || []).filter(u => u !== p.by).map(u => `<b data-profile="${esc(u)}">${esc(handle(u, p))}</b>`).join(", ")}`;
+    return;
+  }
+  if (ds.pcNear != null) { draft.caption = $("pcCaption").value; draft.place = draft.near[+ds.pcNear]; return compose(); }
+  if (t.hasAttribute("data-pc-tag")) { draft.tagOpen = !draft.tagOpen; $("pcTags").innerHTML = tagHtml(); return; }
+  if (ds.pcWho) {
+    draft.tagged = draft.tagged.includes(ds.pcWho) ? draft.tagged.filter(u => u !== ds.pcWho) : [...draft.tagged, ds.pcWho].slice(0, 20);
+    $("pcTags").innerHTML = tagHtml(); return;
   }
   if (t.hasAttribute("data-pc-unplace")) { draft.caption = $("pcCaption").value; draft.place = null; return compose(); }
   if (t.hasAttribute("data-free-menu")) { freeMenu = !freeMenu; return render(); }
@@ -816,8 +902,8 @@ document.addEventListener("change", e => {
   e.target.checked = !myPublic;  // nothing changes until they confirm
   $("actionSheet").innerHTML = `<div class="as-card" role="dialog" aria-label="Account privacy">
     <div class="rank-head"><b>${toPublic ? "Switch to a public account?" : "Switch to a private account?"}</b>
-      <small>${toPublic ? "Anyone on omw! will be able to see your memories and comment on them. Group photos from hangouts stay with friends."
-                        : "Only your friends will see your memories. Comments from people who aren't your friends stay on old memories."}</small></div>
+      <small>${toPublic ? "Anyone on omw! will be able to see your posts and comment on them. Group photos from hangouts stay with friends."
+                        : "Only your friends will see your posts. Comments from people who aren't your friends stay on old posts."}</small></div>
     <div class="as-group"><button data-privacy-yes="${toPublic ? "public" : "private"}">${toPublic ? "Switch to public" : "Switch to private"}</button></div>
     <button class="as-cancel" data-sheet-cancel>Cancel</button></div>`;
   $("actionSheet").hidden = false;
@@ -825,7 +911,7 @@ document.addEventListener("change", e => {
 const privacyUi = () => {
   if (!$("privateToggle")) return;
   $("privateToggle").checked = !myPublic;
-  $("privacyNote").textContent = myPublic ? "Anyone on omw! can see your memories." : "Only your friends see your memories.";
+  $("privacyNote").textContent = myPublic ? "Anyone on omw! can see your posts." : "Only your friends see your posts.";
 };
 document.addEventListener("submit", e => {
   const f = e.target.closest("[data-comment-form]");

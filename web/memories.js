@@ -158,8 +158,8 @@ function showComposer(msg = "") {
     <div class="mem-sub">${esc(plainTitle(h.title))} · ${esc(h.venueName || "")}</div>
     <div class="mem-photo"><img src="${photo}" alt="Group photo"></div>
     <div class="mem-who">${h.attendees.map(u => `<span>${esc(u === me.uid ? "You" : h.names?.[u] || "Friend")}</span>`).join("")}</div>
-    ${mine ? "" : `<label class="mem-share"><input type="checkbox" id="memShare" checked> <span><b>Share with friends</b>
-      <small>Your friends and theirs see it in their feed</small></span></label>`}
+    ${mine ? "" : `<label class="mem-share"><span><b>Share with friends</b>
+      <small>Your friends and theirs see it in their feed</small></span><input type="checkbox" class="switch" id="memShare" checked></label>`}
     <div class="mem-actions">
       <button class="mini" data-snap-again="camera">${icon("camera")} Retake</button>
       <button class="mini" data-snap-again="library">${icon("image")} Pick another</button>
