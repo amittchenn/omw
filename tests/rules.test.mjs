@@ -48,6 +48,9 @@ test("profiles: yours, and your friends' (not strangers')", async () => {
   await assertFails(getDoc(doc(db("eve"), "users", "alice")));
   await assertFails(setDoc(doc(db("eve"), "users", "alice"), { name: "hacked" }, { merge: true }));
   await assertFails(setDoc(doc(db("alice"), "users", "alice"), { photo: "javascript:alert(1)" }, { merge: true }));
+  // friend lists: yours and your friends', not a stranger's
+  await assertSucceeds(getDocs(collection(db("bob"), "users/alice/friends")));
+  await assertFails(getDocs(collection(db("eve"), "users/alice/friends")));
 });
 
 test("friend requests: only an accepted request makes friends", async () => {

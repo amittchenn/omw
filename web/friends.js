@@ -481,9 +481,9 @@ function renderFriends() {
         if (removing === id) return `<div class="person asking">${pic(f)}<div class="who"><b>Remove ${esc(f.name)}?</b>
           <small>You'll both need to add each other again.</small></div>
           <button class="mini" data-keep="1">Keep</button><button class="mini danger" data-remove-yes="${esc(id)}">Remove</button></div>`;
-        return `<div class="person">${pic(f)}<div class="who"><b>${esc(f.name)}</b>
+        return `<div class="person tappable" data-open-profile="${esc(id)}">${pic(f)}<div class="who"><b>${esc(f.name)}</b>
           <small>${icon(MODE_ICON[f.travelMode || "driving"])} ${MODES[f.travelMode || "driving"]} · ${f.home ? "home set" : "no home yet"}</small></div>
-          <button class="mini" data-remove="${esc(id)}" title="Remove friend">${icon("x")}</button></div>`;
+          <button class="mini" data-remove="${esc(id)}">Remove</button></div>`;
       }).join("")
     : `<div class="nobody">No friends yet. Share your ID or add someone's above.</div>`;
 }
@@ -965,7 +965,8 @@ async function accept(from) {
   say("You're now friends!", true);
 }
 
-async function removeFriend(id) {  // only after they tapped Remove on the "Remove them?" row
+window.removeFriend = id => removeFriend(id).then(renderFriends);  // a friend's profile: Friends -> Remove
+async function removeFriend(id) {  // only after they said yes to "Remove them?"
   removing = "";
   const batch = writeBatch(db);
   batch.delete(doc(db, "users", me.uid, "friends", id));
@@ -1292,6 +1293,8 @@ if (configured) {
   });
   $("friendList").onclick = run(async e => {
     const b = e.target.closest("button");
+    const row = !b && e.target.closest("[data-open-profile]");
+    if (row) { $("drawerClose")?.click(); return window.openProfile?.(row.dataset.openProfile); }  // their profile, like Instagram
     if (!b) return;
     if (b.dataset.remove) { removing = b.dataset.remove; renderFriends(); }  // ask first
     if (b.dataset.keep) { removing = ""; renderFriends(); }

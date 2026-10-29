@@ -47,7 +47,7 @@ service cloud.firestore {
 
       // friends: both sides are written when a request is accepted, which needs a request from them to you
       match /friends/{fid} {
-        allow read: if signedIn() && me() == uid;
+        allow read: if signedIn() && (me() == uid || isFriend(uid));  // your list, and your friends' lists
         allow create: if signedIn() && (
           (me() == uid && exists(/databases/$(database)/documents/requests/$(fid + '_' + uid))) ||
           (me() == fid && exists(/databases/$(database)/documents/requests/$(uid + '_' + fid))));

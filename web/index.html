@@ -33,8 +33,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;800&display=swap">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="/static/glmap.js"></script>
   <script src="/static/icons.js"></script>
   <style>
     /* colors: light by default, dark when the phone or computer is in dark mode */
@@ -55,12 +54,7 @@
         --warn-bg: #3a2610; --warn-fg: #ffb366; --blue-bg: #16233a; --link: #7db3ff; --out-fg: #ffd400; --omw-fg: #6cc4ff;
         --shadow: 0 12px 32px rgba(0, 0, 0, .5); --shadow-sm: 0 2px 12px rgba(0, 0, 0, .4);
       }
-      html.osm-tiles .leaflet-tile-pane { filter: brightness(.68) contrast(1.1) saturate(.8); }
-      .leaflet-bar a, .leaflet-bar a:hover { background: var(--card); color: var(--text); border-color: var(--line); }
-      .leaflet-container .leaflet-control-attribution { background: rgba(28, 28, 34, .8); color: var(--muted); }
-      .leaflet-container .leaflet-control-attribution a { color: var(--link); }
       html .apple-btn, html .apple-btn:hover { background: #fff; border-color: #fff; color: #000; }  /* Apple's rule: white in dark mode */
-      .leaflet-container { background: var(--map-bg); }
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; overscroll-behavior: none; }
@@ -69,16 +63,26 @@
     button, input, select { font: inherit; color: inherit; }
 
     /* ---------- full-screen map ---------- */
-    #map { position: fixed; inset: 0; z-index: 0; }
-    .leaflet-tile-pane { filter: saturate(1.35) brightness(1.04); }  /* brighter, more playful map colors */
-    .leaflet-control-attribution { font-size: 10px; border-radius: 8px 0 0 0; }
-    .leaflet-control-zoom { border: 0 !important; box-shadow: var(--shadow-sm) !important; border-radius: 16px !important; overflow: hidden; }
+    #map { position: fixed; inset: 0; z-index: 0; background: var(--map-bg); }
+    /* the map's pins, buttons and credits (glmap.js) */
+    .gl-marker { position: absolute; top: 0; left: 0; }
+    .gl-corner { position: absolute; z-index: 2; display: grid; gap: 10px; padding: 10px; pointer-events: none; }
+    .gl-corner > * { pointer-events: auto; }
+    .gl-corner.top-left { top: 0; left: 0; } .gl-corner.top-right { top: 0; right: 0; }
+    .gl-corner.bottom-left { bottom: 0; left: 0; } .gl-corner.bottom-right { bottom: 0; right: 0; }
+    .gl-tip { position: absolute; transform: translate(-50%, -100%); padding: 4px 10px; border-radius: 10px; background: var(--card); color: var(--text);
+              font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-sm); pointer-events: none; opacity: 0; transition: opacity .15s; }
+    .gl-tip.bottom { transform: translate(-50%, 0); }
+    .gl-tip.permanent, .gl-marker:hover .gl-tip { opacity: 1; }
+    .mapboxgl-ctrl-attrib.mapboxgl-compact, .maplibregl-ctrl-attrib.maplibregl-compact { background: var(--glass); color: var(--muted); }
+    .mapboxgl-ctrl-attrib a, .maplibregl-ctrl-attrib a { color: var(--muted); }
+    html.has-tabs .mapboxgl-ctrl-bottom-left, html.has-tabs .maplibregl-ctrl-bottom-left,
+    html.has-tabs .gl-corner.bottom-left, html.has-tabs .gl-corner.bottom-right { bottom: calc(55px + env(safe-area-inset-bottom)); }
     .locate { width: 40px; height: 40px; border: 0; border-radius: 14px; background: var(--card); box-shadow: var(--shadow-sm);
               font-size: 22px; font-weight: 600; color: #1e88ff; cursor: pointer; }
     .me-dot { width: 22px; height: 22px; border-radius: 50%; background: #1e88ff; border: 4px solid var(--card);
               box-shadow: 0 0 0 0 rgba(30, 136, 255, .6), 0 2px 6px rgba(0,0,0,.3); animation: me-pulse 2s infinite; }
     @keyframes me-pulse { 70% { box-shadow: 0 0 0 14px rgba(30, 136, 255, 0), 0 2px 6px rgba(0,0,0,.3); } 100% { box-shadow: 0 0 0 0 rgba(30, 136, 255, 0), 0 2px 6px rgba(0,0,0,.3); } }
-    .leaflet-control-zoom a { width: 40px !important; height: 40px !important; line-height: 40px !important; font-weight: 600; border: 0 !important; }
 
     /* ---------- floating top bar ---------- */
     .topbar { position: fixed; top: calc(16px + env(safe-area-inset-top)); left: 16px; right: 16px; z-index: 900; display: flex; align-items: center; gap: 10px;
@@ -500,7 +504,9 @@
     .wx-hours b { font-size: 15px; font-weight: 600; color: var(--text); }
     .wx-hours small { min-height: 14px; font-size: 11px; color: var(--link); }
     .wx-hours div.on, .wx-hours div.on b { color: var(--ink); font-weight: 800; }
-    .wx-hours div.on > span { padding: 1px 7px; border-radius: 999px; background: var(--ink); color: var(--on-ink); }
+    .wx-hours div > span { padding: 2px 8px; border-radius: 999px; line-height: 16px; }  /* every hour the same size, so the row lines up */
+    .wx-hours div.on > span { background: var(--ink); color: var(--on-ink); }
+    .wx-hours i, .wx-hours b { line-height: 22px; height: 22px; display: grid; place-items: center; }
     .wx-note { margin-top: 12px; font-size: 13px; font-weight: 600; color: var(--link); }
 
     .types { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: none; }
@@ -680,10 +686,7 @@
     @keyframes glow { 50% { transform: scale(1.25); opacity: .6; } }
     .venue-pin .bubble { position: absolute; inset: 0; border-radius: 50%; background: var(--sun); border: 5px solid var(--card);
                          box-shadow: var(--shadow); display: grid; place-items: center; font-size: 32px; color: #111114; }
-    .place-label { font-family: inherit; font-weight: 600; font-size: 14px; border: 0; border-radius: 999px; padding: 5px 12px;
-                   box-shadow: var(--shadow-sm); }
-    .place-label::before { display: none; }
-    .leaflet-tooltip { font-family: inherit; font-weight: 500; border-radius: 12px; }
+    .gl-tip.place-label { font-size: 14px; border-radius: 999px; padding: 5px 12px; }
 
     /* ---------- toasts + simulation bar ---------- */
     .toasts { position: fixed; top: calc(80px + env(safe-area-inset-top)); right: 16px; z-index: 950; display: flex; flex-direction: column; gap: 8px;
@@ -1317,6 +1320,11 @@
     .as-group { display: grid; border-radius: 16px; overflow: hidden; background: var(--card); }
     .as-group button { height: 56px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); font: inherit; font-size: 17px; font-weight: 600; cursor: pointer; }
     .as-group button:first-child { border-top: 0; } .as-group button.danger { color: var(--red); }
+    .as-title { display: grid; gap: 4px; padding: 16px 20px; text-align: center; font-size: 13px; color: var(--muted); }
+    .as-title b { font-size: 15px; color: var(--ink); }
+    .as-title + button { border-top: 1px solid var(--line) !important; }
+    .person.tappable { cursor: pointer; }
+    .pf-actions .ic { width: 16px; height: 16px; }
     .as-cancel { height: 56px; border: 0; border-radius: 16px; background: var(--card); color: var(--ink); font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
     @media (prefers-reduced-motion: reduce) { html.has-tabs .drawer .drawer-card, .post-compose, .action-sheet, .as-card { animation: none !important; } }
     button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -1341,7 +1349,12 @@
     html.has-tabs .drawer.instant .x { display: none; }
     html.has-tabs .drawer .pf-top, html.has-tabs .drawer .board-title { margin-right: 0; }
     /* switching tabs with a swipe: the new screen slides in from that side */
-    html.has-tabs #feed, html.has-tabs .drawer.instant .drawer-card { touch-action: pan-y; }  /* sideways drags switch tabs (feed.js) */
+    html.has-tabs #feed, html.has-tabs .drawer.instant .drawer-card { touch-action: pan-y; }
+    .swipe-cover { position: fixed; inset: 0; background: var(--page); pointer-events: none; }
+    /* no scroll bars in the app (like Instagram); and the status bar keeps a solid strip so lists don't scroll under the clock */
+    html.has-tabs * { scrollbar-width: none; } html.has-tabs *::-webkit-scrollbar { display: none; }
+    html.has-tabs:not([data-tab="map"]) body::after { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top);
+      background: var(--page); z-index: 1540; pointer-events: none; }  /* sideways drags switch tabs (feed.js) */
     html.has-tabs #profile { z-index: 1500; } html.has-tabs #board { z-index: 1510; }
     html.has-tabs #drawer, html.has-tabs #memories { z-index: 1520; } html.has-tabs #postView { z-index: 1530; }
     html.has-tabs #plans .board-title, html.has-tabs #memories .board-title { display: block; margin-right: 50px; }
@@ -1361,18 +1374,12 @@
     .pf-name { display: grid; gap: 2px; min-width: 0; } .pf-name b { font-size: 22px; color: var(--ink); } .pf-name small { color: var(--muted); font-size: 14px; }
     .pf-stats { display: flex; gap: 22px; } .pf-stats span { display: grid; font-size: 13px; color: var(--muted); } .pf-stats b { font-size: 18px; color: var(--ink); }
     .pf-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .pf-actions button { flex: 1; min-width: 120px; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 12px;
+    .pf-actions button { flex: 1; min-width: 0; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 12px;
                          background: var(--soft); color: var(--text); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; }
     .pf-actions .main { background: var(--ink); color: var(--on-ink); } .pf-actions .ic { width: 17px; height: 17px; }
     .pf-private { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--soft); cursor: pointer; }
     .pf-private span { flex: 1; display: grid; } .pf-private b { color: var(--ink); } .pf-private small { color: var(--muted); font-size: 13px; }
     .pf-private + .pf-private { margin-top: 8px; }
-    .pf-row { width: 100%; display: flex; align-items: center; gap: 12px; height: 52px; margin-top: 8px; padding: 0 14px; border: 0; border-radius: 16px;
-              background: var(--soft); color: var(--text); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; text-align: left; }
-    .pf-row span { flex: 1; } .pf-row .ic { width: 18px; height: 18px; } .pf-row .ic:last-child { color: var(--muted); }
-    .pf-preview { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--blue-bg); color: var(--link); font-size: 14px; font-weight: 600; }
-    .pf-preview span { flex: 1; } .pf-preview .ic { width: 18px; height: 18px; flex: none; }
-    .pf-preview button { border: 0; background: none; color: var(--link); font: inherit; font-weight: 800; cursor: pointer; padding: 4px 6px; }
     .home-search + .wide + .pf-private { margin-top: 12px; }
     /* iPhone Settings switch */
     input.switch { appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 51px; height: 31px; margin: 0; border-radius: 999px;
@@ -1383,6 +1390,18 @@
     input.switch:checked::after { transform: translateX(20px); }
     input.switch:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
     .pf-tabs { display: flex; border-bottom: 1px solid var(--line); }
+    .pf-stat { display: grid; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+    .pf-stat b { font-size: 18px; color: var(--ink); }
+    .pf-list-head { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+    .pf-list-head b { text-align: center; font-size: 16px; color: var(--ink); }
+    .pf-list-head button { width: 40px; height: 40px; border: 0; background: none; color: var(--ink); display: grid; place-items: center; cursor: pointer; }
+    .pf-list-head .ic { width: 22px; height: 22px; }
+    .pf-people { display: grid; }
+    .pf-person { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+    .pf-person .ff { width: 48px; height: 48px; font-size: 18px; flex: none; }
+    .pf-person > span:not(.ff) { flex: 1; min-width: 0; display: grid; } .pf-person b { color: var(--ink); }
+    .pf-person small { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pf-person > .ic { width: 18px; height: 18px; color: var(--muted); }
     .pf-tabs button { flex: 1; height: 44px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-bottom: 2px solid transparent;
                       background: none; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
     .pf-tabs button.on { color: var(--ink); border-bottom-color: var(--ink); } .pf-tabs .ic { width: 18px; height: 18px; }
@@ -1439,17 +1458,7 @@
     .me-board span { flex: 1; display: grid; } .me-board b { color: var(--ink); } .me-board small { color: var(--muted); font-size: 13px; }
     .me-board .ic { width: 22px; height: 22px; color: var(--ink); }
     html.has-tabs .sheet { bottom: calc(55px + env(safe-area-inset-bottom)); padding-bottom: 24px; }
-    html.has-tabs .leaflet-bottom { bottom: calc(55px + env(safe-area-inset-bottom)); }
-    /* the map's small print and the locate button stay out of the way */
-    /* the map's credits fold into a small ⓘ (like Apple Maps' "Legal"); tap it to read them */
-    .leaflet-container .leaflet-control-attribution { margin: 0 0 6px 8px !important; padding: 0; border-radius: 11px; font-size: 10px;
-      background: transparent !important; box-shadow: none; }
-    .attr-i { width: 22px; height: 22px; border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; cursor: pointer;
-      background: var(--glass); color: var(--muted); font: 700 12px/1 Georgia, serif; font-style: italic; }
-    .attr-text { display: none; }
-    .leaflet-control-attribution.open { display: flex; align-items: center; gap: 6px; padding: 0 8px 0 0; background: var(--card) !important; }
-    .leaflet-control-attribution.open .attr-text { display: inline; color: var(--muted); }
-    html.has-tabs .leaflet-top.leaflet-right { top: calc(112px + env(safe-area-inset-top)); }
+    html.has-tabs .gl-corner.top-right { top: calc(112px + env(safe-area-inset-top)); }
     html.has-tabs .locate { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); }
     .locate .ic { width: 20px; height: 20px; }
     html[data-tab="map"] .me-dot { display: none; }  /* on the Map tab you're your avatar (maptab.js) */
@@ -1514,14 +1523,12 @@
       .search input { height: 44px; padding: 0 40px 0 42px; font-size: 16px; }
       .search .icon { left: 15px; }
       .count { top: -3px; right: -3px; min-width: 20px; height: 20px; font-size: 11px; }
-      .leaflet-control-zoom { display: none; }  /* pinch to zoom */
       .locate { width: 44px; height: 44px; border-radius: 50%; }
       .search-area { left: 50%; top: calc(64px + env(safe-area-inset-top)); }
       .dir { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 62vh; border-radius: 26px 26px 0 0; }
       .gmap { height: 190px; }
       .suggest { position: fixed; left: 12px; right: 12px; top: calc(76px + env(safe-area-inset-top)); z-index: 1200; }
       .toasts { top: calc(76px + env(safe-area-inset-top)); }
-      .leaflet-bottom { bottom: 140px; }
       .drawer { padding: 0; align-items: flex-end; }
       .drawer-card { width: 100%; max-height: 92vh; border-radius: 30px 30px 0 0; animation-name: rise; }
       @keyframes rise { from { transform: translateY(40px); opacity: 0; } }
@@ -1874,7 +1881,6 @@
       <div class="label">Account privacy</div>
       <label class="pf-private"><span><b>Private account</b><small id="privacyNote">Only your friends see your posts.</small></span>
         <input type="checkbox" class="switch" id="privateToggle" checked></label>
-      <button class="pf-row" id="previewProfile"><i data-ic="eye"></i><span>See what others see</span><i data-ic="chevron-right"></i></button>
     </div>
 
     <button class="wide sign-out" id="signOut">Sign out</button>
@@ -1916,44 +1922,17 @@ document.querySelectorAll("[data-ic]").forEach(el => {
 });
 
 // ---------- map ----------
-const map = L.map("map", { zoomControl: false }).setView([37.7849, -122.4094], 13);
-L.control.zoom({ position: "bottomright" }).addTo(map);
+const map = L.map("map").setView([37.7849, -122.4094], 13);
 const layer = L.layerGroup().addTo(map);
 
-// a colorful map like Snap Map: Mapbox Outdoors by day, Navigation Night in dark mode (it follows the phone's setting);
-// free OpenStreetMap tiles if there's no Mapbox token
-let GKEY = "", tiles = null;  // GKEY: Google Maps key for the map inside directions (from /config)
+// the map is Mapbox GL like Snap Map (glmap.js): Mapbox's Standard style, with its night lighting in dark mode
+// (it follows the phone's setting); free OpenStreetMap tiles if there's no Mapbox token
+let GKEY = "";  // Google Maps key for the map inside directions (from /config)
 const darkMode = matchMedia("(prefers-color-scheme: dark)");
-fetch(`${API}/config`).then(r => r.json()).then(({ mapbox_token, google_maps_key }) => {
+fetch(`${API}/config`).then(r => r.json()).catch(() => ({})).then(({ mapbox_token, google_maps_key }) => {
   GKEY = google_maps_key || "";
-  const draw = () => {
-    tiles?.remove();
-    document.documentElement.classList.toggle("osm-tiles", !mapbox_token);
-    tiles = (mapbox_token
-      ? L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/${darkMode.matches ? "navigation-night-v1" : "outdoors-v12"}/tiles/{z}/{x}/{y}?access_token=${mapbox_token}`,
-          { tileSize: 512, zoomOffset: -1, maxZoom: 19, attribution: "&copy; Mapbox &copy; OpenStreetMap" })
-      : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" })
-    ).addTo(map);
-  };
-  draw();
-  darkMode.addEventListener("change", draw);
+  map.start(mapbox_token || "", darkMode).catch(e => console.warn("map:", e.message));
 });
-map.attributionControl.setPrefix(false).setPosition("bottomleft");
-{ // Mapbox and OpenStreetMap need their credit on the map; it sits behind a small ⓘ until tapped
-  const box = map.attributionControl.getContainer();
-  const fold = () => {
-    if (box.querySelector(".attr-i")) return;
-    const text = document.createElement("span"); text.className = "attr-text";
-    while (box.firstChild) text.appendChild(box.firstChild);
-    const b = document.createElement("button"); b.type = "button"; b.className = "attr-i"; b.textContent = "i";
-    b.setAttribute("aria-label", "Map credits");
-    box.append(b, text);
-  };
-  new MutationObserver(() => { if (!box.querySelector(".attr-i")) fold(); }).observe(box, { childList: true });
-  fold();
-  L.DomEvent.disableClickPropagation(box);
-  box.addEventListener("click", e => { if (!e.target.closest("a")) box.classList.toggle("open"); });
-}
 // you: a live blue dot that follows you, like Google Maps. ◎ (bottom right) jumps back to it.
 let myDot = null, myRing = null, myLocation = null, centeredOnMe = false;
 navigator.geolocation?.watchPosition(p => {

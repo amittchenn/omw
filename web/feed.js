@@ -16,7 +16,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, doc, query, where, orderBy, limit, onSnapshot, setDoc, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove,
-         getDocs, writeBatch, serverTimestamp }
+         getDoc, getDocs, writeBatch, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const POSTS = 30;            // newest posts loaded (each carries its photo)
@@ -276,6 +276,17 @@ function postMenu(p) {
   $("actionSheet").hidden = false;
 }
 const closeSheet = () => { $("actionSheet").hidden = true; };
+// Friends ▾ on a friend's profile, like Instagram's Following ▾ (removing asks first)
+function friendMenu(uid, sure = false) {
+  const name = first(friendOf(uid)?.name);
+  $("actionSheet").innerHTML = `<div class="as-card" role="menu">
+    ${sure ? `<div class="as-group"><div class="as-title"><b>Remove ${esc(name)}?</b>You'll both need to add each other again to plan together and see friends-only posts.</div>
+        <button class="danger" data-unfriend-yes="${esc(uid)}">Remove</button></div>`
+      : `<div class="as-group"><button data-message="${esc(uid)}">Message</button><button data-plan-with="${esc(uid)}">Plan something</button>
+        <button class="danger" data-unfriend="${esc(uid)}">Remove friend</button></div>`}
+    <button class="as-cancel" data-sheet-cancel>Cancel</button></div>`;
+  $("actionSheet").hidden = false;
+}
 
 // ---------- profiles ----------
 const weekOf = iso => { const d = new Date(iso); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };  // Monday
@@ -286,13 +297,13 @@ const weekLabel = d => {
   const f = x => x.toLocaleDateString([], { month: "short", day: "numeric" });
   return `${f(d)} – ${f(end)}`;
 };
-function openProfile(uid, preview = false) {
+function openProfile(uid) {
   profileStop?.(); profilePosts = {}; profileTab = "posts";
-  profile = { uid, loading: true, preview };  // preview: your own profile as people who aren't your friends see it
+  profile = { uid, loading: true, friendIds: null };
   $("profile").hidden = false; $("profileCard").scrollTop = 0;
   renderProfile();
   // what you're allowed to see: everything with you in it (yourself, friends), or only public posts (everyone else)
-  const friend = (uid === me.uid && !preview) || !!friendOf(uid);
+  const friend = uid === me.uid || !!friendOf(uid);
   const q = friend ? query(collection(db, "feed"), where("by", "==", uid), where("viewers", "array-contains", me.uid), limit(90))
                    : query(collection(db, "feed"), where("by", "==", uid), where("public", "==", true), limit(90));
   profileStop = onSnapshot(q, s => {
@@ -309,25 +320,45 @@ function openProfile(uid, preview = false) {
     }
     profile.loading = false; renderProfile();
   });
+  // their friend list: yours, or a friend's (people who aren't friends only see the count of posts)
+  if (friend && uid !== me.uid) getDocs(collection(db, "users", uid, "friends")).then(s => {
+    if (profile?.uid === uid) { profile.friendIds = s.docs.map(d => d.id); renderProfile(); }
+  }).catch(() => {});
   if (!cards[uid] && !friend) onSnapshot(doc(db, "publicProfiles", uid), d => { cards[uid] = d.data() || {}; renderProfile(); }, () => {});
 }
 window.openProfile = openProfile;
-document.addEventListener("click", e => {  // Settings -> See what others see
-  if (!e.target.closest?.("#previewProfile")) return;
-  tick(); $("drawerClose")?.click(); go("me"); openProfile(me.uid, true);
-});
+// someone's public card (name, picture, username), for a friend's friends you don't know
+function loadCard(id) {
+  if (cards[id] || loadCard.busy?.has(id)) return;
+  (loadCard.busy ||= new Set()).add(id);
+  getDoc(doc(db, "publicProfiles", id)).then(d => { cards[id] = d.data() || {}; if (profileTab === "friends") renderProfile(); }).catch(() => (cards[id] = {}));
+}
+
 function renderProfile() {
-  const { uid, preview } = profile, self = uid === me.uid, mine = self && !preview, f = friendOf(uid), card = cards[uid] || {};
-  const name = self ? myName() : f?.name || card.name || Object.values(profilePosts)[0]?.byName || "omw! user";
-  const code = self ? (window.myFriends || []).find(p => p.isMe)?.code : f?.code || card.code;
+  const { uid } = profile, mine = uid === me.uid, f = friendOf(uid), card = cards[uid] || {};
+  const name = mine ? myName() : f?.name || card.name || Object.values(profilePosts)[0]?.byName || "omw! user";
+  const code = mine ? (window.myFriends || []).find(p => p.isMe)?.code : f?.code || card.code;
   const list = Object.values(profilePosts).filter(p => !blocked().includes(p.by)).sort((a, b) => b.at.localeCompare(a.at));
   const board = (window.standings?.() || []).find(b => b.user_id === uid);
-  const onTime = preview ? "" : board?.hangouts ? `${Math.round(100 * board.on_time / board.hangouts)}%` : "";
-  const photo = self ? (window.myFriends || []).find(p => p.isMe)?.photo : f?.photo || card.photo;
+  const onTime = board?.hangouts ? `${Math.round(100 * board.on_time / board.hangouts)}%` : "";
+  const photo = mine ? (window.myFriends || []).find(p => p.isMe)?.photo : f?.photo || card.photo;
   const avatar = photo ? `<span class="ff" style="background-image:url('${esc(photo)}')"></span>` : `<span class="ff">${esc(first(name).slice(0, 1))}</span>`;
   const outgoing = (window.myRequestsOut || []).includes(uid);
+  const friendIds = mine ? friends().map(p => p.user_id) : f ? profile.friendIds : null;
   let body;
-  if (profileTab === "places") {
+  if (profileTab === "friends" && friendIds) {
+    const people = friendIds.filter(id => !blocked().includes(id)).map(id => {
+      const p = id === me.uid ? (window.myFriends || []).find(x => x.isMe) : friendOf(id), c = cards[id];
+      if (!p && !c) loadCard(id);
+      return { id, name: id === me.uid ? myName() : p?.name || c?.name || "", photo: p?.photo || c?.photo || "", code: p?.code || c?.code || "", mutual: !mine && id !== me.uid && !!friendOf(id) };
+    }).sort((a, b) => b.mutual - a.mutual || a.name.localeCompare(b.name));
+    body = `<div class="pf-list-head"><button data-pf-tab="posts" aria-label="Back">${icon("chevron-left")}</button><b>Friends</b><span></span></div>` +
+      (people.length ? `<div class="pf-people">${people.map(p => `<button class="pf-person" data-profile="${esc(p.id)}">
+          ${p.photo ? `<span class="ff" style="background-image:url('${esc(p.photo)}')"></span>` : `<span class="ff">${esc(first(p.name || "?").slice(0, 1))}</span>`}
+          <span><b>${esc(p.code ? p.code.toLowerCase() : first(p.name))}</b><small>${esc(p.name)}${p.mutual ? " · Your friend" : p.id === me.uid ? " · You" : ""}</small></span>
+          ${icon("chevron-right")}</button>`).join("")}</div>`
+        : `<div class="pf-empty">${icon("users")}<b>No friends yet</b></div>`);
+  } else if (profileTab === "places") {
     const list = BUCKETS.flatMap(([b]) => ranks[b].map((k, i) => ({ k, b, score: scoreAt(b, i, ranks[b].length) })));
     body = list.length ? `<div class="rank-list">${list.map((x, i) => `<div class="rank-item"><span class="rank-n">${i + 1}</span>
         <span><b>${esc(places[x.k]?.name || "")}</b><small>${esc(places[x.k]?.address || "")}</small></span><span class="fp-score">${x.score.toFixed(1)}</span></div>`).join("")}</div>`
@@ -337,7 +368,7 @@ function renderProfile() {
     else if (!list.length) body = mine ? `<div class="pf-empty">${icon("camera")}<b>Share your first post</b>Photos you share, and group photos from your hangouts, show up here by week.
         <button class="fe-go" data-new-post>${icon("camera")} New post</button></div>`
       : (open => `<div class="pf-empty">${icon(open ? "images" : "lock")}<b>${open ? "No posts yet" : "This account is private"}</b>${open ? ""
-          : `Add ${esc(first(name))} as a friend to see their posts.`}</div>`)(f || (preview ? myPublic : card.public));
+          : `Add ${esc(first(name))} as a friend to see their posts.`}</div>`)(f || card.public);
     else {
       const weeks = [];
       for (const p of list) { const w = weekOf(p.at).getTime(); (weeks.at(-1)?.w === w ? weeks.at(-1).items : (weeks.push({ w, items: [] }), weeks.at(-1).items)).push(p); }
@@ -349,14 +380,14 @@ function renderProfile() {
   setHtml($("profileCard"), `<button class="x" data-close-profile aria-label="Close">${icon("x")}</button>
   <div class="pf">
     <div class="pf-top">${avatar}<div class="pf-name"><b>${esc(name)}</b><small>${esc(code ? `@${code.toLowerCase()}` : "")}</small></div></div>
-    <div class="pf-stats"><span><b>${list.length}</b>${list.length === 1 ? "post" : "posts"}</span>${mine ? `<span><b>${friends().length}</b>friends</span>` : ""}
+    <div class="pf-stats"><span><b>${list.length}</b>${list.length === 1 ? "post" : "posts"}</span>${friendIds ? `<button class="pf-stat" data-pf-tab="friends"><b>${friendIds.length}</b>${friendIds.length === 1 ? "friend" : "friends"}</button>` : ""}
       ${onTime ? `<span><b>${onTime}</b>on time</span>` : ""}</div>
-    ${preview ? `<div class="pf-preview">${icon("eye")}<span>This is what people who aren't your friends see.</span><button data-preview-done>Done</button></div>` : ""}
-    <div class="pf-actions">${preview ? `<button class="main" disabled>${icon("user-round-plus")} Add friend</button>` : mine
+    <div class="pf-actions">${mine
       ? `<button data-edit-profile>Edit profile</button><button data-invite>Share profile</button>`
-      : f ? `<button class="main" data-plan-with="${esc(uid)}">${icon("plus")} Plan something</button><button data-message="${esc(uid)}">${icon("message-circle")} Message</button>`
+      : f ? `<button data-friend-menu="${esc(uid)}">Friends ${icon("chevron-down")}</button><button data-message="${esc(uid)}">Message</button>
+             <button class="main" data-plan-with="${esc(uid)}">Plan</button>`
       : `<button class="main" data-add-friend="${esc(uid)}" ${outgoing ? "disabled" : ""}>${icon("user-round-plus")} ${outgoing ? "Requested" : "Add friend"}</button>`}</div>
-    ${mine ? `<div class="pf-tabs"><button class="${profileTab === "posts" ? "on" : ""}" data-pf-tab="posts">${icon("images")} Posts</button>
+    ${mine && profileTab !== "friends" ? `<div class="pf-tabs"><button class="${profileTab === "posts" ? "on" : ""}" data-pf-tab="posts">${icon("images")} Posts</button>
       <button class="${profileTab === "places" ? "on" : ""}" data-pf-tab="places">${icon("star")} Places</button>
       <button data-my-calendar>${icon("calendar-days")} Calendar</button></div>` : ""}
     ${body}
@@ -708,8 +739,19 @@ document.addEventListener("touchend", () => {
 // swipe left or right to switch tabs, like Snapchat: Feed, Map, Plans, Me (on the map, from the screen's edge, so the map still pans)
 const ORDER = ["feed", "map", "plans", "me"];
 let sw = null;
-const scrollsSideways = el => el.closest?.(".ff-row, .fp-photo.many, .map-chips, .pf-tabs, .types, .when-grid, .week, .friends, .rank-vs, .al-grid, input, textarea, .leaflet-marker-icon");
-const screenOf = t => t === "feed" ? $("feed") : t === "map" ? $("map") : t === "plans" ? $("plans").querySelector(".drawer-card") : t === "me" ? $("profileCard") : null;
+const scrollsSideways = el => el.closest?.(".ff-row, .fp-photo.many, .map-chips, .pf-tabs, .types, .when-grid, .week, .friends, .rank-vs, .al-grid, input, textarea, .gl-marker");
+// a tab's screen: what slides when you swipe (the map takes its search bar, chips and card with it)
+const screenOf = t => (t === "feed" ? [$("feed")] : t === "map" ? [$("map"), document.querySelector(".topbar"), $("mapChips"), $("mapPanel")]
+  : t === "plans" ? [$("plans").querySelector(".drawer-card")] : t === "me" ? [$("profileCard")] : []).filter(Boolean);
+// under the screen that's moving: a plain page, so the map and the planner underneath never show through
+const cover = (() => { const d = document.createElement("div"); d.className = "swipe-cover"; d.hidden = true; document.body.append(d); return d; })();
+const coverAt = t => { cover.hidden = t === "map"; cover.style.zIndex = t === "feed" ? 939 : 1499; };
+const move = (els, x, ms = 0) => els.forEach(el => {
+  el.style.transition = ms ? `transform ${ms}ms cubic-bezier(.25, .8, .25, 1)` : "none";
+  el.style.transform = x ? `translateX(${x}px)` : "";
+});
+const after = ms => new Promise(ok => setTimeout(ok, ms));
+const unmove = els => els.forEach(el => { el.style.transition = ""; el.style.transform = ""; });
 document.addEventListener("touchstart", e => {
   sw = null;
   if (!document.documentElement.classList.contains("has-tabs") || e.touches.length > 1 || !ORDER.includes(tab)) return;
@@ -718,47 +760,45 @@ document.addEventListener("touchstart", e => {
     : t.closest?.(".drawer.instant:not([hidden])");  // Plans and your profile, opened from their tab
   if (!onScreen || scrollsSideways(t) || $("postCompose") && !$("postCompose").hidden) return;
   if (tab !== "map" && x < 28 && !t.closest?.(".drawer.instant")) return;
-  sw = { x, y: e.touches[0].clientY, at: Date.now(), dx: 0, on: false, el: screenOf(tab) };
+  sw = { x, y: e.touches[0].clientY, at: Date.now(), dx: 0, on: false, els: screenOf(tab) };
 }, { passive: true });
 // the screen follows your finger; let go and it carries on to the next tab, or springs back if you didn't mean it
 document.addEventListener("touchmove", e => {
-  if (!sw || !sw.el) return;
+  if (!sw || !sw.els.length) return;
   const dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y;
   if (!sw.on) {
     if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { sw = null; return; }
     if (Math.abs(dx) < 10) return;
-    sw.on = true; sw.x += dx > 0 ? 10 : -10; sw.el.style.transition = "none";
+    sw.on = true; sw.x += dx > 0 ? 10 : -10; coverAt(tab);
   }
   const d = e.touches[0].clientX - sw.x, next = ORDER[ORDER.indexOf(tab) + (d < 0 ? 1 : -1)];
   sw.vx = (d - sw.dx) / Math.max(1, Date.now() - (sw.t || sw.at)); sw.t = Date.now(); sw.dx = d;
-  sw.el.style.transform = `translateX(${next ? d : d / 3}px)`;  // nothing that way: it gives a little, like the end of a list
+  move(sw.els, next ? d : d / 3);  // nothing that way: it gives a little, like the end of a list
 }, { passive: true });
-const settle = (el, to, ms) => new Promise(ok => {
-  el.style.transition = `transform ${ms}ms cubic-bezier(.25, .8, .25, 1)`; el.style.transform = to;
-  setTimeout(() => { el.style.transition = ""; ok(); }, ms);
-});
 document.addEventListener("touchend", async () => {
   if (!sw) return;
-  const { el, dx, on, vx = 0 } = sw;
+  const { els, dx, on, vx = 0 } = sw;
   sw = null;
-  if (!on || !el) return;
+  if (!on || !els.length) return;
   const next = ORDER[ORDER.indexOf(tab) + (dx < 0 ? 1 : -1)];
   const flick = Math.abs(vx) > .45 && Math.sign(vx) === Math.sign(dx);
-  if (!next || !(Math.abs(dx) > innerWidth * .3 || flick && Math.abs(dx) > 30)) { await settle(el, "", 260); el.style.transform = ""; return; }
-  const ms = Math.round(Math.max(120, Math.min(220, (innerWidth - Math.abs(dx)) / Math.max(Math.abs(vx), 1.6))));
-  await settle(el, `translateX(${dx < 0 ? -innerWidth : innerWidth}px)`, ms);
-  tick(); go(next);
-  el.style.transform = "";
-  const into = screenOf(next);
-  if (into) {
-    into.style.transition = "none"; into.style.transform = `translateX(${dx < 0 ? innerWidth : -innerWidth}px)`;
-    void into.offsetWidth;
-    await settle(into, "", 300);
-    into.style.transform = "";
-    if (next === "map") window.invalidateMap?.();
+  if (!next || !(Math.abs(dx) > innerWidth * .3 || flick && Math.abs(dx) > 30)) {
+    move(els, 0, 260); await after(260); unmove(els); cover.hidden = true; return;
   }
+  const ms = Math.round(Math.max(120, Math.min(220, (innerWidth - Math.abs(dx)) / Math.max(Math.abs(vx), 1.6))));
+  move(els, dx < 0 ? -innerWidth : innerWidth, ms); await after(ms);
+  coverAt(next);
+  const into = screenOf(next);
+  move(into, dx < 0 ? innerWidth : -innerWidth);  // waiting just off screen
+  tick(); go(next); unmove(els);
+  if (next === "map") window.invalidateMap?.();
+  const fresh = screenOf(next);  // Plans and Me draw their screens when they open
+  move(fresh, dx < 0 ? innerWidth : -innerWidth);
+  void document.body.offsetWidth;
+  move(fresh, 0, 300); await after(300);
+  unmove(fresh); cover.hidden = true;
 }, { passive: true });
-document.addEventListener("touchcancel", () => { if (sw?.on && sw.el) settle(sw.el, "", 200); sw = null; }, { passive: true });
+document.addEventListener("touchcancel", () => { if (sw?.on) { const els = sw.els; move(els, 0, 200); after(200).then(() => { unmove(els); cover.hidden = true; }); } sw = null; }, { passive: true });
 
 const native = !!window.Capacitor?.isNativePlatform?.();
 function setUpTabs() {
@@ -777,7 +817,7 @@ document.addEventListener("click", async e => {
     [data-del-comment], [data-report-comment], [data-new-post], [data-pc-cancel], [data-pc-share], [data-pc-place], [data-pc-unplace], [data-pc-near], [data-pc-tag], [data-pc-who], [data-post-tags], #feedChats,
     [data-profile], [data-open-board], [data-close-profile], [data-close-post], [data-view-post], [data-edit-profile], [data-message],
     [data-add-friend], [data-my-calendar], [data-invite], [data-add-friends], [data-sheet-cancel], [data-pf-tab], [data-privacy-yes],
-    [data-album], [data-album-next], [data-preview-done]`);
+    [data-album], [data-album-next], [data-friend-menu], [data-unfriend], [data-unfriend-yes]`);
   if (e.target.id === "actionSheet") return closeSheet();  // tapped outside the sheet
   if (!t || !t.closest("#feed, #tabs, #postCompose, #profile, #postView, #memories, #actionSheet")) return;
   const ds = t.dataset;
@@ -791,7 +831,6 @@ document.addEventListener("click", async e => {
   if (t.hasAttribute("data-close-profile")) { profileStop?.(); profileStop = null; profile = null; $("profile").hidden = true; return; }
   if (t.hasAttribute("data-close-post")) { viewing = null; $("postView").hidden = true; return; }
   if (ds.viewPost) return viewPost(ds.viewPost);
-  if (t.hasAttribute("data-preview-done")) return openProfile(me.uid);
   if (t.hasAttribute("data-edit-profile")) return $("userPic").click();
   if (t.hasAttribute("data-add-friends")) { $("userPic").click(); return setTimeout(() => { $("addInput").scrollIntoView({ block: "center" }); $("addInput").focus(); }, 300); }
   if (t.hasAttribute("data-invite")) return invite();
@@ -799,6 +838,12 @@ document.addEventListener("click", async e => {
   if (ds.pfTab) { profileTab = ds.pfTab; return renderProfile(); }
   if (ds.privacyYes) return setPrivacy(ds.privacyYes === "public").then(privacyUi).catch(err => alert(friendly(err, "change that")));
   if (ds.message) return window.openDmWith?.(ds.message);
+  if (ds.friendMenu) return friendMenu(ds.friendMenu);
+  if (ds.unfriend) return setTimeout(() => friendMenu(ds.unfriend, true), 10);  // the sheet closes first, then asks
+  if (ds.unfriendYes) {
+    const was = friendOf(ds.unfriendYes);  // their profile keeps their name and picture once you're not friends
+    if (was) cards[ds.unfriendYes] = { ...cards[ds.unfriendYes], name: was.name, photo: was.photo || "", code: was.code || "" };
+    await window.removeFriend?.(ds.unfriendYes); return profile?.uid === ds.unfriendYes ? openProfile(ds.unfriendYes) : null; }
   if (ds.addFriend) {
     const card = cards[ds.addFriend] || {}, mine = (window.myFriends || []).find(p => p.isMe) || {};
     t.disabled = true;

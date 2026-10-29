@@ -83,7 +83,7 @@ uvicorn server:app --reload  # then open http://127.0.0.1:8000
 | Variable | For |
 |---|---|
 | `GOOGLE_MAPS_API_KEY` | Trip times, place search and names (Routes, Places and Geocoding APIs) |
-| `MAPBOX_TOKEN` | Map tiles and fallback search |
+| `MAPBOX_TOKEN` | The map (Mapbox GL, Standard style) and fallback search. Use a public `pk.` token; if you restrict it by URL, allow your server and `capacitor://localhost` (the iPhone app). Without one the map falls back to OpenStreetMap |
 | `OPENAI_API_KEY` | AI avatars, and typing a plan in plain words |
 | `MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL` | Meta Muse for typed plans (tried first, falls back to OpenAI; `LLM_PROVIDER=openai` skips it) |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Calendar feeds, keeping traffic readings across deploys, checking sign-in on API calls, deleting accounts |
