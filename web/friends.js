@@ -1335,7 +1335,7 @@ if (configured) {
       incoming = s.docs.map(d => d.data()); renderRequests();
     }));
     stop.push(onSnapshot(query(collection(db, "requests"), where("from", "==", user.uid)), s => {
-      outgoing = s.docs.map(d => d.data()); renderRequests();
+      outgoing = s.docs.map(d => d.data()); window.myRequestsOut = outgoing.map(r => r.to); renderRequests();
     }));
     // hangouts you're going to, and hangouts you're invited to (two queries, merged by id)
     const seenBy = { attendees: new Set(), invited: new Set() };

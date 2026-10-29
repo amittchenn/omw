@@ -1215,6 +1215,8 @@
     .fc-send { height: 42px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: var(--ink); font: inherit; font-weight: 800; cursor: pointer; }
     .feed-empty { display: grid; justify-items: center; gap: 6px; padding: 40px 20px; text-align: center; font-size: 14px; color: var(--muted); }
     .feed-empty > .ic { width: 36px; height: 36px; color: var(--ink); } .feed-empty b { font-size: 18px; color: var(--ink); }
+    .fe-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .fe-go.alt { background: var(--soft); color: var(--text); } .fe-go .ic { width: 18px; height: 18px; }
     .fe-go { margin-top: 10px; height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--sun); color: #111114; font: inherit; font-weight: 800;
              display: flex; align-items: center; gap: 6px; cursor: pointer; }
     .mem-share { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0 0; padding: 10px 12px; border-radius: 14px; background: var(--soft); text-align: left; cursor: pointer; }
@@ -1258,7 +1260,42 @@
       max-height: none; border-radius: 0; animation: none; transform: none; padding: calc(14px + env(safe-area-inset-top)) max(18px, calc(50% - 320px)) 24px;
       background: var(--page); overscroll-behavior: contain; }
     html.has-tabs .drawer .x { top: calc(14px + env(safe-area-inset-top)); right: max(16px, calc(50% - 320px)); }
-    html.has-tabs #board { z-index: 1510; }
+    html.has-tabs #profile { z-index: 1500; } html.has-tabs #board { z-index: 1510; }
+    html.has-tabs #drawer, html.has-tabs #memories { z-index: 1520; } html.has-tabs #postView { z-index: 1530; }
+    html.has-tabs #plans .board-title, html.has-tabs #memories .board-title { display: block; margin-right: 50px; }
+    .drawer[hidden] { display: none; }
+    /* the on-time board at the top of the feed */
+    .fb-board { display: grid; gap: 10px; padding: 14px 16px; border: 0; border-radius: 22px; background: var(--soft); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+    .fb-head { display: flex; align-items: center; gap: 8px; } .fb-head b { flex: 1; font-size: 16px; color: var(--ink); }
+    .fb-head .ic { width: 18px; height: 18px; } .fb-head small { color: var(--muted); font-size: 13px; font-weight: 700; }
+    .fb-row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+    .fb-rank { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--soft-2); font-size: 12px; font-weight: 800; }
+    .fb-rank.r1 { background: var(--sun); color: #111114; }
+    .fb-row b { flex: 1; color: var(--ink); } .fb-row em { font-style: normal; font-weight: 800; color: var(--ink); } .fb-row small { color: var(--muted); }
+    /* profiles */
+    .pf { display: grid; gap: 16px; }
+    .pf-top { display: flex; align-items: center; gap: 18px; margin-right: 44px; }
+    .pf-top .ff { width: 84px; height: 84px; font-size: 32px; box-shadow: 0 0 0 3px var(--sun); }
+    .pf-name { display: grid; gap: 2px; min-width: 0; } .pf-name b { font-size: 22px; color: var(--ink); } .pf-name small { color: var(--muted); font-size: 14px; }
+    .pf-stats { display: flex; gap: 22px; } .pf-stats span { display: grid; font-size: 13px; color: var(--muted); } .pf-stats b { font-size: 18px; color: var(--ink); }
+    .pf-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pf-actions button { flex: 1; min-width: 120px; height: 42px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 12px;
+                         background: var(--soft); color: var(--text); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .pf-actions .main { background: var(--ink); color: var(--on-ink); } .pf-actions .ic { width: 17px; height: 17px; }
+    .pf-private { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--soft); cursor: pointer; }
+    .pf-private span { flex: 1; display: grid; } .pf-private b { color: var(--ink); } .pf-private small { color: var(--muted); font-size: 13px; }
+    .pf-private input { width: 46px; height: 28px; accent-color: var(--ink); }
+    .pf-tabs { display: flex; border-bottom: 1px solid var(--line); }
+    .pf-tabs button { flex: 1; height: 44px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-bottom: 2px solid transparent;
+                      background: none; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
+    .pf-tabs button.on { color: var(--ink); border-bottom-color: var(--ink); } .pf-tabs .ic { width: 18px; height: 18px; }
+    .pf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0 -18px; }
+    .pf-grid button { aspect-ratio: 1; padding: 0; border: 0; background: var(--soft) center/cover; cursor: pointer; }
+    .pf-empty { display: grid; justify-items: center; gap: 6px; padding: 36px 12px; text-align: center; color: var(--muted); font-size: 14px; }
+    .pf-empty .ic { width: 34px; height: 34px; color: var(--ink); } .pf-empty b { color: var(--ink); font-size: 17px; }
+    #postViewCard .fpost { margin-top: 44px; }
+    /* inside the yellow friend-ID box, buttons keep their own colors in dark mode */
+    .code-box .mini { background: rgba(255, 255, 255, .75); color: #111114; } .code-box .mini.dark { background: #111114; color: #fff; }
     html.has-tabs #board .board-title { display: block; margin-right: 50px; }
     /* the Map tab (maptab.js) */
     .map-chips { position: fixed; z-index: 905; left: 12px; right: 12px; top: calc(70px + env(safe-area-inset-top)); display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
@@ -1502,6 +1539,9 @@
   <button data-tab="me"><i data-ic="user"></i>Me</button>
 </nav>
 <div class="post-compose" id="postCompose" hidden></div>
+<!-- someone's profile: their posts (yours: your posts, your calendar, private or public) (feed.js) -->
+<div class="drawer page" id="profile" hidden><div class="drawer-card" id="profileCard"></div></div>
+<div class="drawer page" id="postView" hidden><div class="drawer-card" id="postViewCard"></div></div>
 <!-- the Map tab: friends where they are, places you saved, your friends' favorite spots (maptab.js) -->
 <div class="map-chips" id="mapChips" hidden>
   <button data-map-list="friends"><i data-ic="users"></i> Friends</button>
@@ -1600,8 +1640,7 @@
 
 <div class="drawer page" id="plans" hidden>
   <div class="drawer-card">
-    <div class="page-tabs"><button data-page="plans" class="on">My plans</button><button data-page="memories">Memories</button></div>
-    <button class="x" id="plansClose" title="Close" data-ic="x"></button>
+        <button class="x" id="plansClose" title="Close" data-ic="x"></button>
     <h2 class="board-title">My plans</h2>
     <div class="section" id="inviteSection" hidden>
       <div class="label">Invitations <span id="inviteCount"></span></div>
@@ -1621,8 +1660,7 @@
 <!-- Memories: a group photo for every hangout where everyone showed up, on a calendar (memories.js) -->
 <div class="drawer page" id="memories" hidden>
   <div class="drawer-card">
-    <div class="page-tabs"><button data-page="plans">My plans</button><button data-page="memories" class="on">Memories</button></div>
-    <button class="x" id="memoriesClose" title="Close" data-ic="x"></button>
+        <button class="x" id="memoriesClose" title="Close" data-ic="x"></button>
     <h2 class="board-title">Memories</h2>
     <div class="mem-summary" id="memSummary"></div>
     <div id="memList"></div>
@@ -1665,7 +1703,6 @@
         <div id="idMsg"></div>
         <div class="id-actions"><button class="mini" id="idCancel">Cancel</button><button class="mini dark" id="idSave" disabled>Save</button></div>
       </div>
-      <button class="me-board" id="meBoard"><i data-ic="trophy"></i><span><b>Leaderboard</b><small>Who's always on time, and who's always late</small></span><i data-ic="chevron-right"></i></button>
     </div>
 
     <div class="section">

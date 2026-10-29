@@ -144,38 +144,49 @@ service cloud.firestore {
     // the feed: your own posts, and group photos the poster chose to share; friends only
     match /feed/{hid} {
       function newPost() { return request.resource.data; }
-      allow read: if signedIn() && me() in resource.data.viewers;
+      function canSee(p) { return me() in p.viewers || p.get('public', false) == true; }
+      allow read: if signedIn() && canSee(resource.data);
       allow create: if signedIn() && newPost().by == me()
         && me() in newPost().viewers && newPost().viewers.size() <= 2000
         && newPost().get('likes', []).size() == 0 && newPost().get('ratings', {}).size() == 0
         && jpeg(newPost().photo, 400000) && (
           // a post: just you
           (newPost().get('kind', '') == 'post' && newPost().members == [me()] && text(newPost().get('caption', ''), 500)
-            && text(newPost().get('venueName', ''), 120))
+            && text(newPost().get('venueName', ''), 120) && newPost().get('public', false) is bool)
           // a group photo from Memories: posted by whoever took it, for exactly the people who went
-          || (newPost().get('kind', '') == ''
+          || (newPost().get('kind', '') == '' && newPost().get('public', false) == false
             && get(/databases/$(database)/documents/memories/$(hid)).data.by == me()
             && newPost().members == get(/databases/$(database)/documents/memories/$(hid)).data.members));
       allow update: if signedIn() && unchanged('by') && unchanged('members') && unchanged('kind') && (
         // the poster: a retaken photo
         (resource.data.by == me() && onlyChanged(['photo', 'at']) && jpeg(request.resource.data.photo, 400000))
+        // the poster of a post: public or private (group photos stay private)
+        || (resource.data.by == me() && resource.data.get('kind', '') == 'post' && onlyChanged(['public']) && request.resource.data.public is bool)
         // the people in it: show it to their friends, rate the place, like it
         || (me() in resource.data.members && onlyChanged(['viewers', 'ratings', 'likes']) && grows('viewers')
           && request.resource.data.viewers.size() <= 2000 && onlyMyEntry('ratings') && onlyMeInOrOut('likes')
           && request.resource.data.get('ratings', {}).get(me(), 0) in [0, 2, 5.5, 9])
         // everyone who can see it: like or unlike
-        || (me() in resource.data.viewers && onlyChanged(['likes']) && onlyMeInOrOut('likes')));
+        || (canSee(resource.data) && onlyChanged(['likes']) && onlyMeInOrOut('likes')));
       allow delete: if signedIn() && resource.data.by == me();
 
       // comments: everyone who can see the post; you delete yours, the poster can delete any on their post
       match /comments/{cid} {
         function post() { return get(/databases/$(database)/documents/feed/$(hid)).data; }
-        allow read: if signedIn() && me() in post().viewers;
-        allow create: if signedIn() && me() in post().viewers && request.resource.data.from == me()
+        allow read: if signedIn() && canSee(post());
+        allow create: if signedIn() && canSee(post()) && request.resource.data.from == me()
           && text(request.resource.data.text, 300) && request.resource.data.text.size() > 0
           && text(request.resource.data.get('name', ''), 60);
         allow delete: if signedIn() && (resource.data.from == me() || post().by == me());
       }
+    }
+
+    // what anyone signed in can see of you: name, picture, friend ID, and whether your posts are public
+    match /publicProfiles/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn() && me() == uid && text(request.resource.data.get('name', ''), 60)
+        && picture(request.resource.data.get('photo', null)) && text(request.resource.data.get('code', ''), 15)
+        && request.resource.data.get('public', false) is bool;
     }
 
     // reports of posts and comments, for us to review (nobody can read them in the app)

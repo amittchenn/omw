@@ -3,6 +3,7 @@
 // (or start an emulator yourself and set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080)
 import { test, before, after } from "node:test";
 import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import { doc, setDoc, getDoc, updateDoc, deleteDoc, addDoc, collection, writeBatch, arrayUnion, arrayRemove, deleteField,
          query, where, getDocs } from "firebase/firestore";
@@ -157,6 +158,26 @@ test("posts and comments: friends only", async () => {
   await assertSucceeds(deleteDoc(doc(db("alice"), "feed/p1/comments", c.id)));  // the poster can remove comments on their post
   await assertSucceeds(setDoc(doc(db("bob"), "reports", `p1_${c.id}_bob`), { post: "p1", comment: c.id, by: "bob", at: soon }));
   await assertSucceeds(deleteDoc(doc(db("alice"), "feed", "p1")));
+});
+
+test("private and public accounts", async () => {
+  await friends();
+  const post = { kind: "post", by: "alice", members: ["alice"], names: { alice: "Alice" }, photo: JPEG, caption: "hi", at: soon,
+                 viewers: ["alice", "bob"], likes: [], ratings: {}, public: false };
+  await assertSucceeds(setDoc(doc(db("alice"), "feed", "p2"), post));
+  await assertFails(getDoc(doc(db("eve"), "feed", "p2")));  // private: friends only
+  assert.equal((await getDocs(query(collection(db("eve"), "feed"), where("by", "==", "alice"), where("public", "==", true)))).size, 0);
+  await assertFails(getDocs(query(collection(db("eve"), "feed"), where("by", "==", "alice"))));  // can't ask for the private ones
+  await assertSucceeds(getDocs(query(collection(db("bob"), "feed"), where("by", "==", "alice"), where("viewers", "array-contains", "bob"))));
+  await assertFails(updateDoc(doc(db("bob"), "feed", "p2"), { public: true }));  // only the poster
+  await assertSucceeds(updateDoc(doc(db("alice"), "feed", "p2"), { public: true }));
+  await assertSucceeds(getDoc(doc(db("eve"), "feed", "p2")));  // public: anyone signed in
+  await assertSucceeds(getDocs(query(collection(db("eve"), "feed"), where("by", "==", "alice"), where("public", "==", true))));
+  await assertSucceeds(updateDoc(doc(db("eve"), "feed", "p2"), { likes: arrayUnion("eve") }));
+  await assertSucceeds(addDoc(collection(db("eve"), "feed/p2/comments"), { from: "eve", name: "Eve", text: "cool", at: soon }));
+  await assertSucceeds(setDoc(doc(db("alice"), "publicProfiles", "alice"), { name: "Alice", code: "ALICE", public: true }));
+  await assertSucceeds(getDoc(doc(db("eve"), "publicProfiles", "alice")));
+  await assertFails(setDoc(doc(db("eve"), "publicProfiles", "alice"), { name: "x" }));
 });
 
 test("chats", async () => {

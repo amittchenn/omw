@@ -90,6 +90,7 @@ def delete_account(db, uid):
         db.collection("codes").document(profile["code"]).delete()
     db.collection("private").document(uid).delete()
     db.collection("locations").document(uid).delete()
+    db.collection("publicProfiles").document(uid).delete()
     _wipe(me)
     try:
         auth.delete_user(uid)

@@ -196,13 +196,13 @@ const myName = () => me?.displayName || "Friend";
 
 // ---------- the Memories page: a calendar of your hangouts, a photo on each day you met up ----------
 function render() {
-  const list = Object.values(memories).sort((a, b) => b.start.localeCompare(a.start));
-  const onTime = list.filter(m => !lateText(m)).length;
-  $("memSummary").innerHTML = list.length
-    ? `<b>${list.length}</b> hangout${list.length === 1 ? "" : "s"} together · <b>${onTime}</b> posted on time`
-    : "";
+  // group photos, and your own posts (feed.js): one calendar of everything you shared
+  const list = [...Object.values(memories), ...(window.myPostsAsMemories?.() || [])].sort((a, b) => b.start.localeCompare(a.start));
+  const groups = list.filter(m => !m.post), mine = list.length - groups.length, onTime = groups.filter(m => !lateText(m)).length;
+  $("memSummary").innerHTML = [groups.length ? `<b>${groups.length}</b> hangout${groups.length === 1 ? "" : "s"} together · <b>${onTime}</b> posted on time` : "",
+                               mine ? `<b>${mine}</b> post${mine === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
   if (!list.length) {
-    $("memList").innerHTML = `<div class="nobody mem-empty">${icon("camera")}<b>No memories yet</b>Group photos from your hangouts show up here.</div>`;
+    $("memList").innerHTML = `<div class="nobody mem-empty">${icon("camera")}<b>No memories yet</b>Your posts and the group photos from your hangouts show up here by day.</div>`;
     return;
   }
   const months = [];
@@ -218,7 +218,7 @@ function render() {
     const cells = [...Array(first).fill(`<i></i>`), ...Array.from({ length: count }, (_, i) => {
       const ms = days[i + 1];
       if (!ms) return `<span class="mem-day">${i + 1}</span>`;
-      return `<button class="mem-day has" data-memory="${esc(ms[0].id)}" title="${esc(ms.map(m => m.title).join(", "))}">
+      return `<button class="mem-day has" ${ms[0].post ? `data-view-post="${esc(ms[0].id)}"` : `data-memory="${esc(ms[0].id)}"`} title="${esc(ms.map(m => m.title).join(", "))}">
         <img src="${esc(ms[0].photo)}" alt="" loading="lazy"><b>${i + 1}</b>${ms.length > 1 ? `<em>${ms.length}</em>` : ""}</button>`;
     })];
     return `<section class="mem-month"><div class="mem-month-head"><b>${new Date(y, mo, 1).toLocaleDateString([], { month: "long", year: "numeric" })}</b>
@@ -321,6 +321,7 @@ document.addEventListener("click", async e => {
 $("snapCamera").onchange = e => gotFile(e.target.files[0]);
 $("snapLibrary").onchange = e => gotFile(e.target.files[0]);
 $("memoriesBtn").onclick = () => { $("memories").hidden = false; render(); };
+window.addEventListener("feed-changed", () => { if (!$("memories").hidden) render(); });
 $("memoriesClose").onclick = () => { $("memories").hidden = true; };
 window.addEventListener("hangouts-changed", renderPrompt);
 document.addEventListener("keydown", e => { if (cam && !$("memCam").hidden) { if (e.key === "Escape") closeCamera(); if (e.key === " " || e.key === "Enter") { e.preventDefault(); shoot(); } } });

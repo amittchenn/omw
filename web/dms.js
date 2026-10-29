@@ -98,6 +98,7 @@ function renderNew() {
     <div class="ib-go"><button class="wide dark" id="ibStart" ${picked.size ? "" : "disabled"}>${picked.size > 1 ? `Create group (${picked.size + 1})` : "Chat"}</button></div>`;
 }
 
+window.openDmWith = uid => { openInbox(); openDm(uid); };  // "Message" on someone's profile
 async function openDm(uid) {
   const f = friend(uid), id = "dm_" + [me.uid, uid].sort().join("_"), ref = doc(db, "chats", id);
   const snap = await getDoc(ref);

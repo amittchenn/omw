@@ -9,11 +9,14 @@
 // feed/{id}/comments/{auto id} = { from, name, text, at }
 // Report and block (App Store rule for apps where people see each other's posts): reports/{post}_{you} for us to review,
 // and users/{uid}.blocked hides everything posted by or with that person.
+// Profiles (tap someone): their posts by week, like Retro. Private accounts (the default) show posts to friends only; public ones
+// to anyone signed in. publicProfiles/{uid} = { name, photo, code, public } is what strangers can see; posts carry public: true.
 // Your status for friends lives on your profile: users/{uid}.freeUntil (you tapped "I'm free") and .now = { kind: "out" | "omw", until }.
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, query, where, orderBy, limit, onSnapshot, setDoc, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove }
+import { getFirestore, collection, doc, query, where, orderBy, limit, onSnapshot, setDoc, addDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove,
+         getDocs, writeBatch, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const POSTS = 30;            // newest posts loaded (each carries its photo)
@@ -26,6 +29,8 @@ const tick = () => window.Capacitor?.Plugins?.Haptics?.impact({ style: "LIGHT" }
 
 let db, me = null, posts = {}, stopFeed = null, tab = "feed", freeMenu = false, widened = new Set(), nowSent = "", menuFor = null;
 let comments = {}, commentStops = {}, openComments = new Set(), draft = null;
+let profile = null, profilePosts = {}, profileStop = null, profileTab = "posts", myPublic = false, myCard = null, cards = {}, viewing = null;
+const getPost = id => posts[id] || profilePosts[id];
 
 // ---------- helpers ----------
 const friends = () => (window.myFriends || []).filter(p => !p.isMe);
@@ -69,7 +74,9 @@ function render() {
   if (!$("feed") || !me) return;
   // typing a comment: don't redraw under the person's fingers (it catches up when they send)
   if (document.activeElement?.matches?.("#feed .fc-input")) return;
-  $("feedBody").innerHTML = friendsRow() + upNext() + snapBanner() + postsHtml();
+  $("feedBody").innerHTML = friendsRow() + upNext() + snapBanner() + boardCard() + postsHtml();
+  if (profile && !$("profile").hidden) renderProfile();
+  if (viewing && !$("postView").hidden) renderPostView();
 }
 
 function friendsRow() {
@@ -81,9 +88,9 @@ function friendsRow() {
     <button class="ff-me ${free ? "free" : ""}" data-free-menu>
       ${free ? face(mine.user_id, mine.realName, "big") : `<span class="ff big add">${icon("plus")}</span>`}
       <b>${free ? "You're free" : "I'm free"}</b><small>${free ? `til ${esc(clock(mine.freeUntil))}` : "Tap me"}</small></button>
-    ${list.map(({ p, s }) => `<button class="ff-friend ${s[0]}" data-plan-with="${esc(p.user_id)}" title="Plan something with ${esc(p.name)}">
+    ${list.map(({ p, s }) => `<button class="ff-friend ${s[0]}" data-profile="${esc(p.user_id)}" title="${esc(p.name)}">
       ${face(p.user_id, p.name, "big")}<b>${esc(first(p.name))}</b><small>${esc(s[1])}</small></button>`).join("")}
-    ${list.length ? "" : `<button class="ff-friend" data-tab-go="me"><span class="ff big add">${icon("user-round-plus")}</span><b>Add friends</b><small>by friend ID</small></button>`}
+    <button class="ff-friend" data-add-friends><span class="ff big add">${icon("user-round-plus")}</span><b>Add friends</b><small>${list.length ? "" : "by friend ID"}</small></button>
   </div>
   ${freeMenu ? `<div class="free-menu">
     <span>Let your friends know you're up for something</span>
@@ -112,6 +119,17 @@ function upNext() {  // your next hangout in the next two days
   </button>`;
 }
 
+// who's always on time, among you and your friends (leaderboard.js); tap for the whole board
+function boardCard() {
+  const board = (window.standings?.() || []).filter(b => b.hangouts);
+  if (board.length < 2) return "";
+  return `<button class="fb-board" data-open-board>
+    <span class="fb-head">${icon("trophy")}<b>On-time board</b><small>See all</small></span>
+    ${board.slice(0, 3).map((b, i) => `<span class="fb-row"><span class="fb-rank ${i ? "" : "r1"}">${i + 1}</span>${face(b.user_id, b.name)}
+      <b>${esc(b.user_id === me.uid ? "You" : first(b.name))}</b><em>${Math.round(100 * b.on_time / b.hangouts)}%</em><small>on time</small></span>`).join("")}
+  </button>`;
+}
+
 function snapBanner() {  // everyone's there and nobody posted the group photo yet (memories.js)
   const h = window.snapWaiting?.()[0];
   if (!h) return "";
@@ -133,9 +151,11 @@ function lateBadge(p) {
 
 function postsHtml() {
   const list = visible().sort((a, b) => b.at.localeCompare(a.at));
-  if (!list.length) return `<div class="feed-empty">${icon("images")}<b>Nothing here yet</b>
-    Share what you're up to, or hang out with friends: the group photo shows up here too.
-    <button class="fe-go" data-new-post>${icon("camera")} Make your first post</button></div>`;
+  if (!list.length) return `<div class="feed-empty">${icon("images")}<b>${friends().length ? "Nothing here yet" : "omw! is better with friends"}</b>
+    ${friends().length ? "Share what you're up to, or hang out with friends: the group photo shows up here too."
+                       : "Invite your friends, plan something, and see who shows up on time."}
+    <span class="fe-row">${friends().length ? "" : `<button class="fe-go" data-invite>${icon("share")} Invite friends</button>`}
+      <button class="fe-go ${friends().length ? "" : "alt"}" data-new-post>${icon("camera")} ${friends().length ? "Make your first post" : "Post"}</button></span></div>`;
   return list.map(p => p.kind === "post" ? postHtml(p) : groupHtml(p)).join("");
 }
 
@@ -143,8 +163,8 @@ function postsHtml() {
 function postHtml(p) {
   const liked = p.likes?.includes(me.uid), name = p.by === me.uid ? "You" : p.names?.[p.by] || p.byName;
   return `<article class="fpost" data-post="${esc(p.id)}">
-    <header><span class="fp-faces">${face(p.by, name)}</span>
-      <span class="fp-who"><b>${esc(name)}</b><small>${esc([p.venueName, ago(p.at)].filter(Boolean).join(" · "))}</small></span>
+    <header><span class="fp-faces" data-profile="${esc(p.by)}">${face(p.by, name)}</span>
+      <span class="fp-who"><b data-profile="${esc(p.by)}">${esc(name)}</b><small>${esc([p.venueName, ago(p.at)].filter(Boolean).join(" · "))}</small></span>
       <button class="fp-more" data-post-menu="${esc(p.id)}" aria-label="More options">${icon("ellipsis")}</button></header>
     ${menuFor === p.id ? postMenu(p) : ""}
     <div class="fp-photo" data-like-twice="${esc(p.id)}"><img src="${esc(p.photo)}" alt="${esc(p.caption || "Photo")}" loading="lazy">
@@ -165,7 +185,7 @@ function groupHtml(p) {
   const liked = p.likes?.includes(me.uid), mine = p.members.includes(me.uid), s = score(p);
   const myRating = p.ratings?.[me.uid];
   return `<article class="fpost" data-post="${esc(p.id)}">
-    <header><span class="fp-faces">${members.slice(0, 3).map(u => face(u, p.names?.[u])).join("")}</span>
+    <header><span class="fp-faces" data-profile="${esc(p.by)}">${members.slice(0, 3).map(u => face(u, p.names?.[u])).join("")}</span>
       <span class="fp-who"><b>${esc(who)}</b><small>${esc(p.venueName || plainTitle(p.title))} · ${esc(ago(p.at))}</small></span>${lateBadge(p)}
       <button class="fp-more" data-post-menu="${esc(p.id)}" aria-label="More options">${icon("ellipsis")}</button></header>
     ${menuFor === p.id ? postMenu(p) : ""}
@@ -215,6 +235,115 @@ function postMenu(p) {
     <button data-hide-post="${esc(p.id)}">${icon("x")} Hide this post</button></div>`;
 }
 
+// ---------- profiles ----------
+const weekOf = iso => { const d = new Date(iso); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };  // Monday
+const weekLabel = d => {
+  const now = weekOf(new Date().toISOString()), weeks = Math.round((now - d) / 6048e5), end = new Date(d.getTime() + 6 * 864e5);
+  if (weeks === 0) return "This week";
+  if (weeks === 1) return "Last week";
+  const f = x => x.toLocaleDateString([], { month: "short", day: "numeric" });
+  return `${f(d)} – ${f(end)}`;
+};
+function openProfile(uid) {
+  profileStop?.(); profilePosts = {}; profileTab = "posts";
+  profile = { uid, loading: true };
+  $("profile").hidden = false; $("profileCard").scrollTop = 0;
+  renderProfile();
+  // what you're allowed to see: everything with you in it (yourself, friends), or only public posts (everyone else)
+  const friend = uid === me.uid || !!friendOf(uid);
+  const q = friend ? query(collection(db, "feed"), where("by", "==", uid), where("viewers", "array-contains", me.uid), limit(90))
+                   : query(collection(db, "feed"), where("by", "==", uid), where("public", "==", true), limit(90));
+  profileStop = onSnapshot(q, s => {
+    profilePosts = Object.fromEntries(s.docs.map(d => [d.id, { ...d.data(), id: d.id }]));
+    profile.loading = false; renderProfile();
+  }, err => {
+    console.warn("profile:", err.message);
+    if (err.code === "failed-precondition" && friend) {  // Firestore wants an index for this: use the feed's one meanwhile
+      profileStop = onSnapshot(query(collection(db, "feed"), where("viewers", "array-contains", me.uid), orderBy("at", "desc"), limit(200)), s => {
+        profilePosts = Object.fromEntries(s.docs.filter(d => d.data().by === uid).map(d => [d.id, { ...d.data(), id: d.id }]));
+        profile.loading = false; renderProfile();
+      }, () => {});
+      return;
+    }
+    profile.loading = false; renderProfile();
+  });
+  if (!cards[uid] && !friend) onSnapshot(doc(db, "publicProfiles", uid), d => { cards[uid] = d.data() || {}; renderProfile(); }, () => {});
+}
+window.openProfile = openProfile;
+function renderProfile() {
+  const { uid } = profile, mine = uid === me.uid, f = friendOf(uid), card = cards[uid] || {};
+  const name = mine ? myName() : f?.name || card.name || Object.values(profilePosts)[0]?.byName || "omw! user";
+  const code = mine ? (window.myFriends || []).find(p => p.isMe)?.code : f?.code || card.code;
+  const list = Object.values(profilePosts).filter(p => !blocked().includes(p.by)).sort((a, b) => b.at.localeCompare(a.at));
+  const board = (window.standings?.() || []).find(b => b.user_id === uid);
+  const onTime = board?.hangouts ? `${Math.round(100 * board.on_time / board.hangouts)}%` : "";
+  const photo = mine ? (window.myFriends || []).find(p => p.isMe)?.photo : f?.photo || card.photo;
+  const avatar = photo ? `<span class="ff" style="background-image:url('${esc(photo)}')"></span>` : `<span class="ff">${esc(first(name).slice(0, 1))}</span>`;
+  const outgoing = (window.myRequestsOut || []).includes(uid);
+  let body;
+  if (profileTab === "posts") {
+    if (profile.loading) body = `<div class="pf-empty">Loading…</div>`;
+    else if (!list.length) body = mine ? `<div class="pf-empty">${icon("camera")}<b>Share your first post</b>Photos you post, and group photos from your hangouts, show up here by week.
+        <button class="fe-go" data-new-post>${icon("camera")} New post</button></div>`
+      : `<div class="pf-empty">${icon(f ? "images" : "lock")}<b>${f ? "No posts yet" : "This account is private"}</b>${f ? "" : `Add ${esc(first(name))} as a friend to see their posts.`}</div>`;
+    else {
+      const weeks = [];
+      for (const p of list) { const w = weekOf(p.at).getTime(); (weeks.at(-1)?.w === w ? weeks.at(-1).items : (weeks.push({ w, items: [] }), weeks.at(-1).items)).push(p); }
+      body = weeks.map(w => `<div class="label">${esc(weekLabel(new Date(w.w)))}</div>
+        <div class="pf-grid">${w.items.map(p => `<button data-view-post="${esc(p.id)}" style="background-image:url('${esc(p.photo)}')" aria-label="${esc(p.caption || p.title || "Post")}"></button>`).join("")}</div>`).join("");
+    }
+  }
+  $("profileCard").innerHTML = `<button class="x" data-close-profile aria-label="Close">${icon("x")}</button>
+  <div class="pf">
+    <div class="pf-top">${avatar}<div class="pf-name"><b>${esc(name)}</b><small>${esc(code ? `@${code.toLowerCase()}` : "")}</small></div></div>
+    <div class="pf-stats"><span><b>${list.length}</b>posts</span>${mine ? `<span><b>${friends().length}</b>friends</span>` : ""}
+      ${onTime ? `<span><b>${onTime}</b>on time</span>` : ""}</div>
+    <div class="pf-actions">${mine
+      ? `<button class="main" data-new-post>${icon("camera")} New post</button><button data-edit-profile>${icon("pencil")} Edit profile</button>
+         <button data-invite>${icon("share")} Invite friends</button>`
+      : f ? `<button class="main" data-plan-with="${esc(uid)}">${icon("plus")} Plan something</button><button data-message="${esc(uid)}">${icon("message-circle")} Message</button>`
+      : `<button class="main" data-add-friend="${esc(uid)}" ${outgoing ? "disabled" : ""}>${icon("user-round-plus")} ${outgoing ? "Requested" : "Add friend"}</button>`}</div>
+    ${mine ? `<label class="pf-private"><span><b>Private account</b><small>${myPublic ? "Anyone on omw! can see your posts." : "Only your friends see your posts."}</small></span>
+      <input type="checkbox" data-privacy ${myPublic ? "" : "checked"}></label>` : ""}
+    ${mine ? `<div class="pf-tabs"><button class="on">${icon("images")} Posts</button><button data-my-calendar>${icon("calendar-days")} Calendar</button></div>` : ""}
+    ${body}
+  </div>`;
+}
+function renderPostView() {
+  const p = getPost(viewing);
+  if (!p) { $("postView").hidden = true; viewing = null; return; }
+  $("postViewCard").innerHTML = `<button class="x" data-close-post aria-label="Close">${icon("x")}</button>${p.kind === "post" ? postHtml(p) : groupHtml(p)}`;
+}
+function viewPost(id) {
+  viewing = id; $("postView").hidden = false;
+  if (!commentStops[id]) commentStops[id] = onSnapshot(query(collection(db, "feed", id, "comments"), orderBy("at"), limit(100)), s => {
+    comments[id] = s.docs.map(d => ({ ...d.data(), id: d.id })); render(); renderPostView(); }, () => {});
+  renderPostView();
+}
+async function setPrivacy(isPublic) {
+  myPublic = isPublic; renderProfile();
+  await setDoc(doc(db, "publicProfiles", me.uid), { public: isPublic }, { merge: true });
+  // your existing posts follow (group photos have other people in them, so they stay with friends)
+  const mine = await getDocs(query(collection(db, "feed"), where("by", "==", me.uid), where("viewers", "array-contains", me.uid)));
+  const batch = writeBatch(db);
+  mine.docs.filter(d => d.data().kind === "post").forEach(d => batch.update(d.ref, { public: isPublic }));
+  await batch.commit();
+}
+// strangers see your name, picture and friend ID (nothing else) on your public card
+function syncCard() {
+  const mine = (window.myFriends || []).find(p => p.isMe);
+  if (!mine || !me) return;
+  const next = { name: mine.realName || "", photo: mine.photo && mine.photo.length < 300000 ? mine.photo : "", code: mine.code || "" };
+  if (JSON.stringify(next) === JSON.stringify(myCard)) return;
+  myCard = next;
+  setDoc(doc(db, "publicProfiles", me.uid), next, { merge: true }).catch(() => (myCard = null));
+}
+
+// your posts on your Memories calendar, next to the group photos (memories.js)
+window.myPostsAsMemories = () => [...Object.values(posts), ...Object.values(profilePosts)]
+  .filter((p, i, all) => p.kind === "post" && p.by === me?.uid && all.findIndex(x => x.id === p.id) === i)
+  .map(p => ({ id: p.id, post: true, photo: p.photo, at: p.at, start: p.at, allHereAt: p.at, title: p.caption || "Post", members: [me.uid] }));
+
 // the spots your friends rated, best first (the map's "Friends' spots")
 window.friendSpots = () => {
   const by = {};
@@ -241,6 +370,18 @@ function listenComments() {
       render();
     }, () => {});
   }
+}
+
+// ---------- inviting friends: the phone's share sheet (Messages, Instagram, WhatsApp…), or copy the text ----------
+async function invite() {
+  const code = (window.myFriends || []).find(p => p.isMe)?.code || "";
+  const url = window.OMW_SERVER || location.origin;
+  const text = `Add me on omw! so we can plan hangouts and actually show up on time. My friend ID is ${code}.`;
+  try {
+    if (navigator.share) return await navigator.share({ title: "omw!", text, url });
+    await navigator.clipboard.writeText(`${text} ${url}`);
+    alert("Invite copied. Paste it to your friends.");
+  } catch (e) { if (e.name !== "AbortError") alert(`${text} ${url}`); }
 }
 
 // ---------- making a post ----------
@@ -305,20 +446,20 @@ async function share() {
     await addDoc(collection(db, "feed"), {
       kind: "post", by: me.uid, byName: myName(), members: [me.uid], names: { [me.uid]: myName() }, photo: draft.photo,
       caption: draft.caption, at: new Date().toISOString(), venueName: p?.name || "", address: p?.address || "",
-      venue: p ? [p.lat, p.lng] : null, likes: [], ratings: {}, viewers: [me.uid, ...friends().map(f => f.user_id)] });
+      venue: p ? [p.lat, p.lng] : null, likes: [], ratings: {}, public: myPublic, viewers: [me.uid, ...friends().map(f => f.user_id)] });
     draft = null; $("postCompose").hidden = true; $("feed").scrollTo({ top: 0, behavior: "smooth" });
   } catch (e) { btn.disabled = false; btn.textContent = "Share"; compose(friendly(e, "share it")); }
 }
 
 // ---------- tabs ----------
 // Feed and Map are screens; Plans and Me open their pages over the feed; + opens the planner
-const pages = { plans: "plans", memories: "memories", me: "drawer", board: "board" };
+const pages = { plans: "plans", memories: "memories", me: "drawer", board: "board", profile: "profile", post: "postView" };
 function closePages() { for (const id of Object.values(pages)) if ($(id)) $(id).hidden = true; }
 function go(t) {
   closePages();
   if (t === "plan") { window.openPlanner?.(); setTab("plan"); setTimeout(() => $("museText")?.focus(), 250); return; }
   if (t === "plans") { $("plansBtn").click(); return setTab("plans"); }
-  if (t === "me") { $("userPic").click(); return setTab("me"); }
+  if (t === "me") { openProfile(me.uid); return setTab("me"); }
   setTab(t);
   if (t === "feed") return render();
   window.showMapTab?.();
@@ -355,12 +496,32 @@ matchMedia("(max-width: 860px)").addEventListener("change", setUpTabs);
 document.addEventListener("click", async e => {
   const t = e.target.closest(`[data-tab], [data-tab-go], [data-free-menu], [data-free], [data-plan-with], [data-plan-at], [data-open-plan],
     [data-like], [data-rate], [data-post-menu], [data-report], [data-block], [data-hide-post], [data-unshare-post], [data-comments],
-    [data-del-comment], [data-report-comment], [data-new-post], [data-pc-cancel], [data-pc-share], [data-pc-place], [data-pc-unplace], #feedChats`);
-  if (!t || !t.closest("#feed, #tabs, #postCompose")) return;
+    [data-del-comment], [data-report-comment], [data-new-post], [data-pc-cancel], [data-pc-share], [data-pc-place], [data-pc-unplace], #feedChats,
+    [data-profile], [data-open-board], [data-close-profile], [data-close-post], [data-view-post], [data-edit-profile], [data-message],
+    [data-add-friend], [data-my-calendar], [data-invite], [data-add-friends]`);
+  if (!t || !t.closest("#feed, #tabs, #postCompose, #profile, #postView, #memories")) return;
   const ds = t.dataset;
   tick();
   if (ds.tab || ds.tabGo) return go(ds.tab || ds.tabGo);
   if (t.id === "feedChats") return $("inboxBtn").click();
+  if (ds.profile) return openProfile(ds.profile);
+  if (t.hasAttribute("data-open-board")) return $("boardBtn").click();
+  if (t.hasAttribute("data-close-profile")) { profileStop?.(); profileStop = null; profile = null; $("profile").hidden = true; return; }
+  if (t.hasAttribute("data-close-post")) { viewing = null; $("postView").hidden = true; return; }
+  if (ds.viewPost) return viewPost(ds.viewPost);
+  if (t.hasAttribute("data-edit-profile")) return $("userPic").click();
+  if (t.hasAttribute("data-add-friends")) { $("userPic").click(); return setTimeout(() => { $("addInput").scrollIntoView({ block: "center" }); $("addInput").focus(); }, 300); }
+  if (t.hasAttribute("data-invite")) return invite();
+  if (t.hasAttribute("data-my-calendar")) return $("memoriesBtn").click();
+  if (ds.message) return window.openDmWith?.(ds.message);
+  if (ds.addFriend) {
+    const card = cards[ds.addFriend] || {}, mine = (window.myFriends || []).find(p => p.isMe) || {};
+    t.disabled = true;
+    return setDoc(doc(db, "requests", `${me.uid}_${ds.addFriend}`), { from: me.uid, to: ds.addFriend, fromName: mine.realName || myName(),
+      fromPhoto: mine.photo || "", toName: card.name || "", createdAt: serverTimestamp() })
+      .then(() => { window.myRequestsOut = [...(window.myRequestsOut || []), ds.addFriend]; renderProfile(); })
+      .catch(err => { t.disabled = false; alert(friendly(err, "send the request")); });
+  }
   if (t.hasAttribute("data-new-post")) return pickPhoto();
   if (t.hasAttribute("data-pc-cancel")) { draft = null; $("postCompose").hidden = true; return; }
   if (t.hasAttribute("data-pc-share")) return share();
@@ -385,8 +546,9 @@ document.addEventListener("click", async e => {
     return render();
   }
   if (ds.planWith) { go("plan"); window.planWith?.([ds.planWith]); return; }
+  if (t.hasAttribute("data-privacy")) return;  // the switch itself (handled on change)
   if (ds.planAt) {
-    const p = posts[ds.planAt];
+    const p = getPost(ds.planAt);
     if (!p?.venue) return;
     go("plan"); window.planAt?.(p.venue, p.venueName, p.address || "");
     return;
@@ -409,7 +571,7 @@ document.addEventListener("click", async e => {
     const id = ds.hidePost || ds.report;
     if (ds.report) {
       if (!confirm("Report this post? We'll review it within 24 hours and remove it if it breaks the rules. It's hidden for you now.")) return;
-      const p = posts[id];
+      const p = getPost(id);
       await setDoc(doc(db, "reports", `${id}_${me.uid}`), { post: id, poster: p.by, members: p.members, by: me.uid, at: new Date().toISOString() })
         .catch(err => alert(friendly(err, "report it")));
     }
@@ -417,17 +579,20 @@ document.addEventListener("click", async e => {
     menuFor = null; return render();
   }
   if (ds.block) {
-    const name = first(Object.values(posts).find(p => p.by === ds.block)?.names?.[ds.block]);
+    const name = first([...Object.values(posts), ...Object.values(profilePosts)].find(p => p.by === ds.block)?.names?.[ds.block]);
     if (!confirm(`Block ${name}? You won't see their posts, or posts they're in.`)) return;
     menuFor = null;
     return setDoc(doc(db, "users", me.uid), { blocked: arrayUnion(ds.block) }, { merge: true }).catch(err => alert(friendly(err, "block them")));
   }
   if (ds.unsharePost) {
-    if (posts[ds.unsharePost]?.kind === "post" && !confirm("Delete this post?")) return;
+    if (getPost(ds.unsharePost)?.kind === "post" && !confirm("Delete this post?")) return;
     menuFor = null; return window.unshareFromFeed(ds.unsharePost).catch(err => alert(friendly(err, "delete it")));
   }
   if (ds.like) return like(ds.like);
   if (ds.rate) return updateDoc(doc(db, "feed", ds.rate), { [`ratings.${me.uid}`]: Number(ds.score) }).catch(err => alert(friendly(err, "rate it")));
+});
+document.addEventListener("change", e => {
+  if (e.target.matches?.("[data-privacy]")) setPrivacy(!e.target.checked).catch(err => alert(friendly(err, "change that")));
 });
 document.addEventListener("submit", e => {
   const f = e.target.closest("[data-comment-form]");
@@ -446,13 +611,13 @@ document.addEventListener("click", e => {
   if (!ph) return;
   const id = ph.dataset.likeTwice, now = Date.now();
   if (lastTap.id === id && now - lastTap.at < 350) {
-    if (!posts[id]?.likes?.includes(me.uid)) { tick(); like(id); }
+    if (!getPost(id)?.likes?.includes(me.uid)) { tick(); like(id); }
     ph.classList.remove("pop"); void ph.offsetWidth; ph.classList.add("pop");
     lastTap = { id: null, at: 0 };
   } else lastTap = { id, at: now };
 });
 function like(id) {
-  const p = posts[id], on = !p.likes?.includes(me.uid);
+  const p = getPost(id), on = !p.likes?.includes(me.uid);
   p.likes = on ? [...(p.likes || []), me.uid] : p.likes.filter(u => u !== me.uid);  // show it right away
   render();
   updateDoc(doc(db, "feed", id), { likes: on ? arrayUnion(me.uid) : arrayRemove(me.uid) }).catch(err => alert(friendly(err, "like it")));
@@ -516,7 +681,7 @@ function sendNow() {
 }
 setInterval(() => { sendNow(); if (tab === "feed" && !$("feed")?.hidden) render(); }, 60000);
 window.addEventListener("hangouts-changed", () => { sendNow(); render(); });
-window.addEventListener("friends-changed", () => { sendNow(); widen(); render(); });
+window.addEventListener("friends-changed", () => { sendNow(); widen(); syncCard(); render(); });
 window.addEventListener("memories-changed", render);
 
 $("meBoard")?.addEventListener("click", () => $("boardBtn").click());  // the leaderboard opens from Me
@@ -532,6 +697,7 @@ if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
   onAuthStateChanged(getAuth(app), u => {
     stopFeed?.(); stopFeed = null; posts = {}; me = u; nowSent = ""; widened = new Set();
     Object.values(commentStops).forEach(s => s()); commentStops = {}; comments = {};
+    profileStop?.(); profileStop = null; profile = null; profilePosts = {}; myCard = null; cards = {}; viewing = null; myPublic = false;
     setUpTabs();
     if (!u) { setUpTabs.done = false; return; }
     const listen = q => onSnapshot(q, s => {
@@ -546,6 +712,7 @@ if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
         stopFeed = listen(query(collection(db, "feed"), where("viewers", "array-contains", u.uid), limit(POSTS)));
       } else console.warn("feed:", err.message);
     });
+    onSnapshot(doc(db, "publicProfiles", u.uid), d => { myPublic = !!d.data()?.public; if (profile?.uid === u.uid) renderProfile(); }, () => {});
     listen.fallback = false;
     stopFeed = listen(query(collection(db, "feed"), where("viewers", "array-contains", u.uid), orderBy("at", "desc"), limit(POSTS)));
     render();

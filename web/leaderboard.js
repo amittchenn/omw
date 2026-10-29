@@ -166,6 +166,7 @@ function render() {
     + "Updates live: omw! checks people in automatically when they get there (with omw! open), or they can tap “I'm here”.";
 }
 
+window.standings = friendsBoard;  // the feed's on-time board
 $("boardBtn").onclick = () => { $("board").hidden = false; render(); };
 window.addEventListener("friends-changed", () => { if (!$("board").hidden) render(); });  // someone checked in somewhere
 $("boardClose").onclick = () => ($("board").hidden = true);
