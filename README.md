@@ -111,4 +111,4 @@ Sign-in, friends, plans, chats, photos and the feed use Firebase (Auth + Firesto
 | `APP_STORE.md` | Submitting the iPhone app: the checklist |
 | `mobile/` | The iPhone app (Capacitor): see `mobile/README.md` |
 | `Dockerfile`, `railway.json` | Deploying on Railway: see `DEPLOY.md` |
-| `web/` | The app: `index.html` (planner and map), `feed.js` (the home feed and tabs), `friends.js` (profile, friends, plans), `chat.js` and `dms.js` (chats), `memories.js` (group photos), `live.js` (live map), `leaderboard.js`, `island.js` (the Dynamic Island), `privacy.html`, `terms.html`, `support.html` |
+| `web/` | The app: `index.html` (planner and map), `feed.js` (the home feed: posts, comments, group photos, and the tabs), `maptab.js` (the Map tab: friends, saved places), `friends.js` (profile, friends, plans), `chat.js` and `dms.js` (chats), `memories.js` (group photos), `live.js` (live map), `leaderboard.js`, `island.js` (the Dynamic Island), `privacy.html`, `terms.html`, `support.html` |

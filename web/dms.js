@@ -287,6 +287,8 @@ const pageCard = () => pageOpen()?.querySelector(".drawer-card");
 let sw = null;
 function swipeStart(e, mode) {
   if (!phone() || e.touches.length > 1 || !me) return;
+  // with the tabs at the bottom (the app), pages don't slide in from the sides; only Chats keeps its swipe back
+  if (document.documentElement.classList.contains("has-tabs") && !["convo", "inbox"].includes(mode)) return;
   const t = e.touches[0];
   sw = { mode, x: t.clientX, y: t.clientY, dx: 0, dir: null };
 }
@@ -349,8 +351,9 @@ onTouch($("pageEdge"), e => { swipeStart(e, "main"); });
 onTouch($("inbox"), e => { if (!e.target.closest("input, textarea, .ib-fresh")) swipeStart(e, $("inbox").classList.contains("in-convo") ? "convo" : "inbox"); });
 for (const d of [$("plans"), $("memories"), $("board")]) {
   onTouch(d, e => { if (!sideScroller(e.target)) swipeStart(e, "page"); });
-  // the "My plans | Leaderboard" switch at the top of that page
-  d.querySelector(".page-tabs").onclick = e => {
+  // the "My plans | Memories" switch at the top of those pages
+  const switcher = d.querySelector(".page-tabs");
+  if (switcher) switcher.onclick = e => {
     const b = e.target.closest("[data-page]");
     if (!b || b.classList.contains("on")) return;
     d.hidden = true;

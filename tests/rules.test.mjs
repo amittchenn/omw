@@ -138,6 +138,27 @@ test("group photos and the feed", async () => {
   await assertSucceeds(deleteDoc(doc(db("alice"), "feed", "h1")));
 });
 
+test("posts and comments: friends only", async () => {
+  await friends();
+  const post = { kind: "post", by: "alice", members: ["alice"], names: { alice: "Alice" }, photo: JPEG, caption: "sunset", at: soon,
+                 viewers: ["alice", "bob"], likes: [], ratings: {} };
+  await assertFails(setDoc(doc(db("alice"), "feed", "p1"), { ...post, members: ["alice", "bob"] }));  // only you in your own post
+  await assertFails(setDoc(doc(db("alice"), "feed", "p1"), { ...post, caption: "x".repeat(501) }));
+  await assertFails(setDoc(doc(db("eve"), "feed", "p1"), { ...post }));  // not as someone else
+  await assertSucceeds(setDoc(doc(db("alice"), "feed", "p1"), post));
+  await assertSucceeds(getDoc(doc(db("bob"), "feed", "p1")));
+  await assertFails(getDoc(doc(db("eve"), "feed", "p1")));
+  await assertFails(updateDoc(doc(db("alice"), "feed", "p1"), { kind: "" }));
+  await assertSucceeds(addDoc(collection(db("bob"), "feed/p1/comments"), { from: "bob", name: "Bob", text: "nice", at: soon }));
+  await assertFails(addDoc(collection(db("bob"), "feed/p1/comments"), { from: "alice", name: "Alice", text: "fake", at: soon }));
+  await assertFails(addDoc(collection(db("eve"), "feed/p1/comments"), { from: "eve", text: "hi", at: soon }));
+  await assertFails(getDocs(collection(db("eve"), "feed/p1/comments")));
+  const c = await addDoc(collection(db("bob"), "feed/p1/comments"), { from: "bob", name: "Bob", text: "second", at: soon });
+  await assertSucceeds(deleteDoc(doc(db("alice"), "feed/p1/comments", c.id)));  // the poster can remove comments on their post
+  await assertSucceeds(setDoc(doc(db("bob"), "reports", `p1_${c.id}_bob`), { post: "p1", comment: c.id, by: "bob", at: soon }));
+  await assertSucceeds(deleteDoc(doc(db("alice"), "feed", "p1")));
+});
+
 test("chats", async () => {
   await friends();
   await assertSucceeds(getDoc(doc(db("alice"), "chats", "dm_alice_bob")));  // doesn't exist yet: the app checks first

@@ -141,29 +141,47 @@ service cloud.firestore {
     }
 
     // the feed: a group photo the poster chose to share with friends
+    // the feed: your own posts, and group photos the poster chose to share; friends only
     match /feed/{hid} {
+      function newPost() { return request.resource.data; }
       allow read: if signedIn() && me() in resource.data.viewers;
-      allow create: if signedIn() && request.resource.data.by == me()
-        && get(/databases/$(database)/documents/memories/$(hid)).data.by == me()
-        && request.resource.data.members == get(/databases/$(database)/documents/memories/$(hid)).data.members
-        && me() in request.resource.data.viewers && request.resource.data.viewers.size() <= 2000
-        && request.resource.data.get('likes', []).size() == 0 && request.resource.data.get('ratings', {}).size() == 0
-        && jpeg(request.resource.data.photo, 400000);
-      allow update: if signedIn() && unchanged('by') && unchanged('members') && (
+      allow create: if signedIn() && newPost().by == me()
+        && me() in newPost().viewers && newPost().viewers.size() <= 2000
+        && newPost().get('likes', []).size() == 0 && newPost().get('ratings', {}).size() == 0
+        && jpeg(newPost().photo, 400000) && (
+          // a post: just you
+          (newPost().get('kind', '') == 'post' && newPost().members == [me()] && text(newPost().get('caption', ''), 500)
+            && text(newPost().get('venueName', ''), 120))
+          // a group photo from Memories: posted by whoever took it, for exactly the people who went
+          || (newPost().get('kind', '') == ''
+            && get(/databases/$(database)/documents/memories/$(hid)).data.by == me()
+            && newPost().members == get(/databases/$(database)/documents/memories/$(hid)).data.members));
+      allow update: if signedIn() && unchanged('by') && unchanged('members') && unchanged('kind') && (
         // the poster: a retaken photo
         (resource.data.by == me() && onlyChanged(['photo', 'at']) && jpeg(request.resource.data.photo, 400000))
-        // the people who went: show it to their friends, rate the place, like it
+        // the people in it: show it to their friends, rate the place, like it
         || (me() in resource.data.members && onlyChanged(['viewers', 'ratings', 'likes']) && grows('viewers')
           && request.resource.data.viewers.size() <= 2000 && onlyMyEntry('ratings') && onlyMeInOrOut('likes')
           && request.resource.data.get('ratings', {}).get(me(), 0) in [0, 2, 5.5, 9])
         // everyone who can see it: like or unlike
         || (me() in resource.data.viewers && onlyChanged(['likes']) && onlyMeInOrOut('likes')));
       allow delete: if signedIn() && resource.data.by == me();
+
+      // comments: everyone who can see the post; you delete yours, the poster can delete any on their post
+      match /comments/{cid} {
+        function post() { return get(/databases/$(database)/documents/feed/$(hid)).data; }
+        allow read: if signedIn() && me() in post().viewers;
+        allow create: if signedIn() && me() in post().viewers && request.resource.data.from == me()
+          && text(request.resource.data.text, 300) && request.resource.data.text.size() > 0
+          && text(request.resource.data.get('name', ''), 60);
+        allow delete: if signedIn() && (resource.data.from == me() || post().by == me());
+      }
     }
 
-    // reports of posts, for us to review (nobody can read them in the app)
+    // reports of posts and comments, for us to review (nobody can read them in the app)
     match /reports/{id} {
-      allow create: if signedIn() && request.resource.data.by == me() && id == request.resource.data.post + '_' + me();
+      allow create: if signedIn() && request.resource.data.by == me() && (id == request.resource.data.post + '_' + me()
+        || (request.resource.data.comment is string && id == request.resource.data.post + '_' + request.resource.data.comment + '_' + me()));
     }
 
     // ---------- chats ----------

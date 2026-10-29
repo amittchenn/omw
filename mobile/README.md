@@ -9,6 +9,7 @@ What's native:
 - **The Dynamic Island and lock screen (Live Activity):** from 30 minutes before you need to leave until everyone's there,
   it counts down to your leave time, then to the start, and shows who has arrived ("2 of 4 there · Sam is here").
 - **Light haptics** on taps, the **icon** and **splash screen**, and the permission messages for location, camera and photos.
+- **Light and dark mode** follow the phone's setting.
 - **iPad:** the feed in one centered column; the map with the planner beside it.
 
 ## What you need

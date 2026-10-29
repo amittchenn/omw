@@ -4,7 +4,7 @@ yours in Firestore, and takes you out of everything you shared with others:
 
   - your profile, friend list (both sides), friend ID, requests, private doc, live location
   - plans you made, with their chat; on other people's plans you're taken off and your chat messages are deleted
-  - group photos and feed posts you posted; on others' you're taken off (and your likes and ratings go)
+  - group photos, posts and comments you made; on others' posts you're taken off (and your likes and ratings go)
   - DMs and group chats: you leave them and your messages are deleted
 """
 from google.cloud.firestore_v1 import ArrayRemove, DELETE_FIELD
@@ -69,8 +69,10 @@ def delete_account(db, uid):
             m.reference.update({"members": ArrayRemove([uid]), f"names.{uid}": DELETE_FIELD})
     for p in _where(db, "feed", "viewers", "array_contains", uid):
         if (p.to_dict() or {}).get("by") == uid:
-            p.reference.delete()
+            _wipe(p.reference)  # with its comments
         else:
+            for c in p.reference.collection("comments").where(filter=FieldFilter("from", "==", uid)).stream():
+                c.reference.delete()
             p.reference.update({"members": ArrayRemove([uid]), "viewers": ArrayRemove([uid]), "likes": ArrayRemove([uid]),
                                 f"names.{uid}": DELETE_FIELD, f"ratings.{uid}": DELETE_FIELD, f"late.{uid}": DELETE_FIELD})
 
