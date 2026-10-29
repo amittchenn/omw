@@ -21,14 +21,19 @@ import { getFirestore, collection, doc, query, where, orderBy, limit, onSnapshot
 
 const POSTS = 30;            // newest posts loaded (each carries its photo)
 const ON_TIME_MIN = 5;       // later than this and the post says who was late
-const RATINGS = [[9, "Loved it"], [5.5, "It was fine"], [2, "Didn't like it"]];  // Beli's three buckets, as a score out of 10
+// ranking places like Beli: pick a feeling, then a few "which did you like more?" against places you already ranked.
+// Your list is private/{uid}.ranks = { liked: [key], fine: [key], disliked: [key] } (best first) and .places = { key: { name, address, venue } };
+// a place's score comes from where it sits: liked 6.7 to 10, fine 3.4 to 6.6, didn't like 0 to 3.3.
+const BUCKETS = [["liked", "I liked it", 6.7, 10], ["fine", "It was fine", 3.4, 6.6], ["disliked", "I didn't like it", 0, 3.3]];
+let ranks = { liked: [], fine: [], disliked: [] }, places = {}, ranking = null;
+const placeKey = p => `${p.venueName || p.name}|${p.address || ""}`.toLowerCase().replace(/[.#$/\[\]]/g, "").slice(0, 200);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const phone = () => matchMedia("(max-width: 860px)").matches;
 const tick = () => window.Capacitor?.Plugins?.Haptics?.impact({ style: "LIGHT" }).catch(() => {});  // a light tap in the iPhone app
 
 let db, me = null, posts = {}, stopFeed = null, tab = "feed", freeMenu = false, widened = new Set(), nowSent = "", menuFor = null;
-let comments = {}, commentStops = {}, openComments = new Set(), draft = null;
+let comments = {}, commentStops = {}, openComments = new Set(), draft = null, loaded = false;
 let profile = null, profilePosts = {}, profileStop = null, profileTab = "posts", myPublic = false, myCard = null, cards = {}, viewing = null;
 const getPost = id => posts[id] || profilePosts[id];
 
@@ -73,10 +78,31 @@ function statusOf(p) {
 function render() {
   if (!$("feed") || !me) return;
   // typing a comment: don't redraw under the person's fingers (it catches up when they send)
-  if (document.activeElement?.matches?.("#feed .fc-input")) return;
-  $("feedBody").innerHTML = friendsRow() + upNext() + snapBanner() + boardCard() + postsHtml();
+  if (document.activeElement?.matches?.("#feed .fc-input, #postView .fc-input")) return;
+  patch($("feedBody"), [["friends", friendsRow()], ["next", upNext()], ["snap", snapBanner()], ["board", boardCard()], ...postItems()]);
   if (profile && !$("profile").hidden) renderProfile();
   if (viewing && !$("postView").hidden) renderPostView();
+}
+
+// update only what changed, like a native list: a new like redraws that one post, photos never reload, the scroll never jumps
+function patch(box, items) {
+  const keep = new Map([...box.children].map(el => [el.dataset.key, el]));
+  let at = box.firstElementChild;
+  for (const [key, html] of items) {
+    if (!html) continue;
+    let el = keep.get(key);
+    if (!el || el.dataset.html !== html) {
+      const t = document.createElement("template");
+      t.innerHTML = `<div class="fk" data-key="${esc(key)}">${html}</div>`;
+      const fresh = t.content.firstElementChild;
+      fresh.dataset.html = html;
+      if (el) el.replaceWith(fresh); else box.insertBefore(fresh, at);
+      el = fresh;
+    } else if (el !== at) box.insertBefore(el, at);
+    keep.delete(key);
+    at = el.nextElementSibling;
+  }
+  keep.forEach(el => el.remove());
 }
 
 function friendsRow() {
@@ -149,15 +175,19 @@ function lateBadge(p) {
   return `<span class="fp-badge late">${esc(who)} ${worst < 60 ? `${Math.round(worst)} min` : `${Math.round(worst / 60)} h`} late</span>`;
 }
 
-function postsHtml() {
+function postItems() {
   const list = visible().sort((a, b) => b.at.localeCompare(a.at));
-  if (!list.length) return `<div class="feed-empty">${icon("images")}<b>${friends().length ? "Nothing here yet" : "omw! is better with friends"}</b>
+  if (!loaded) return [["skeleton", skeleton()]];
+  if (!list.length) return [["empty", `<div class="feed-empty">${icon("images")}<b>${friends().length ? "Nothing here yet" : "omw! is better with friends"}</b>
     ${friends().length ? "Share what you're up to, or hang out with friends: the group photo shows up here too."
                        : "Invite your friends, plan something, and see who shows up on time."}
     <span class="fe-row">${friends().length ? "" : `<button class="fe-go" data-invite>${icon("share")} Invite friends</button>`}
-      <button class="fe-go ${friends().length ? "" : "alt"}" data-new-post>${icon("camera")} ${friends().length ? "Make your first post" : "Post"}</button></span></div>`;
-  return list.map(p => p.kind === "post" ? postHtml(p) : groupHtml(p)).join("");
+      <button class="fe-go ${friends().length ? "" : "alt"}" data-new-post>${icon("camera")} ${friends().length ? "Make your first post" : "Post"}</button></span></div>`]];
+  return list.map(p => [`p:${p.id}`, p.kind === "post" ? postHtml(p) : groupHtml(p)]);
 }
+// grey shapes where the posts will be, while they load (no spinner, no blank screen)
+const skeleton = () => [1, 2].map(() => `<div class="sk-post"><div class="sk-head"><i class="sk sk-circle"></i><i class="sk sk-line"></i></div>
+  <i class="sk sk-photo"></i></div>`).join("");
 
 // someone's post, like Instagram
 function postHtml(p) {
@@ -166,8 +196,9 @@ function postHtml(p) {
     <header><span class="fp-faces" data-profile="${esc(p.by)}">${face(p.by, name)}</span>
       <span class="fp-who"><b data-profile="${esc(p.by)}">${esc(name)}</b><small>${esc([p.venueName, ago(p.at)].filter(Boolean).join(" · "))}</small></span>
       <button class="fp-more" data-post-menu="${esc(p.id)}" aria-label="More options">${icon("ellipsis")}</button></header>
-    ${menuFor === p.id ? postMenu(p) : ""}
-    <div class="fp-photo" data-like-twice="${esc(p.id)}"><img src="${esc(p.photo)}" alt="${esc(p.caption || "Photo")}" loading="lazy">
+    <div class="fp-photo ${p.photos?.length > 1 ? "many" : ""}" data-like-twice="${esc(p.id)}">${(p.photos?.length > 1 ? p.photos : [p.photo])
+      .map(ph => `<img src="${esc(ph)}" alt="${esc(p.caption || "Photo")}" loading="lazy">`).join("")}
+      ${p.photos?.length > 1 ? `<span class="fp-dots">${p.photos.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</span>` : ""}
       ${p.venueName ? `<div class="fp-place"><span class="fp-pin">${icon("map-pin")}</span>
         <span class="fp-pname"><b>${esc(p.venueName)}</b><small>${esc([p.address, away(p.venue)].filter(Boolean).join(" · "))}</small></span></div>` : ""}
     </div>
@@ -188,7 +219,6 @@ function groupHtml(p) {
     <header><span class="fp-faces" data-profile="${esc(p.by)}">${members.slice(0, 3).map(u => face(u, p.names?.[u])).join("")}</span>
       <span class="fp-who"><b>${esc(who)}</b><small>${esc(p.venueName || plainTitle(p.title))} · ${esc(ago(p.at))}</small></span>${lateBadge(p)}
       <button class="fp-more" data-post-menu="${esc(p.id)}" aria-label="More options">${icon("ellipsis")}</button></header>
-    ${menuFor === p.id ? postMenu(p) : ""}
     <div class="fp-photo" data-like-twice="${esc(p.id)}"><img src="${esc(p.photo)}" alt="Group photo at ${esc(p.venueName || "a hangout")}" loading="lazy">
       ${p.venueName ? `<div class="fp-place">
         <span class="fp-score ${s == null ? "none" : ""}">${s == null ? "new" : s.toFixed(1)}</span>
@@ -196,9 +226,9 @@ function groupHtml(p) {
           away(p.venue)].filter(Boolean).join(" · "))}</small></span>
       </div>` : ""}
     </div>
-    ${mine && !myRating && p.venueName ? `<div class="fp-rate"><span>How was ${esc(p.venueName)}?</span>
-      <div>${RATINGS.map(([v, l]) => `<button data-rate="${esc(p.id)}" data-score="${v}">${esc(l)}</button>`).join("")}</div></div>` : ""}
-    ${actions(p, liked, myRating ? `<small class="fp-mine">You: ${esc(RATINGS.find(r => r[0] === myRating)?.[1] || myRating)}</small>` : "")}
+    ${mine && myRating == null && p.venueName ? `<button class="fp-rate" data-rank="${esc(p.id)}">${icon("star")}<span><b>Rank ${esc(p.venueName)}</b>
+      <small>Where does it go on your list?</small></span>${icon("chevron-right")}</button>` : ""}
+    ${actions(p, liked, myRating != null ? `<small class="fp-mine">You: ${myRating.toFixed(1)}</small>` : "")}
     ${commentsHtml(p)}
   </article>`;
 }
@@ -226,14 +256,19 @@ function commentsHtml(p) {
   </div>`;
 }
 
+// the ⋯ menu: an iOS-style sheet from the bottom
 function postMenu(p) {
   const poster = p.by === me.uid ? "you" : first(p.names?.[p.by]);
-  return `<div class="fp-menu">${p.by === me.uid
-    ? `<button data-unshare-post="${esc(p.id)}">${icon("trash-2")} ${p.kind === "post" ? "Delete this post" : "Take it off the feed"}</button>`
-    : `<button data-report="${esc(p.id)}">${icon("flag")} Report this post</button>
-       <button data-block="${esc(p.by)}">${icon("user-x")} Block ${esc(poster)}</button>`}
-    <button data-hide-post="${esc(p.id)}">${icon("x")} Hide this post</button></div>`;
+  $("actionSheet").innerHTML = `<div class="as-card" role="menu">
+    <div class="as-group">${p.by === me.uid
+      ? `<button class="danger" data-unshare-post="${esc(p.id)}">${p.kind === "post" ? "Delete post" : "Take off the feed"}</button>`
+      : `<button class="danger" data-report="${esc(p.id)}">Report</button><button class="danger" data-block="${esc(p.by)}">Block ${esc(poster)}</button>`}
+      <button data-hide-post="${esc(p.id)}">Hide</button>
+      ${p.by !== me.uid ? `<button data-profile="${esc(p.by)}">Go to ${esc(poster)}'s profile</button>` : ""}</div>
+    <button class="as-cancel" data-sheet-cancel>Cancel</button></div>`;
+  $("actionSheet").hidden = false;
 }
+const closeSheet = () => { $("actionSheet").hidden = true; };
 
 // ---------- profiles ----------
 const weekOf = iso => { const d = new Date(iso); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };  // Monday
@@ -281,38 +316,46 @@ function renderProfile() {
   const avatar = photo ? `<span class="ff" style="background-image:url('${esc(photo)}')"></span>` : `<span class="ff">${esc(first(name).slice(0, 1))}</span>`;
   const outgoing = (window.myRequestsOut || []).includes(uid);
   let body;
-  if (profileTab === "posts") {
+  if (profileTab === "places") {
+    const list = BUCKETS.flatMap(([b]) => ranks[b].map((k, i) => ({ k, b, score: scoreAt(b, i, ranks[b].length) })));
+    body = list.length ? `<div class="rank-list">${list.map((x, i) => `<div class="rank-item"><span class="rank-n">${i + 1}</span>
+        <span><b>${esc(places[x.k]?.name || "")}</b><small>${esc(places[x.k]?.address || "")}</small></span><span class="fp-score">${x.score.toFixed(1)}</span></div>`).join("")}</div>`
+      : `<div class="pf-empty">${icon("star")}<b>Your places</b>After a hangout, rank the spot. Your list builds itself, best first.</div>`;
+  } else if (profileTab === "posts") {
     if (profile.loading) body = `<div class="pf-empty">Loading…</div>`;
-    else if (!list.length) body = mine ? `<div class="pf-empty">${icon("camera")}<b>Share your first post</b>Photos you post, and group photos from your hangouts, show up here by week.
-        <button class="fe-go" data-new-post>${icon("camera")} New post</button></div>`
-      : `<div class="pf-empty">${icon(f ? "images" : "lock")}<b>${f ? "No posts yet" : "This account is private"}</b>${f ? "" : `Add ${esc(first(name))} as a friend to see their posts.`}</div>`;
+    else if (!list.length) body = mine ? `<div class="pf-empty">${icon("camera")}<b>Share your first memory</b>Photos you share, and group photos from your hangouts, show up here by week.
+        <button class="fe-go" data-new-post>${icon("camera")} New memory</button></div>`
+      : `<div class="pf-empty">${icon(f ? "images" : "lock")}<b>${f ? "No memories yet" : "This account is private"}</b>${f ? "" : `Add ${esc(first(name))} as a friend to see their memories.`}</div>`;
     else {
       const weeks = [];
       for (const p of list) { const w = weekOf(p.at).getTime(); (weeks.at(-1)?.w === w ? weeks.at(-1).items : (weeks.push({ w, items: [] }), weeks.at(-1).items)).push(p); }
       body = weeks.map(w => `<div class="label">${esc(weekLabel(new Date(w.w)))}</div>
-        <div class="pf-grid">${w.items.map(p => `<button data-view-post="${esc(p.id)}" style="background-image:url('${esc(p.photo)}')" aria-label="${esc(p.caption || p.title || "Post")}"></button>`).join("")}</div>`).join("");
+        <div class="pf-grid">${w.items.map(p => `<button data-view-post="${esc(p.id)}" style="background-image:url('${esc(p.photo)}')" aria-label="${esc(p.caption || p.title || "Memory")}">
+          ${p.photos?.length > 1 ? `<span class="pf-many">${icon("images")}</span>` : ""}</button>`).join("")}</div>`).join("");
     }
   }
-  $("profileCard").innerHTML = `<button class="x" data-close-profile aria-label="Close">${icon("x")}</button>
+  setHtml($("profileCard"), `<button class="x" data-close-profile aria-label="Close">${icon("x")}</button>
   <div class="pf">
     <div class="pf-top">${avatar}<div class="pf-name"><b>${esc(name)}</b><small>${esc(code ? `@${code.toLowerCase()}` : "")}</small></div></div>
-    <div class="pf-stats"><span><b>${list.length}</b>posts</span>${mine ? `<span><b>${friends().length}</b>friends</span>` : ""}
+    <div class="pf-stats"><span><b>${list.length}</b>${list.length === 1 ? "memory" : "memories"}</span>${mine ? `<span><b>${friends().length}</b>friends</span>` : ""}
       ${onTime ? `<span><b>${onTime}</b>on time</span>` : ""}</div>
     <div class="pf-actions">${mine
-      ? `<button class="main" data-new-post>${icon("camera")} New post</button><button data-edit-profile>${icon("pencil")} Edit profile</button>
+      ? `<button class="main" data-new-post>${icon("camera")} New memory</button><button data-edit-profile>${icon("pencil")} Edit profile</button>
          <button data-invite>${icon("share")} Invite friends</button>`
       : f ? `<button class="main" data-plan-with="${esc(uid)}">${icon("plus")} Plan something</button><button data-message="${esc(uid)}">${icon("message-circle")} Message</button>`
       : `<button class="main" data-add-friend="${esc(uid)}" ${outgoing ? "disabled" : ""}>${icon("user-round-plus")} ${outgoing ? "Requested" : "Add friend"}</button>`}</div>
-    ${mine ? `<label class="pf-private"><span><b>Private account</b><small>${myPublic ? "Anyone on omw! can see your posts." : "Only your friends see your posts."}</small></span>
-      <input type="checkbox" data-privacy ${myPublic ? "" : "checked"}></label>` : ""}
-    ${mine ? `<div class="pf-tabs"><button class="on">${icon("images")} Posts</button><button data-my-calendar>${icon("calendar-days")} Calendar</button></div>` : ""}
+    ${mine ? `<div class="pf-tabs"><button class="${profileTab === "posts" ? "on" : ""}" data-pf-tab="posts">${icon("images")} Memories</button>
+      <button class="${profileTab === "places" ? "on" : ""}" data-pf-tab="places">${icon("star")} Places</button>
+      <button data-my-calendar>${icon("calendar-days")} Calendar</button></div>` : ""}
     ${body}
-  </div>`;
+  </div>`);
 }
+// replace a screen's content only when something in it changed (no flash, no lost scroll)
+function setHtml(el, html) { if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; } }
 function renderPostView() {
   const p = getPost(viewing);
   if (!p) { $("postView").hidden = true; viewing = null; return; }
-  $("postViewCard").innerHTML = `<button class="x" data-close-post aria-label="Close">${icon("x")}</button>${p.kind === "post" ? postHtml(p) : groupHtml(p)}`;
+  setHtml($("postViewCard"), `<button class="x" data-close-post aria-label="Close">${icon("x")}</button>${p.kind === "post" ? postHtml(p) : groupHtml(p)}`);
 }
 function viewPost(id) {
   viewing = id; $("postView").hidden = false;
@@ -321,7 +364,7 @@ function viewPost(id) {
   renderPostView();
 }
 async function setPrivacy(isPublic) {
-  myPublic = isPublic; renderProfile();
+  myPublic = isPublic; if (profile) renderProfile();
   await setDoc(doc(db, "publicProfiles", me.uid), { public: isPublic }, { merge: true });
   // your existing posts follow (group photos have other people in them, so they stay with friends)
   const mine = await getDocs(query(collection(db, "feed"), where("by", "==", me.uid), where("viewers", "array-contains", me.uid)));
@@ -343,6 +386,56 @@ function syncCard() {
 window.myPostsAsMemories = () => [...Object.values(posts), ...Object.values(profilePosts)]
   .filter((p, i, all) => p.kind === "post" && p.by === me?.uid && all.findIndex(x => x.id === p.id) === i)
   .map(p => ({ id: p.id, post: true, photo: p.photo, at: p.at, start: p.at, allHereAt: p.at, title: p.caption || "Post", members: [me.uid] }));
+
+// ---------- ranking a place, like Beli ----------
+function rankStart(p) {
+  const key = placeKey(p);
+  ranking = { post: p.id, key, place: { name: p.venueName, address: p.address || "", venue: p.venue || null }, step: "feel" };
+  rankDraw();
+}
+function rankDraw() {
+  const r = ranking, sheet = $("actionSheet");
+  if (r.step === "feel") sheet.innerHTML = `<div class="as-card rank-card" role="dialog" aria-label="Rank ${esc(r.place.name)}">
+    <div class="rank-head"><b>How was ${esc(r.place.name)}?</b><small>${esc(r.place.address)}</small></div>
+    <div class="as-group">${BUCKETS.map(([k, label]) => `<button data-rank-feel="${k}">${esc(label)}</button>`).join("")}</div>
+    <button class="as-cancel" data-sheet-cancel>Not now</button></div>`;
+  else {
+    const other = places[ranks[r.bucket][Math.floor((r.lo + r.hi) / 2)]] || {};
+    sheet.innerHTML = `<div class="as-card rank-card" role="dialog" aria-label="Which did you like more?">
+      <div class="rank-head"><b>Which did you like more?</b><small>${r.asked + 1} of about ${Math.max(1, Math.ceil(Math.log2(ranks[r.bucket].length + 1)))}</small></div>
+      <div class="rank-vs"><button data-rank-pick="this"><b>${esc(r.place.name)}</b><small>${esc(r.place.address)}</small></button>
+        <span>or</span><button data-rank-pick="that"><b>${esc(other.name || "")}</b><small>${esc(other.address || "")}</small></button></div>
+      <button class="as-cancel" data-rank-same>Too close to call</button></div>`;
+  }
+  sheet.hidden = false;
+}
+async function rankFeel(bucket) {
+  const r = ranking;
+  for (const b of Object.keys(ranks)) ranks[b] = ranks[b].filter(k => k !== r.key);  // ranking it again moves it
+  Object.assign(r, { bucket, lo: 0, hi: ranks[bucket].length, asked: 0, step: "compare" });
+  if (r.lo >= r.hi) return rankSave();
+  rankDraw();
+}
+function rankPick(better) {  // a binary search through your list: a handful of questions even for long lists
+  const r = ranking, mid = Math.floor((r.lo + r.hi) / 2);
+  if (better === "same") { r.lo = mid; r.hi = mid; } else if (better) r.hi = mid; else r.lo = mid + 1;
+  r.asked++;
+  if (r.lo >= r.hi) return rankSave();
+  rankDraw();
+}
+const scoreAt = (bucket, i, n) => { const [, , lo, hi] = BUCKETS.find(b => b[0] === bucket); return Math.round((hi - (i + .5) / n * (hi - lo)) * 10) / 10; };
+const myScore = key => { for (const [b] of BUCKETS) { const i = ranks[b].indexOf(key); if (i >= 0) return scoreAt(b, i, ranks[b].length); } return null; };
+async function rankSave() {
+  const r = ranking;
+  ranks[r.bucket].splice(r.lo, 0, r.key);
+  places[r.key] = r.place;
+  $("actionSheet").hidden = true; ranking = null;
+  const score = myScore(r.key);
+  try {
+    await setDoc(doc(db, "private", me.uid), { ranks, places }, { merge: true });
+    await updateDoc(doc(db, "feed", r.post), { [`ratings.${me.uid}`]: score });
+  } catch (e) { alert(friendly(e, "save that")); }
+}
 
 // the spots your friends rated, best first (the map's "Friends' spots")
 window.friendSpots = () => {
@@ -385,23 +478,76 @@ async function invite() {
 }
 
 // ---------- making a post ----------
-function pickPhoto() {
-  const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/*" });
+// Like Instagram: your recent photos in a grid right in the app (once you allow access), tap up to 4, then Next.
+// In the iPhone app this reads the photo library (@capacitor-community/media); on the website it's the usual file picker.
+const MAX_PHOTOS = 4;
+const media = () => window.Capacitor?.isNativePlatform?.() && (window.Capacitor.Plugins?.Media || null);
+let album = null;  // { items: [{ id, thumb }], picked: [ids] }
+async function pickPhoto() {
+  if (media()) {
+    try {
+      const { medias } = await media().getMedias({ quantity: 120, types: "photos", thumbnailWidth: 360, thumbnailHeight: 360, thumbnailQuality: 75,
+                                                  sort: [{ key: "creationDate", ascending: false }] });
+      album = { items: medias.map(m => ({ id: m.identifier, thumb: `data:image/jpeg;base64,${m.data}` })), picked: [] };
+      if (album.items.length) { album.picked = [album.items[0].id]; return drawAlbum(); }
+    } catch (e) { console.warn("photos:", e.message); }  // no access: the system picker still works
+  }
+  const input = Object.assign(document.createElement("input"), { type: "file", accept: "image/*", multiple: true });
   input.onchange = async () => {
-    const file = input.files[0];
-    if (!file) return;
-    try { draft = { photo: await toJpeg(URL.createObjectURL(file)), caption: "", place: null, found: [] }; compose(); }
+    const files = [...input.files].slice(0, MAX_PHOTOS);
+    if (!files.length) return;
+    try { startDraft(await Promise.all(files.map(f => toJpeg(URL.createObjectURL(f), budget(files.length))))); }
     catch (e) { alert(friendly(e, "use that photo")); }
   };
   input.click();
 }
+const budget = n => n > 1 ? 210000 : 380000;  // a post stays under the database's 1 MB per document
+function startDraft(photos) { draft = { photos, caption: "", place: null, found: [] }; compose(); }
+function drawAlbum() {
+  const box = $("postCompose"), last = album.items.find(i => i.id === album.picked.at(-1)) || album.items[0];
+  box.hidden = false;
+  box.innerHTML = `<div class="pc-card album" role="dialog" aria-label="New memory">
+    <div class="pc-head"><button class="pc-cancel" data-pc-cancel>Cancel</button><b>New memory</b>
+      <button class="pc-next" data-album-next ${album.picked.length ? "" : "disabled"}>Next</button></div>
+    <div class="al-preview"><img src="${last.thumb}" alt=""></div>
+    <div class="al-bar"><b>Recents</b><small>${album.picked.length ? `${album.picked.length} selected` : `Pick up to ${MAX_PHOTOS}`}</small></div>
+    <div class="al-grid">${album.items.map(i => {
+      const n = album.picked.indexOf(i.id);
+      return `<button data-album="${esc(i.id)}" class="${n >= 0 ? "on" : ""}" style="background-image:url('${i.thumb}')" aria-label="Photo${n >= 0 ? `, picked ${n + 1}` : ""}">
+        <span>${n >= 0 ? n + 1 : ""}</span></button>`; }).join("")}</div>
+  </div>`;
+}
+// tapping a photo only updates the numbers and the preview: the grid keeps its scroll, like Instagram
+function albumUpdate(tapped) {
+  const box = $("postCompose");
+  box.querySelectorAll("[data-album]").forEach(b => {
+    const n = album.picked.indexOf(b.dataset.album);
+    b.classList.toggle("on", n >= 0); b.querySelector("span").textContent = n >= 0 ? n + 1 : "";
+  });
+  const show = album.items.find(i => i.id === (album.picked.includes(tapped) ? tapped : album.picked.at(-1)));
+  if (show) box.querySelector(".al-preview img").src = show.thumb;
+  box.querySelector(".al-bar small").textContent = album.picked.length ? `${album.picked.length} selected` : `Pick up to ${MAX_PHOTOS}`;
+  box.querySelector("[data-album-next]").disabled = !album.picked.length;
+}
+async function albumNext() {
+  const btn = $("postCompose").querySelector("[data-album-next]");
+  btn.disabled = true; btn.textContent = "…";
+  try {
+    const photos = [];
+    for (const id of album.picked) {
+      const { path } = await media().getMediaByIdentifier({ identifier: id });
+      photos.push(await toJpeg(window.Capacitor.convertFileSrc(path), budget(album.picked.length)));
+    }
+    album = null; startDraft(photos);
+  } catch (e) { btn.disabled = false; btn.textContent = "Next"; alert(friendly(e, "open those photos")); }
+}
 function compose(msg = "") {
   const box = $("postCompose");
   box.hidden = false;
-  box.innerHTML = `<div class="pc-card" role="dialog" aria-label="New post">
-    <div class="pc-head"><button class="pc-cancel" data-pc-cancel>Cancel</button><b>New post</b>
+  box.innerHTML = `<div class="pc-card" role="dialog" aria-label="New memory">
+    <div class="pc-head"><button class="pc-cancel" data-pc-cancel>Cancel</button><b>New memory</b>
       <button class="pc-share" data-pc-share>Share</button></div>
-    <div class="pc-photo"><img src="${draft.photo}" alt="Your photo"></div>
+    <div class="pc-photo ${draft.photos.length > 1 ? "many" : ""}">${draft.photos.map(ph => `<img src="${ph}" alt="Your photo">`).join("")}</div>
     <textarea class="pc-caption" id="pcCaption" maxlength="500" placeholder="Write a caption…" aria-label="Caption">${esc(draft.caption)}</textarea>
     <div class="pc-place">${draft.place
       ? `<div class="pc-picked">${icon("map-pin")}<span><b>${esc(draft.place.name)}</b><small>${esc(draft.place.address || "")}</small></span>
@@ -426,14 +572,14 @@ function compose(msg = "") {
     }, 250);
   };
 }
-async function toJpeg(src) {  // at most 1080 px and about 300 KB (it's stored in the database)
+async function toJpeg(src, maxChars = 380000) {  // at most 1080 px and about 300 KB (it's stored in the database)
   const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("That file isn't a photo.")); i.src = src; });
-  for (const [size, q] of [[1080, .8], [960, .74], [800, .7], [640, .66]]) {
+  for (const [size, q] of [[1080, .8], [960, .74], [800, .7], [640, .66], [520, .62]]) {
     const k = Math.min(1, size / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
     c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
     const url = c.toDataURL("image/jpeg", q);
-    if (url.length < 380000) return url;
+    if (url.length < maxChars) return url;
   }
   throw new Error("That photo is too big. Try another one.");
 }
@@ -444,7 +590,10 @@ async function share() {
   const p = draft.place;
   try {
     await addDoc(collection(db, "feed"), {
-      kind: "post", by: me.uid, byName: myName(), members: [me.uid], names: { [me.uid]: myName() }, photo: draft.photo,
+      kind: "post", by: me.uid, byName: myName(), members: [me.uid], names: { [me.uid]: myName() },
+      // one photo: it's the post; several: they're in photos, and photo is a small cover for grids
+      photo: draft.photos.length > 1 ? await toJpeg(draft.photos[0], 60000) : draft.photos[0],
+      ...(draft.photos.length > 1 ? { photos: draft.photos } : {}),
       caption: draft.caption, at: new Date().toISOString(), venueName: p?.name || "", address: p?.address || "",
       venue: p ? [p.lat, p.lng] : null, likes: [], ratings: {}, public: myPublic, viewers: [me.uid, ...friends().map(f => f.user_id)] });
     draft = null; $("postCompose").hidden = true; $("feed").scrollTo({ top: 0, behavior: "smooth" });
@@ -458,8 +607,8 @@ function closePages() { for (const id of Object.values(pages)) if ($(id)) $(id).
 function go(t) {
   closePages();
   if (t === "plan") { window.openPlanner?.(); setTab("plan"); setTimeout(() => $("museText")?.focus(), 250); return; }
-  if (t === "plans") { $("plansBtn").click(); return setTab("plans"); }
-  if (t === "me") { openProfile(me.uid); return setTab("me"); }
+  if (t === "plans") { $("plans").classList.add("instant"); $("plansBtn").click(); return setTab("plans"); }
+  if (t === "me") { $("profile").classList.add("instant"); openProfile(me.uid); return setTab("me"); }
   setTab(t);
   if (t === "feed") return render();
   window.showMapTab?.();
@@ -477,10 +626,65 @@ window.showTab = go;
 for (const id of Object.values(pages)) {
   const el = $(id);
   if (el) new MutationObserver(() => {
+    if (el.hidden) el.classList.remove("instant");
     if (document.documentElement.classList.contains("has-tabs") && ["plans", "me"].includes(tab)
         && Object.values(pages).every(p => $(p)?.hidden)) setTab("feed");
   }).observe(el, { attributes: true, attributeFilter: ["hidden"] });
 }
+
+// swipe from the left edge of a screen to go back, like every iOS app
+let back = null;
+document.addEventListener("touchstart", e => {
+  const card = e.target.closest?.(".drawer:not([hidden]):not(.instant) .drawer-card");  // a tab's own screen has nowhere to go back to
+  if (!card || !document.documentElement.classList.contains("has-tabs") || e.touches[0].clientX > 28) return;
+  back = { card, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, on: false };
+}, { passive: true });
+document.addEventListener("touchmove", e => {
+  if (!back) return;
+  const dx = e.touches[0].clientX - back.x, dy = e.touches[0].clientY - back.y;
+  if (!back.on) { if (Math.abs(dy) > Math.abs(dx)) { back = null; return; } if (dx < 8) return; back.on = true; back.card.classList.add("dragging"); }
+  back.dx = Math.max(0, dx);
+  back.card.style.transform = `translateX(${back.dx}px)`;
+}, { passive: true });
+document.addEventListener("touchend", () => {
+  if (!back) return;
+  const { card, dx, on } = back;
+  back = null;
+  if (!on) return;
+  card.classList.remove("dragging"); card.classList.add("settle");
+  const gone = dx > innerWidth * 0.3;
+  card.style.transform = gone ? "translateX(100%)" : "";
+  setTimeout(() => {
+    card.classList.remove("settle"); card.style.transform = "";
+    if (gone) (card.querySelector(".x") || {}).click?.() ?? (card.parentElement.hidden = true);
+  }, 220);
+});
+
+// swipe left or right to switch tabs, like Snapchat: Feed, Map, Plans, Me (on the map, from the screen's edge, so the map still pans)
+const ORDER = ["feed", "map", "plans", "me"];
+let sw = null;
+const scrollsSideways = el => el.closest?.(".ff-row, .fp-photo.many, .map-chips, .pf-tabs, .types, .when-grid, .week, .friends, .rank-vs, .al-grid, input, textarea, .leaflet-marker-icon");
+document.addEventListener("touchstart", e => {
+  sw = null;
+  if (!document.documentElement.classList.contains("has-tabs") || e.touches.length > 1 || !ORDER.includes(tab)) return;
+  const t = e.target, x = e.touches[0].clientX;
+  const onScreen = tab === "feed" ? t.closest?.("#feed") : tab === "map" ? t.closest?.("#map") && (x < 24 || x > innerWidth - 24)
+    : t.closest?.(".drawer.instant:not([hidden])");  // Plans and your profile, opened from their tab
+  if (!onScreen || scrollsSideways(t) || $("postCompose") && !$("postCompose").hidden) return;
+  if (tab !== "map" && x < 28 && !t.closest?.(".drawer.instant")) return;
+  sw = { x, y: e.touches[0].clientY, at: Date.now() };
+}, { passive: true });
+document.addEventListener("touchend", e => {
+  if (!sw) return;
+  const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y, quick = Date.now() - sw.at < 600;
+  sw = null;
+  if (!quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+  const next = ORDER[ORDER.indexOf(tab) + (dx < 0 ? 1 : -1)];
+  if (!next) return;
+  tick(); go(next);
+  const el = next === "feed" ? $("feed") : next === "plans" ? $("plans").querySelector(".drawer-card") : next === "me" ? $("profileCard") : null;
+  if (el) { el.classList.remove("tab-from-right", "tab-from-left"); void el.offsetWidth; el.classList.add(dx < 0 ? "tab-from-right" : "tab-from-left"); }
+}, { passive: true });
 
 const native = !!window.Capacitor?.isNativePlatform?.();
 function setUpTabs() {
@@ -495,12 +699,16 @@ matchMedia("(max-width: 860px)").addEventListener("change", setUpTabs);
 // ---------- taps ----------
 document.addEventListener("click", async e => {
   const t = e.target.closest(`[data-tab], [data-tab-go], [data-free-menu], [data-free], [data-plan-with], [data-plan-at], [data-open-plan],
-    [data-like], [data-rate], [data-post-menu], [data-report], [data-block], [data-hide-post], [data-unshare-post], [data-comments],
+    [data-like], [data-rank], [data-rank-feel], [data-rank-pick], [data-rank-same], [data-post-menu], [data-report], [data-block], [data-hide-post], [data-unshare-post], [data-comments],
     [data-del-comment], [data-report-comment], [data-new-post], [data-pc-cancel], [data-pc-share], [data-pc-place], [data-pc-unplace], #feedChats,
     [data-profile], [data-open-board], [data-close-profile], [data-close-post], [data-view-post], [data-edit-profile], [data-message],
-    [data-add-friend], [data-my-calendar], [data-invite], [data-add-friends]`);
-  if (!t || !t.closest("#feed, #tabs, #postCompose, #profile, #postView, #memories")) return;
+    [data-add-friend], [data-my-calendar], [data-invite], [data-add-friends], [data-sheet-cancel], [data-pf-tab], [data-privacy-yes],
+    [data-album], [data-album-next]`);
+  if (e.target.id === "actionSheet") return closeSheet();  // tapped outside the sheet
+  if (!t || !t.closest("#feed, #tabs, #postCompose, #profile, #postView, #memories, #actionSheet")) return;
   const ds = t.dataset;
+  if (t.closest("#actionSheet") && !t.matches("[data-rank-feel], [data-rank-pick], [data-rank-same]")) closeSheet();
+  if (t.hasAttribute("data-sheet-cancel")) return;
   tick();
   if (ds.tab || ds.tabGo) return go(ds.tab || ds.tabGo);
   if (t.id === "feedChats") return $("inboxBtn").click();
@@ -513,6 +721,8 @@ document.addEventListener("click", async e => {
   if (t.hasAttribute("data-add-friends")) { $("userPic").click(); return setTimeout(() => { $("addInput").scrollIntoView({ block: "center" }); $("addInput").focus(); }, 300); }
   if (t.hasAttribute("data-invite")) return invite();
   if (t.hasAttribute("data-my-calendar")) return $("memoriesBtn").click();
+  if (ds.pfTab) { profileTab = ds.pfTab; return renderProfile(); }
+  if (ds.privacyYes) return setPrivacy(ds.privacyYes === "public").then(privacyUi).catch(err => alert(friendly(err, "change that")));
   if (ds.message) return window.openDmWith?.(ds.message);
   if (ds.addFriend) {
     const card = cards[ds.addFriend] || {}, mine = (window.myFriends || []).find(p => p.isMe) || {};
@@ -523,7 +733,13 @@ document.addEventListener("click", async e => {
       .catch(err => { t.disabled = false; alert(friendly(err, "send the request")); });
   }
   if (t.hasAttribute("data-new-post")) return pickPhoto();
-  if (t.hasAttribute("data-pc-cancel")) { draft = null; $("postCompose").hidden = true; return; }
+  if (t.hasAttribute("data-pc-cancel")) { draft = null; album = null; $("postCompose").hidden = true; return; }
+  if (ds.album) {
+    const i = album.picked.indexOf(ds.album);
+    if (i >= 0) album.picked.splice(i, 1); else if (album.picked.length < MAX_PHOTOS) album.picked.push(ds.album);
+    return albumUpdate(ds.album);
+  }
+  if (t.hasAttribute("data-album-next")) return albumNext();
   if (t.hasAttribute("data-pc-share")) return share();
   if (ds.pcPlace) {
     let p = draft.found[+ds.pcPlace];
@@ -566,7 +782,7 @@ document.addEventListener("click", async e => {
     return setDoc(doc(db, "reports", `${pid}_${cid}_${me.uid}`), { post: pid, comment: cid, by: me.uid, at: new Date().toISOString() })
       .then(() => alert("Thanks. We'll take a look.")).catch(err => alert(friendly(err, "report it")));
   }
-  if (ds.postMenu) { menuFor = menuFor === ds.postMenu ? null : ds.postMenu; return render(); }
+  if (ds.postMenu) { const p = getPost(ds.postMenu); return p && postMenu(p); }
   if (ds.hidePost || ds.report) {
     const id = ds.hidePost || ds.report;
     if (ds.report) {
@@ -589,11 +805,28 @@ document.addEventListener("click", async e => {
     menuFor = null; return window.unshareFromFeed(ds.unsharePost).catch(err => alert(friendly(err, "delete it")));
   }
   if (ds.like) return like(ds.like);
-  if (ds.rate) return updateDoc(doc(db, "feed", ds.rate), { [`ratings.${me.uid}`]: Number(ds.score) }).catch(err => alert(friendly(err, "rate it")));
+  if (ds.rank) { const p = getPost(ds.rank); return p && rankStart(p); }
+  if (ds.rankFeel) return rankFeel(ds.rankFeel);
+  if (ds.rankPick) return rankPick(ds.rankPick === "this");
+  if (t.hasAttribute("data-rank-same")) return rankPick("same");
 });
 document.addEventListener("change", e => {
-  if (e.target.matches?.("[data-privacy]")) setPrivacy(!e.target.checked).catch(err => alert(friendly(err, "change that")));
+  if (e.target.id !== "privateToggle") return;
+  const toPublic = !e.target.checked;
+  e.target.checked = !myPublic;  // nothing changes until they confirm
+  $("actionSheet").innerHTML = `<div class="as-card" role="dialog" aria-label="Account privacy">
+    <div class="rank-head"><b>${toPublic ? "Switch to a public account?" : "Switch to a private account?"}</b>
+      <small>${toPublic ? "Anyone on omw! will be able to see your memories and comment on them. Group photos from hangouts stay with friends."
+                        : "Only your friends will see your memories. Comments from people who aren't your friends stay on old memories."}</small></div>
+    <div class="as-group"><button data-privacy-yes="${toPublic ? "public" : "private"}">${toPublic ? "Switch to public" : "Switch to private"}</button></div>
+    <button class="as-cancel" data-sheet-cancel>Cancel</button></div>`;
+  $("actionSheet").hidden = false;
 });
+const privacyUi = () => {
+  if (!$("privateToggle")) return;
+  $("privateToggle").checked = !myPublic;
+  $("privacyNote").textContent = myPublic ? "Anyone on omw! can see your memories." : "Only your friends see your memories.";
+};
 document.addEventListener("submit", e => {
   const f = e.target.closest("[data-comment-form]");
   if (!f) return;
@@ -604,6 +837,15 @@ document.addEventListener("submit", e => {
   addDoc(collection(db, "feed", f.dataset.commentForm, "comments"), { from: me.uid, name: myName(), text, at: new Date().toISOString() })
     .catch(err => alert(friendly(err, "post that")));
 });
+// swiping through a post's photos moves its dots
+document.addEventListener("scroll", e => {
+  const box = e.target.closest?.(".fp-photo.many");
+  if (!box) return;
+  const i = Math.round(box.scrollLeft / box.clientWidth);
+  box.querySelectorAll(".fp-dots i").forEach((d, j) => d.classList.toggle("on", i === j));
+  box.querySelectorAll(".fp-dots, .fp-place").forEach(el => (el.style.transform = `translateX(${box.scrollLeft}px)`));  // they stay put while the photos slide
+}, true);
+
 // double-tap the photo to like it, like Instagram
 let lastTap = { id: null, at: 0 };
 document.addEventListener("click", e => {
@@ -695,14 +937,15 @@ if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   db = getFirestore(app);
   onAuthStateChanged(getAuth(app), u => {
-    stopFeed?.(); stopFeed = null; posts = {}; me = u; nowSent = ""; widened = new Set();
+    stopFeed?.(); stopFeed = null; posts = {}; me = u; nowSent = ""; widened = new Set(); loaded = false;
+    if ($("feedBody")) $("feedBody").innerHTML = "";
     Object.values(commentStops).forEach(s => s()); commentStops = {}; comments = {};
     profileStop?.(); profileStop = null; profile = null; profilePosts = {}; myCard = null; cards = {}; viewing = null; myPublic = false;
     setUpTabs();
     if (!u) { setUpTabs.done = false; return; }
     const listen = q => onSnapshot(q, s => {
       posts = Object.fromEntries(s.docs.map(d => [d.id, { ...d.data(), id: d.id }]));
-      widen(); listenComments(); render();
+      loaded = true; widen(); listenComments(); render();
       window.dispatchEvent(new Event("feed-changed"));  // the map's "Friends' spots"
     }, err => {
       // the newest-first query needs a Firestore index (DEPLOY.md); until it's made, show them unsorted
@@ -712,7 +955,12 @@ if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
         stopFeed = listen(query(collection(db, "feed"), where("viewers", "array-contains", u.uid), limit(POSTS)));
       } else console.warn("feed:", err.message);
     });
-    onSnapshot(doc(db, "publicProfiles", u.uid), d => { myPublic = !!d.data()?.public; if (profile?.uid === u.uid) renderProfile(); }, () => {});
+    onSnapshot(doc(db, "private", u.uid), d => {
+      const data = d.data() || {};
+      ranks = { liked: [], fine: [], disliked: [], ...(data.ranks || {}) }; places = data.places || {};
+      if (profile?.uid === u.uid && profileTab === "places") renderProfile();
+    }, () => {});
+    onSnapshot(doc(db, "publicProfiles", u.uid), d => { myPublic = !!d.data()?.public; privacyUi(); if (profile?.uid === u.uid) renderProfile(); }, () => {});
     listen.fallback = false;
     stopFeed = listen(query(collection(db, "feed"), where("viewers", "array-contains", u.uid), orderBy("at", "desc"), limit(POSTS)));
     render();

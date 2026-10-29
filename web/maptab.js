@@ -10,7 +10,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const first = n => String(n || "Friend").split(" ")[0];
 const map = () => window.omwMap;
-let db, me = null, saved = [], stop = null, on = false, place = null, list = "", layers = null;
+let db, me = null, saved = [], stop = null, on = false, place = null, list = "", layers = null, meMarker = null;
 
 const isSaved = p => p && saved.some(s => Math.abs(s.lat - p.lat) < 1e-5 && Math.abs(s.lng - p.lng) < 1e-5);
 const ago = t => { const m = Math.round((Date.now() - t) / 6e4); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
@@ -30,10 +30,18 @@ function draw() {
   layers.friends.clearLayers(); layers.saved.clearLayers();
   if (!on) { layers.friends.remove(); layers.saved.remove(); return; }
   layers.friends.addTo(map()); layers.saved.addTo(map());
+  // like Snap Map: everyone as their character, with a name tag (and how long ago, if it's been a while)
   for (const p of liveFriends()) {
-    L.marker(p.live, { zIndexOffset: 500, icon: L.divIcon({ className: "", iconSize: [64, 78], iconAnchor: [32, 32],
-      html: `<div class="map-friend">${pinFace(p)}<b>${esc(first(p.name))}</b></div>` }) })
+    const mins = p.liveAt ? Math.round((Date.now() - p.liveAt) / 6e4) : 0, st = status(p);
+    L.marker(p.live, { zIndexOffset: 500, icon: L.divIcon({ className: "", iconSize: [76, 96], iconAnchor: [38, 70],
+      html: `<div class="map-friend ${st === "Out now" ? "out" : st === "On the way" ? "omw" : st === "Free" ? "free" : ""}">${pinFace(p)}
+        <b>${esc(first(p.name))}${mins >= 5 ? `<small>${mins < 60 ? `${mins}m` : `${Math.round(mins / 60)}h`}</small>` : ""}</b></div>` }) })
       .on("click", () => showFriend(p)).addTo(layers.friends);
+  }
+  const mine = (window.myFriends || []).find(p => p.isMe), here = window.myFix?.here;
+  if (mine && here) {
+    L.marker(here, { zIndexOffset: 2500, interactive: false, icon: L.divIcon({ className: "", iconSize: [76, 96], iconAnchor: [38, 70],
+      html: `<div class="map-friend me">${pinFace(mine)}<b>Me</b></div>` }) }).addTo(layers.friends);
   }
   for (const s of saved) {
     L.marker([s.lat, s.lng], { icon: L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 17],
@@ -127,6 +135,7 @@ window.addEventListener("tab-changed", e => {
   if (on) setTimeout(() => map()?.invalidateSize(), 60);
 });
 window.addEventListener("friends-changed", () => { if (on) draw(); });
+window.addEventListener("my-fix", () => { if (on) draw(); });
 
 if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);

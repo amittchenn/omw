@@ -28,6 +28,11 @@ service cloud.firestore {
     function grows(field) { return request.resource.data.get(field, []).toSet().hasAll(resource.data.get(field, [])); }
     function text(v, max) { return v is string && v.size() <= max; }
     function jpeg(v, maxChars) { return v is string && v.size() <= maxChars && v.matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$'); }
+    // up to 4 photos in one post, each a small JPEG
+    function photosOk(ps) {
+      return ps is list && ps.size() >= 2 && ps.size() <= 4 && jpeg(ps[0], 230000) && jpeg(ps[1], 230000)
+        && (ps.size() < 3 || jpeg(ps[2], 230000)) && (ps.size() < 4 || jpeg(ps[3], 230000));
+    }
     function picture(v) { return v == null || v == "" || (v is string && v.size() <= 400000 && v.matches('^(data:image/(jpeg|png);base64,|https://).*')); }
 
     // ---------- people ----------
@@ -152,7 +157,8 @@ service cloud.firestore {
         && jpeg(newPost().photo, 400000) && (
           // a post: just you
           (newPost().get('kind', '') == 'post' && newPost().members == [me()] && text(newPost().get('caption', ''), 500)
-            && text(newPost().get('venueName', ''), 120) && newPost().get('public', false) is bool)
+            && text(newPost().get('venueName', ''), 120) && newPost().get('public', false) is bool
+            && (!('photos' in newPost()) || photosOk(newPost().photos)))
           // a group photo from Memories: posted by whoever took it, for exactly the people who went
           || (newPost().get('kind', '') == '' && newPost().get('public', false) == false
             && get(/databases/$(database)/documents/memories/$(hid)).data.by == me()
@@ -165,7 +171,8 @@ service cloud.firestore {
         // the people in it: show it to their friends, rate the place, like it
         || (me() in resource.data.members && onlyChanged(['viewers', 'ratings', 'likes']) && grows('viewers')
           && request.resource.data.viewers.size() <= 2000 && onlyMyEntry('ratings') && onlyMeInOrOut('likes')
-          && request.resource.data.get('ratings', {}).get(me(), 0) in [0, 2, 5.5, 9])
+          && request.resource.data.get('ratings', {}).get(me(), 0) is number
+          && request.resource.data.get('ratings', {}).get(me(), 0) >= 0 && request.resource.data.get('ratings', {}).get(me(), 0) <= 10)
         // everyone who can see it: like or unlike
         || (canSee(resource.data) && onlyChanged(['likes']) && onlyMeInOrOut('likes')));
       allow delete: if signedIn() && resource.data.by == me();

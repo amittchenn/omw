@@ -62,7 +62,8 @@ def weather_now(lat, lng):
     """What it's like outside right now."""
     try:
         now = _get(lat, lng)["now"]
-    except Exception:
+    except Exception as e:
+        print(f"[weather] Open-Meteo didn't answer: {e}")  # the app then asks Open-Meteo itself (web/index.html)
         return None
     if now.get("temp_c") is None:
         return None
