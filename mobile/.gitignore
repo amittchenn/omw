@@ -1,0 +1,6 @@
+node_modules/
+ios/App/App/public/
+ios/DerivedData/
+GoogleService-Info.plist
+*.xcuserstate
+xcuserdata/

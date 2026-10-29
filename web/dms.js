@@ -208,6 +208,7 @@ function setView(v) {
   $("ibSearchWrap").hidden = v !== "list";
   renderInbox();
 }
+window.openDmChat = id => { openInbox(); openConvo(id); };  // from a notification
 function openInbox() {
   if (!me) return;
   $("inbox").hidden = false;

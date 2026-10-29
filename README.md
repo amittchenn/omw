@@ -88,6 +88,7 @@ uvicorn server:app --reload  # then open http://127.0.0.1:8000
 | `MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL` | Meta Muse for typed plans (tried first, falls back to OpenAI; `LLM_PROVIDER=openai` skips it) |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Calendar feeds, and keeping traffic readings across deploys |
 | `TRAFFIC_COLLECT_EVERY_MIN` | Optional: check the routes in the traffic data on a schedule (uses Google calls) |
+| `PUSH_ENABLED` | `1` on the one live server only: sends push notifications to the iPhone app (`push.py`) |
 
 Sign-in, friends, plans, chats and memories use Firebase (Auth + Firestore). Put your web config in
 `web/firebase-config.js` and publish `firestore.rules`.
@@ -100,4 +101,7 @@ Sign-in, friends, plans, chats and memories use Firebase (Auth + Firestore). Put
 | `predictor.py`, `features.py`, `train.py` | The lateness model |
 | `traffic.py`, `travel.py` | The traffic model and trip times (Google Maps, then Mapbox, then a straight-line estimate) |
 | `weather.py`, `places.py`, `schedule.py` | Forecasts, place search and names, finding times everyone's free |
+| `push.py` | Push notifications for the iPhone app: leave-now alerts, invites, chat messages |
+| `mobile/` | The iPhone app (Capacitor): see `mobile/README.md` |
+| `Dockerfile`, `railway.json` | Deploying on Railway: see `DEPLOY.md` |
 | `web/` | The app: `index.html` (planner and map), `friends.js` (profile, friends, plans), `chat.js` and `dms.js` (chats), `memories.js`, `live.js` (live map), `leaderboard.js` |

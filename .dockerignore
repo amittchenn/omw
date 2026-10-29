@@ -1,0 +1,9 @@
+.git
+.env
+firebase-key.json
+__pycache__/
+node_modules/
+mobile/
+docs/
+web/avatar.zip
+*.md

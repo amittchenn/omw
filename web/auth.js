@@ -4,7 +4,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail, signOut,
+  initializeAuth, indexedDBLocalPersistence, signInWithCredential, OAuthProvider,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+// In the iPhone app (Capacitor) there are no popups: Google and Apple sign in natively (the
+// @capacitor-firebase/authentication plugin), then hand Firebase the result here. On the website nothing changes.
+const native = !!window.Capacitor?.isNativePlatform?.();
+const nativeAuth = () => window.Capacitor.Plugins?.FirebaseAuthentication || window.Capacitor.registerPlugin("FirebaseAuthentication");
 
 // Safari (iPhone and Mac) blocks sign-in that happens on another site, and Firebase's sign-in page lives on
 // yourproject.firebaseapp.com. So on the live site the sign-in page comes from omw!'s own address instead
@@ -20,6 +26,7 @@ const MESSAGES = {
   "auth/email-already-in-use": "There's already an account with this email. Try signing in.",
   "auth/weak-password": "Password needs at least 6 characters.",
   "auth/popup-closed-by-user": "Google sign-in was closed before it finished.",
+  "auth/credential-already-in-use": "That account is already linked to someone else.",
   "auth/too-many-requests": "Too many tries. Wait a minute and try again.",
   "auth/unauthorized-domain": "This website isn't allowed in Firebase yet: add it under Authentication → Settings → Authorized domains.",
   "auth/operation-not-allowed": "This sign-in method is turned off in Firebase: enable it under Authentication → Sign-in method.",
@@ -50,7 +57,9 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE")) {
   document.body.classList.remove("checking");
   say("Login isn't set up yet: paste your Firebase config into web/firebase-config.js.");
 } else {
-  const auth = getAuth(initializeApp(firebaseConfig));
+  // the app keeps you signed in with on-device storage (and skips the web sign-in helpers, which need popups)
+  const app = initializeApp(firebaseConfig);
+  const auth = native ? initializeAuth(app, { persistence: indexedDBLocalPersistence }) : getAuth(app);
 
   const greeting = name => {
     const h = new Date().getHours();
@@ -66,7 +75,20 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE")) {
     window.currentUser = user;  // the rest of the page can read who's signed in
   });
 
-  $("googleBtn").onclick = () => run(() => signInWithPopup(auth, new GoogleAuthProvider()));
+  const cancelled = e => /cancel|closed|1001|12501/i.test(`${e?.code} ${e?.message}`);  // you backed out: say nothing
+  $("googleBtn").onclick = () => run(async () => {
+    if (!native) return signInWithPopup(auth, new GoogleAuthProvider());
+    try {
+      const r = await nativeAuth().signInWithGoogle({ skipNativeAuth: true });
+      await signInWithCredential(auth, GoogleAuthProvider.credential(r.credential?.idToken, r.credential?.accessToken));
+    } catch (e) { if (!cancelled(e)) throw e; }
+  });
+  $("appleBtn").onclick = () => run(async () => {
+    try {
+      const r = await nativeAuth().signInWithApple({ skipNativeAuth: true });
+      await signInWithCredential(auth, new OAuthProvider("apple.com").credential({ idToken: r.credential?.idToken, rawNonce: r.credential?.nonce }));
+    } catch (e) { if (!cancelled(e)) throw e; }
+  });
 
   $("authForm").onsubmit = e => {
     e.preventDefault();
@@ -88,5 +110,9 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE")) {
     run(async () => { await sendPasswordResetEmail(auth, email); say("Check your inbox for a reset link.", true); });
   };
 
-  $("signOut").onclick = () => signOut(auth);
+  $("signOut").onclick = async () => {
+    await window.omwPushSignOut?.();  // this phone stops getting your notifications
+    if (native) await nativeAuth().signOut().catch(() => {});  // so the next Google sign-in asks which account
+    return signOut(auth);
+  };
 }

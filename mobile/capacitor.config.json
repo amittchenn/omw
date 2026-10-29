@@ -1,0 +1,43 @@
+{
+  "appId": "com.amittchenn.omw",
+  "appName": "omw!",
+  "webDir": "www",
+  "backgroundColor": "#FFE600",
+  "server": {
+    "url": "https://omw-bzq4.onrender.com",
+    "cleartext": false,
+    "errorPath": "offline.html"
+  },
+  "ios": {
+    "contentInset": "never",
+    "scheme": "omw",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com", "apple.com"]
+    },
+    "FirebaseMessaging": {
+      "presentationOptions": ["alert", "badge", "sound"]
+    },
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#FFE600"
+    }
+  },
+  "experimental": {
+    "ios": {
+      "spm": {
+        "swiftToolsVersion": "6.1",
+        "packageOptions": {
+          "@capacitor-firebase/authentication": { "symlink": true },
+          "@capacitor-firebase/messaging": { "symlink": true }
+        },
+        "packageTraits": {
+          "@capacitor-firebase/authentication": ["Google"]
+        }
+      }
+    }
+  }
+}

@@ -31,6 +31,8 @@ app = FastAPI(title="omw! API")
 traffic.start_background()  # the driving traffic model: retrains every hour on the last 2 weeks of drives (traffic.py)
 import retrain
 retrain.start_background()  # the lateness model: retrains daily on real check-ins next to the simulated data (retrain.py)
+import push
+push.start_background()  # notifications for the iPhone app: leave-now alerts, invites, chat (push.py; only where PUSH_ENABLED=1)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory="web"), name="static")  # serves web/auth.js, web/firebase-config.js
 

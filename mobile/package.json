@@ -1,0 +1,21 @@
+{
+  "name": "omw-ios",
+  "private": true,
+  "description": "omw! as an iPhone app: a Capacitor shell around the live site (server.url in capacitor.config.json)",
+  "scripts": {
+    "assets": "capacitor-assets generate --ios",
+    "sync": "cap sync ios",
+    "open": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor-firebase/authentication": "^8.5.2",
+    "@capacitor-firebase/messaging": "^8.5.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
+    "firebase": "^12.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3"
+  }
+}

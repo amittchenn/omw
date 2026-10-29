@@ -928,7 +928,7 @@ async function ensureCalToken(user) {
   calToken = snap.exists() && snap.data().calToken;
   if (!calToken) {
     calToken = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
-    await setDoc(ref, { calToken });
+    await setDoc(ref, { calToken }, { merge: true });  // (merge: this doc also holds the phone's push tokens)
   }
 }
 
@@ -1263,7 +1263,7 @@ if (configured) {
     if (b?.dataset.leave) await cantMakeIt(hangoutDocs[b.dataset.leave]);
   });
   // a plan from "This week": open My plans at that plan and flash it, so you land on its leave time, chat and directions
-  const openPlan = id => {
+  const openPlan = window.openPlanCard = id => {
     $("plansBtn").click();
     requestAnimationFrame(() => {
       const el = $("hangoutList").querySelector(`.plan-card[data-show="${CSS.escape(id)}"]`);
