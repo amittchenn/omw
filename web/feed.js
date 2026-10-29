@@ -47,7 +47,7 @@ const tick = () => window.Capacitor?.Plugins?.Haptics?.impact({ style: "LIGHT" }
 }
 
 let db, me = null, posts = {}, stopFeed = null, tab = "feed", freeMenu = false, widened = new Set(), nowSent = "", menuFor = null;
-let comments = {}, commentStops = {}, openComments = new Set(), draft = null, loaded = false;
+let comments = {}, commentStops = {}, draft = null, loaded = false;
 let profile = null, profilePosts = {}, profileStop = null, profileTab = "posts", myPublic = false, myCard = null, cards = {}, viewing = null;
 const getPost = id => posts[id] || profilePosts[id];
 
@@ -264,15 +264,71 @@ function actions(p, liked, extra = "") {
   </footer>`;
 }
 
-// the last two comments, or all of them and a box to add yours
+// under a post, like Instagram: "View all N comments" and the last two; tapping opens the comments sheet
 function commentsHtml(p) {
-  const list = comments[p.id] || [], open = openComments.has(p.id), shown = open ? list : list.slice(-2);
+  const list = comments[p.id] || [];
   return `<div class="fp-comments">
-    ${!open && list.length > 2 ? `<button class="fc-more" data-comments="${esc(p.id)}">View all ${list.length} comments</button>` : ""}
-    ${shown.map(c => `<p class="fc" data-comment="${esc(p.id)}/${esc(c.id)}" data-yours="${c.from === me.uid || p.by === me.uid ? 1 : 0}"><b data-profile="${esc(c.from)}">${esc(handle(c.from, null, c.name))}</b> ${esc(c.text)}</p>`).join("")}
-    ${open ? `<form class="fc-form" data-comment-form="${esc(p.id)}"><input class="fc-input" maxlength="300" placeholder="Add a comment…" aria-label="Add a comment">
-      <button class="fc-send">Post</button></form>` : ""}
+    ${list.length > 2 ? `<button class="fc-more" data-comments="${esc(p.id)}">View all ${list.length} comments</button>` : ""}
+    ${list.slice(-2).map(c => `<p class="fc" data-comment="${esc(p.id)}/${esc(c.id)}" data-yours="${c.from === me.uid || p.by === me.uid ? 1 : 0}" data-comments="${esc(p.id)}"><b data-profile="${esc(c.from)}">${esc(handle(c.from, null, c.name))}</b> ${esc(c.text)}</p>`).join("")}
   </div>`;
+}
+
+// ---------- the comments sheet, like Instagram: slides up, everyone's comments, your box at the bottom; swipe down to close ----------
+const cs = (() => { const d = document.createElement("div"); d.id = "commentSheet"; d.className = "cs"; d.hidden = true; document.body.append(d); return d; })();
+let csPost = null;
+function openComments(pid) {
+  csPost = pid;
+  if (!commentStops[pid]) commentStops[pid] = onSnapshot(query(collection(db, "feed", pid, "comments"), orderBy("at"), limit(100)), s => {
+    comments[pid] = s.docs.map(d => ({ ...d.data(), id: d.id })); render(); renderPostView(); csList(); }, () => {});
+  cs.innerHTML = `<div class="cs-panel" role="dialog" aria-label="Comments">
+    <div class="cs-grab"><i></i><b>Comments</b></div>
+    <div class="cs-list" id="csList"></div>
+    <form class="cs-form" data-comment-form="${esc(pid)}">${face(me.uid, myName())}
+      <input class="cs-input" maxlength="300" placeholder="Add a comment…" aria-label="Add a comment" enterkeyhint="send">
+      <button class="cs-send" disabled>Post</button></form></div>`;
+  const input = cs.querySelector(".cs-input");
+  input.oninput = () => { cs.querySelector(".cs-send").disabled = !input.value.trim(); };
+  cs.hidden = false; cs.classList.remove("closing");
+  csList();
+}
+function csList() {
+  if (!csPost || cs.hidden || !$("csList")) return;
+  const p = getPost(csPost), list = comments[csPost] || [], box = $("csList"), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.innerHTML = list.length ? list.map(c => `<div class="cs-row" data-comment="${esc(csPost)}/${esc(c.id)}" data-yours="${c.from === me.uid || p?.by === me.uid ? 1 : 0}">
+      <span data-profile="${esc(c.from)}">${face(c.from, c.name)}</span>
+      <div><b data-profile="${esc(c.from)}">${esc(handle(c.from, null, c.name))}</b><small>${esc(ago(c.at))}</small><p>${esc(c.text)}</p></div></div>`).join("")
+    : `<div class="cs-empty"><b>No comments yet</b>Start the conversation.</div>`;
+  if (atEnd || csList.fresh) box.scrollTop = box.scrollHeight;
+  csList.fresh = false;
+}
+function closeComments() {
+  if (cs.hidden) return;
+  cs.classList.add("closing");
+  setTimeout(() => { cs.hidden = true; cs.classList.remove("closing"); cs.innerHTML = ""; csPost = null; }, 220);
+}
+cs.addEventListener("click", e => {
+  if (e.target === cs) return closeComments();  // tapped above the sheet
+  const who = e.target.closest("[data-profile]");
+  if (who) { closeComments(); openProfile(who.dataset.profile); }
+});
+{ // swipe the sheet down (from its top, or when the list is scrolled to the top) to close it
+  let drag = null;
+  cs.addEventListener("touchstart", e => {
+    const panel = cs.querySelector(".cs-panel"), list = $("csList");
+    if (!panel || e.target.closest(".cs-form")) return;
+    if (e.target.closest(".cs-grab") || (list && list.scrollTop <= 0)) drag = { y: e.touches[0].clientY, dy: 0, panel, t: Date.now() };
+  }, { passive: true });
+  cs.addEventListener("touchmove", e => {
+    if (!drag) return;
+    drag.dy = Math.max(0, e.touches[0].clientY - drag.y);
+    if (drag.dy > 4) { drag.panel.style.transition = "none"; drag.panel.style.transform = `translateY(${drag.dy}px)`; }
+  }, { passive: true });
+  cs.addEventListener("touchend", () => {
+    if (!drag) return;
+    const { panel, dy, t } = drag; drag = null;
+    panel.style.transition = ""; panel.style.transform = "";
+    if (dy > 120 || dy > 40 && dy / (Date.now() - t) > .5) closeComments();
+  }, { passive: true });
 }
 
 // the ⋯ menu: an iOS-style sheet from the bottom
@@ -301,7 +357,7 @@ let hold = null, held = 0;
 // lifting the finger after a long press is also a tap: don't let it land on the menu that just opened
 document.addEventListener("click", e => { if (Date.now() - held < 700) { held = 0; e.stopPropagation(); e.preventDefault(); } }, true);
 document.addEventListener("touchstart", e => {
-  const el = e.target.closest?.(".fc[data-comment]");
+  const el = e.target.closest?.(".fc[data-comment], .cs-row[data-comment]");
   clearTimeout(hold?.t); hold = null;
   if (el) hold = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: setTimeout(() => { hold = null; held = Date.now(); commentMenu(el); }, 450) };
 }, { passive: true });
@@ -309,7 +365,7 @@ document.addEventListener("touchmove", e => {
   if (hold && Math.hypot(e.touches[0].clientX - hold.x, e.touches[0].clientY - hold.y) > 10) { clearTimeout(hold.t); hold = null; }
 }, { passive: true });
 document.addEventListener("touchend", () => { clearTimeout(hold?.t); hold = null; }, { passive: true });
-document.addEventListener("contextmenu", e => { const el = e.target.closest?.(".fc[data-comment]"); if (el) { e.preventDefault(); commentMenu(el); } });
+document.addEventListener("contextmenu", e => { const el = e.target.closest?.(".fc[data-comment], .cs-row[data-comment]"); if (el) { e.preventDefault(); commentMenu(el); } });
 // Friends ▾ on a friend's profile, like Instagram's Following ▾ (removing asks first)
 function friendMenu(uid, sure = false) {
   const name = first(friendOf(uid)?.name);
@@ -533,7 +589,7 @@ function renderPostView() {
 function viewPost(id) {
   viewing = id; $("postView").hidden = false;
   if (!commentStops[id]) commentStops[id] = onSnapshot(query(collection(db, "feed", id, "comments"), orderBy("at"), limit(100)), s => {
-    comments[id] = s.docs.map(d => ({ ...d.data(), id: d.id })); render(); renderPostView(); }, () => {});
+    comments[id] = s.docs.map(d => ({ ...d.data(), id: d.id })); render(); renderPostView(); if (csPost === id) csList(); }, () => {});
   renderPostView();
 }
 async function setPrivacy(isPublic) {
@@ -667,7 +723,7 @@ function listenComments() {
     if (commentStops[id]) continue;
     commentStops[id] = onSnapshot(query(collection(db, "feed", id, "comments"), orderBy("at"), limit(100)), s => {
       comments[id] = s.docs.map(d => ({ ...d.data(), id: d.id }));
-      render();
+      render(); if (csPost === id) csList();
     }, () => {});
   }
 }
@@ -1091,11 +1147,7 @@ document.addEventListener("click", async e => {
     return;
   }
   if (ds.openPlan) { setTab("plans"); return window.openPlanCard?.(ds.openPlan); }
-  if (ds.comments) {
-    openComments.has(ds.comments) ? openComments.delete(ds.comments) : openComments.add(ds.comments);
-    render();
-    return $("feed").querySelector(`[data-comment-form="${CSS.escape(ds.comments)}"] input`)?.focus();
-  }
+  if (ds.comments) return openComments(ds.comments);
   if (ds.delComment || ds.reportComment) {
     const [pid, cid] = (ds.delComment || ds.reportComment).split("/");
     if (ds.delComment) return deleteDoc(doc(db, "feed", pid, "comments", cid)).catch(err => alert(friendly(err, "delete it")));
@@ -1154,7 +1206,8 @@ document.addEventListener("submit", e => {
   e.preventDefault();
   const input = f.querySelector("input"), text = input.value.trim();
   if (!text) return;
-  input.value = ""; input.blur();
+  input.value = ""; csList.fresh = true;  // the sheet scrolls to your new comment
+  const send = f.querySelector(".cs-send"); if (send) send.disabled = true;
   addDoc(collection(db, "feed", f.dataset.commentForm, "comments"), { from: me.uid, name: myName(), text, at: new Date().toISOString() })
     .catch(err => alert(friendly(err, "post that")));
 });
