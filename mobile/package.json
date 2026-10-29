@@ -16,6 +16,7 @@
     "@capacitor/core": "^8.5.3",
     "@capacitor/haptics": "^8.0.0",
     "@capacitor/ios": "^8.5.3",
+    "@capacitor/keyboard": "^8.0.6",
     "firebase": "^12.6.0"
   },
   "devDependencies": {

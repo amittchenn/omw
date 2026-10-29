@@ -186,9 +186,12 @@ function renderMe() {
   fitCode();
   $("meModes").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === (profile.travelMode || "driving")));
   $("meHome").innerHTML = profile.home
-    ? `${icon("circle-check")} <b>${esc(profile.homeName || "Home set")}</b>${profile.homeAddress ? `<small>${esc(profile.homeAddress)}</small>` : ""}`
-    : `${icon("triangle-alert")} Not set yet. The planner needs it to time your alerts.`;
-  if ($("setHome").dataset.busy !== "1") $("setHome").textContent = profile.home ? "Update to where I am now" : "Use my current location";
+    ? `<span class="home-pin">${icon("house")}</span><span><b>${esc(profile.homeName || "Home")}</b>${profile.homeAddress ? `<small>${esc(profile.homeAddress)}</small>` : ""}</span>
+       <button id="homeChange">${homeOpen ? "Done" : "Change"}</button>`
+    : `<span class="home-pin unset">${icon("house")}</span><span><b>Add your home</b><small>So the planner can time when you leave</small></span>`;
+  $("homeEdit").hidden = !!profile.home && !homeOpen;
+  if ($("homeChange")) $("homeChange").onclick = () => { homeOpen = !homeOpen; renderMe(); if (homeOpen) $("homeInput").focus(); };
+  if ($("setHome").dataset.busy !== "1") $("setHome").innerHTML = `${icon("navigation")} ${profile.home ? "Use where I am now" : "Use my current location"}`;
   if (document.activeElement !== $("schedText")) $("schedText").value = profile.scheduleText || "";
   renderBusy(profile.busy || []);
 }
@@ -472,7 +475,7 @@ function renderRequests() {
         <button class="mini" data-cancel="${esc(r.to)}">Cancel</button></div>`).join("");
 }
 
-let removing = "";  // the friend whose row is asking "Remove them?"
+let removing = "", homeOpen = false;  // homeOpen: Change was tapped on your home  // the friend whose row is asking "Remove them?"
 function renderFriends() {
   $("friendCount").textContent = friendIds.length ? `(${friendIds.length})` : "";
   $("friendList").innerHTML = friendIds.length
@@ -955,6 +958,9 @@ async function sendRequest() {
   say(`Request sent to ${name}. You'll be friends once they accept.`, true);
 }
 
+// the Add friends page (feed.js) accepts and declines with these
+window.acceptRequest = from => accept(from);
+window.declineRequest = from => deleteDoc(doc(db, "requests", `${from}_${me.uid}`));
 async function accept(from) {
   // the database only allows these two writes because a request from them to you exists
   const batch = writeBatch(db);
@@ -1102,7 +1108,7 @@ if (configured) {
   $("setHome").onclick = () => {
     if (!navigator.geolocation) return say("This browser can't share location.");
     $("setHome").textContent = "Finding you…"; $("setHome").dataset.busy = "1";
-    const done = () => { $("setHome").dataset.busy = ""; renderMe(); };
+    const done = () => { $("setHome").dataset.busy = ""; homeOpen = false; renderMe(); };
     const fix = window.myFix;  // the blue dot's latest spot, if fresh (asking again while it's tracking can stall)
     const locate = fix && Date.now() - fix.at < 60000
       ? (ok => ok({ coords: { latitude: fix.here[0], longitude: fix.here[1] } }))
@@ -1143,7 +1149,7 @@ if (configured) {
     homeSession = null;
     if (p.lat == null) throw new Error("Couldn't find that address. Try another.");
     await saveProfile({ home: { lat: p.lat, lng: p.lng }, homeName: p.name, homeAddress: p.address || "" });
-    $("homeInput").value = ""; $("homeSuggest").innerHTML = ""; homeFound = [];
+    $("homeInput").value = ""; $("homeSuggest").innerHTML = ""; homeFound = []; homeOpen = false; renderMe();
   });
   $("homeInput").onblur = () => setTimeout(() => ($("homeSuggest").innerHTML = ""), 200);
   // "Leaving from": search any place for one hangout (same place search as your home)
@@ -1337,10 +1343,12 @@ if (configured) {
       renderFriends(); publish();
     }));
     stop.push(onSnapshot(query(collection(db, "requests"), where("to", "==", user.uid)), s => {
-      incoming = s.docs.map(d => d.data()); renderRequests();
+      incoming = s.docs.map(d => d.data()); window.myRequestsIn = incoming; renderRequests();
+      window.dispatchEvent(new Event("requests-changed"));
     }));
     stop.push(onSnapshot(query(collection(db, "requests"), where("from", "==", user.uid)), s => {
       outgoing = s.docs.map(d => d.data()); window.myRequestsOut = outgoing.map(r => r.to); renderRequests();
+      window.dispatchEvent(new Event("requests-changed"));
     }));
     // hangouts you're going to, and hangouts you're invited to (two queries, merged by id)
     const seenBy = { attendees: new Set(), invited: new Set() };

@@ -31,6 +31,20 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const phone = () => matchMedia("(max-width: 860px)").matches;
 const tick = () => window.Capacitor?.Plugins?.Haptics?.impact({ style: "LIGHT" }).catch(() => {});  // a light tap in the iPhone app
+// typing, like any iPhone app: the tab bar steps aside for the keyboard, and there's no ˄ ˅ ✓ bar on top of it
+{
+  const kb = window.Capacitor?.isNativePlatform?.() && (window.Capacitor.Plugins?.Keyboard || window.Capacitor.registerPlugin("Keyboard"));
+  const typing = on => document.documentElement.classList.toggle("kb-open", on);
+  if (kb) {
+    kb.setAccessoryBarVisible?.({ isVisible: false }).catch(() => {});
+    kb.addListener?.("keyboardWillShow", () => typing(true));
+    kb.addListener?.("keyboardWillHide", () => typing(false));
+  } else {  // the website on a phone: a text box in focus means the keyboard is up
+    const field = el => el?.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, [contenteditable]");
+    document.addEventListener("focusin", e => field(e.target) && typing(matchMedia("(pointer: coarse)").matches));
+    document.addEventListener("focusout", () => setTimeout(() => typing(field(document.activeElement)), 50));
+  }
+}
 
 let db, me = null, posts = {}, stopFeed = null, tab = "feed", freeMenu = false, widened = new Set(), nowSent = "", menuFor = null;
 let comments = {}, commentStops = {}, openComments = new Set(), draft = null, loaded = false;
@@ -255,9 +269,7 @@ function commentsHtml(p) {
   const list = comments[p.id] || [], open = openComments.has(p.id), shown = open ? list : list.slice(-2);
   return `<div class="fp-comments">
     ${!open && list.length > 2 ? `<button class="fc-more" data-comments="${esc(p.id)}">View all ${list.length} comments</button>` : ""}
-    ${shown.map(c => `<p class="fc"><b data-profile="${esc(c.from)}">${esc(handle(c.from, null, c.name))}</b> ${esc(c.text)}
-      ${c.from === me.uid || p.by === me.uid ? `<button class="fc-x" data-del-comment="${esc(p.id)}/${esc(c.id)}">Delete</button>`
-        : `<button class="fc-x" data-report-comment="${esc(p.id)}/${esc(c.id)}">Report</button>`}</p>`).join("")}
+    ${shown.map(c => `<p class="fc" data-comment="${esc(p.id)}/${esc(c.id)}" data-yours="${c.from === me.uid || p.by === me.uid ? 1 : 0}"><b data-profile="${esc(c.from)}">${esc(handle(c.from, null, c.name))}</b> ${esc(c.text)}</p>`).join("")}
     ${open ? `<form class="fc-form" data-comment-form="${esc(p.id)}"><input class="fc-input" maxlength="300" placeholder="Add a comment…" aria-label="Add a comment">
       <button class="fc-send">Post</button></form>` : ""}
   </div>`;
@@ -276,6 +288,28 @@ function postMenu(p) {
   $("actionSheet").hidden = false;
 }
 const closeSheet = () => { $("actionSheet").hidden = true; };
+// press and hold a comment (or right-click it) for Delete or Report, like Instagram
+function commentMenu(el) {
+  const id = el.dataset.comment, yours = el.dataset.yours === "1";
+  tick();
+  $("actionSheet").innerHTML = `<div class="as-card" role="menu"><div class="as-group">${yours
+      ? `<button class="danger" data-del-comment="${esc(id)}">Delete comment</button>` : `<button class="danger" data-report-comment="${esc(id)}">Report comment</button>`}</div>
+    <button class="as-cancel" data-sheet-cancel>Cancel</button></div>`;
+  $("actionSheet").hidden = false;
+}
+let hold = null, held = 0;
+// lifting the finger after a long press is also a tap: don't let it land on the menu that just opened
+document.addEventListener("click", e => { if (Date.now() - held < 700) { held = 0; e.stopPropagation(); e.preventDefault(); } }, true);
+document.addEventListener("touchstart", e => {
+  const el = e.target.closest?.(".fc[data-comment]");
+  clearTimeout(hold?.t); hold = null;
+  if (el) hold = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: setTimeout(() => { hold = null; held = Date.now(); commentMenu(el); }, 450) };
+}, { passive: true });
+document.addEventListener("touchmove", e => {
+  if (hold && Math.hypot(e.touches[0].clientX - hold.x, e.touches[0].clientY - hold.y) > 10) { clearTimeout(hold.t); hold = null; }
+}, { passive: true });
+document.addEventListener("touchend", () => { clearTimeout(hold?.t); hold = null; }, { passive: true });
+document.addEventListener("contextmenu", e => { const el = e.target.closest?.(".fc[data-comment]"); if (el) { e.preventDefault(); commentMenu(el); } });
 // Friends ▾ on a friend's profile, like Instagram's Following ▾ (removing asks first)
 function friendMenu(uid, sure = false) {
   const name = first(friendOf(uid)?.name);
@@ -327,11 +361,115 @@ function openProfile(uid) {
   if (!cards[uid] && !friend) onSnapshot(doc(db, "publicProfiles", uid), d => { cards[uid] = d.data() || {}; renderProfile(); }, () => {});
 }
 window.openProfile = openProfile;
+// ---------- Add friends, like Snapchat's: search usernames as you type, requests to accept, and Quick Add (friends of friends) ----------
+let quick = null;  // { at, list: [{ id, mutual }] }
+function openAddPage(fromFriends = false) {
+  if (!fromFriends) { profileStop?.(); profileStop = null; profile = { uid: me.uid, loading: false, friendIds: null }; $("profile").hidden = false; }
+  profile.back = fromFriends ? "friends" : "";
+  profileTab = "add"; profile.q = ""; profile.found = null;
+  $("profileCard").scrollTop = 0;
+  renderProfile();
+  loadQuickAdd();
+}
+async function loadQuickAdd() {
+  if (quick && Date.now() - quick.at < 5 * 6e4) return;
+  const mineIds = new Set([me.uid, ...friends().map(f => f.user_id)]), count = {};
+  await Promise.all(friends().slice(0, 40).map(f => getDocs(collection(db, "users", f.user_id, "friends"))
+    .then(s => s.docs.forEach(d => { if (!mineIds.has(d.id)) count[d.id] = (count[d.id] || 0) + 1; })).catch(() => {})));
+  quick = { at: Date.now(), list: Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([id, mutual]) => ({ id, mutual })) };
+  quick.list.forEach(x => loadCard(x.id));
+  if (profileTab === "add") renderProfile();
+}
+const personRow = (id, sub, button) => {
+  const c = cards[id] || {}, f = friendOf(id), name = f?.name || c.name || "", code = (f?.code || c.code || "").toLowerCase(), photo = f?.photo || c.photo;
+  return `<div class="fl-row"><button class="fl-who" data-profile="${esc(id)}">${photo ? `<span class="ff" style="background-image:url('${esc(photo)}')"></span>`
+      : `<span class="ff">${esc(first(name || code || "?").slice(0, 1).toUpperCase())}</span>`}
+    <span><b>${esc(code || first(name))}</b><small>${esc([name, sub].filter(Boolean).join(" · "))}</small></span></button>${button}</div>`;
+};
+const addButton = id => id === me.uid ? "" : friendOf(id) ? `<button class="pf-btn" disabled>Friends</button>`
+  : (window.myRequestsIn || []).some(r => r.from === id) ? `<button class="pf-btn add" data-accept-req="${esc(id)}">Accept</button>`
+  : (window.myRequestsOut || []).includes(id) ? `<button class="pf-btn" disabled>Requested</button>`
+  : `<button class="pf-btn add" data-add-friend="${esc(id)}">Add</button>`;
+function addPage() {
+  if (document.activeElement?.id === "addSearch") return;  // typing: don't redraw under the keyboard
+  const q = profile.q || "", inc = window.myRequestsIn || [];
+  inc.forEach(r => cards[r.from] ||= { name: r.fromName, photo: r.fromPhoto });
+  const found = profile.found;
+  setHtml($("profileCard"), `<div class="fl">
+    <div class="fl-head"><button ${profile.back ? `data-pf-tab="${profile.back}"` : "data-close-profile"} aria-label="Back">${icon("chevron-left")}</button><b>Add friends</b><span></span></div>
+    <label class="fl-search">${icon("search")}<input id="addSearch" placeholder="Search usernames" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Search usernames" value="${esc(q)}"></label>
+    <div id="addFound">${addFoundHtml(found, q)}</div>
+    <div id="addRest" ${q.trim() ? "hidden" : ""}>
+      ${inc.length ? `<div class="fl-label">Added me</div>${inc.map(r => personRow(r.from, "wants to be friends",
+          `<button class="pf-btn add" data-accept-req="${esc(r.from)}">Accept</button><button class="fl-x" data-decline-req="${esc(r.from)}" aria-label="Decline">${icon("x")}</button>`)).join("")}` : ""}
+      <div class="fl-label">Quick Add</div>
+      ${!quick ? `<div class="fl-note">Finding friends of friends…</div>` : quick.list.length
+        ? quick.list.map(x => personRow(x.id, `${x.mutual} mutual ${x.mutual === 1 ? "friend" : "friends"}`, addButton(x.id))).join("")
+        : `<div class="fl-note">Friends of your friends show up here.</div>`}
+      <button class="fl-invite" data-invite>${icon("share")}<span><b>Invite friends to omw!</b><small>Send your link in Messages, Instagram or anywhere</small></span>${icon("chevron-right")}</button>
+    </div>
+  </div>`);
+  const input = $("addSearch");
+  input.oninput = () => { profile.q = input.value; searchUsers(input.value); };
+}
+const addFoundHtml = (found, q) => !q.trim() ? "" : !found ? `<div class="fl-note">Searching…</div>`
+  : found.length ? found.map(id => personRow(id, "", addButton(id))).join("") : `<div class="fl-note">No one with a username like “${esc(q.trim())}”.</div>`;
+// usernames are friend IDs (stored in capitals): everyone whose ID starts with what you typed, as you type
+async function searchUsers(text) {
+  const q = text.trim().toUpperCase().replace(/^@/, "").replace(/[^A-Z0-9_]/g, "");
+  $("addRest").hidden = !!text.trim();
+  if (!q) { profile.found = null; $("addFound").innerHTML = ""; return; }
+  profile.found = null; $("addFound").innerHTML = addFoundHtml(null, text);
+  clearTimeout(searchUsers.t);
+  searchUsers.t = setTimeout(async () => {
+    const s = await getDocs(query(collection(db, "publicProfiles"), where("code", ">=", q), where("code", "<=", q + "\uf8ff"), limit(15))).catch(() => null);
+    if (profile?.q !== text || profileTab !== "add") return;
+    const ids = (s?.docs || []).map(d => { cards[d.id] = { ...cards[d.id], ...d.data() }; return d.id; }).filter(id => !blocked().includes(id));
+    profile.found = ids;
+    $("addFound").innerHTML = addFoundHtml(ids, text);
+  }, 120);
+}
+window.addEventListener("requests-changed", () => { if (profileTab === "add" && !$("profile").hidden && !profile.q) renderProfile(); });
+
+// someone's friends, like Instagram's Followers page: its own screen with a search box, and a button on each row
+// (yours: Remove; someone else's: Friends for people you know, Add for people you don't)
+function friendsPage(ids, mine, code, name) {
+  if (document.activeElement?.id === "flSearch") return;
+  const people = ids.filter(id => !blocked().includes(id)).map(id => {
+    const p = id === me.uid ? (window.myFriends || []).find(x => x.isMe) : friendOf(id), c = cards[id];
+    if (!p && !c) loadCard(id);
+    return { id, name: id === me.uid ? myName() : p?.name || c?.name || "", photo: p?.photo || c?.photo || "", code: p?.code || c?.code || "",
+             friend: id !== me.uid && !!friendOf(id) };
+  }).sort((a, b) => (b.id === me.uid) - (a.id === me.uid) || b.friend - a.friend || a.name.localeCompare(b.name));
+  const button = p => mine ? `<button class="pf-btn" data-unfriend="${esc(p.id)}">Remove</button>`
+    : p.id === me.uid ? ""
+    : p.friend ? `<button class="pf-btn" data-friend-menu="${esc(p.id)}">Friends</button>`
+    : (window.myRequestsOut || []).includes(p.id) ? `<button class="pf-btn" disabled>Requested</button>`
+    : `<button class="pf-btn add" data-add-friend="${esc(p.id)}">Add</button>`;
+  const q = (profile.q || "").toLowerCase();
+  setHtml($("profileCard"), `<div class="fl">
+    <div class="fl-head"><button data-pf-tab="posts" aria-label="Back">${icon("chevron-left")}</button><b>${esc(code ? code.toLowerCase() : first(name))}</b>
+      ${mine ? `<button data-add-page aria-label="Add friends">${icon("user-round-plus")}</button>` : "<span></span>"}</div>
+    <div class="fl-tabs"><span>${ids.length} ${ids.length === 1 ? "friend" : "friends"}</span></div>
+    <label class="fl-search">${icon("search")}<input id="flSearch" placeholder="Search" autocomplete="off" aria-label="Search friends" value="${esc(profile.q || "")}"></label>
+    ${people.length ? people.map(p => `<div class="fl-row" data-q="${esc(`${p.code} ${p.name}`.toLowerCase())}" ${q && !`${p.code} ${p.name}`.toLowerCase().includes(q) ? "hidden" : ""}>
+        <button class="fl-who" data-profile="${esc(p.id)}">${p.photo ? `<span class="ff" style="background-image:url('${esc(p.photo)}')"></span>` : `<span class="ff">${esc(first(p.name || "?").slice(0, 1))}</span>`}
+          <span><b>${esc(p.code ? p.code.toLowerCase() : first(p.name))}</b><small>${esc(p.name)}</small></span></button>
+        ${button(p)}</div>`).join("")
+      : `<div class="pf-empty">${icon("users")}<b>No friends yet</b>${mine ? `<button class="fe-go" data-add-friends>${icon("user-round-plus")} Add friends</button>` : ""}</div>`}
+  </div>`);
+  const input = $("flSearch");
+  input.oninput = () => {  // filter in place, so typing never loses the keyboard
+    profile.q = input.value;
+    const term = input.value.trim().toLowerCase();
+    $("profileCard").querySelectorAll(".fl-row").forEach(r => { r.hidden = !!term && !r.dataset.q.includes(term); });
+  };
+}
 // someone's public card (name, picture, username), for a friend's friends you don't know
 function loadCard(id) {
   if (cards[id] || loadCard.busy?.has(id)) return;
   (loadCard.busy ||= new Set()).add(id);
-  getDoc(doc(db, "publicProfiles", id)).then(d => { cards[id] = d.data() || {}; if (profileTab === "friends") renderProfile(); }).catch(() => (cards[id] = {}));
+  getDoc(doc(db, "publicProfiles", id)).then(d => { cards[id] = d.data() || {}; if (["friends", "add"].includes(profileTab)) renderProfile(); }).catch(() => (cards[id] = {}));
 }
 
 function renderProfile() {
@@ -346,23 +484,15 @@ function renderProfile() {
   const outgoing = (window.myRequestsOut || []).includes(uid);
   const friendIds = mine ? friends().map(p => p.user_id) : f ? profile.friendIds : null;
   let body;
-  if (profileTab === "friends" && friendIds) {
-    const people = friendIds.filter(id => !blocked().includes(id)).map(id => {
-      const p = id === me.uid ? (window.myFriends || []).find(x => x.isMe) : friendOf(id), c = cards[id];
-      if (!p && !c) loadCard(id);
-      return { id, name: id === me.uid ? myName() : p?.name || c?.name || "", photo: p?.photo || c?.photo || "", code: p?.code || c?.code || "", mutual: !mine && id !== me.uid && !!friendOf(id) };
-    }).sort((a, b) => b.mutual - a.mutual || a.name.localeCompare(b.name));
-    body = `<div class="pf-list-head"><button data-pf-tab="posts" aria-label="Back">${icon("chevron-left")}</button><b>Friends</b><span></span></div>` +
-      (people.length ? `<div class="pf-people">${people.map(p => `<button class="pf-person" data-profile="${esc(p.id)}">
-          ${p.photo ? `<span class="ff" style="background-image:url('${esc(p.photo)}')"></span>` : `<span class="ff">${esc(first(p.name || "?").slice(0, 1))}</span>`}
-          <span><b>${esc(p.code ? p.code.toLowerCase() : first(p.name))}</b><small>${esc(p.name)}${p.mutual ? " · Your friend" : p.id === me.uid ? " · You" : ""}</small></span>
-          ${icon("chevron-right")}</button>`).join("")}</div>`
-        : `<div class="pf-empty">${icon("users")}<b>No friends yet</b></div>`);
-  } else if (profileTab === "places") {
+  if (profileTab === "add") return addPage();
+  if (profileTab === "friends" && friendIds) return friendsPage(friendIds, mine, code, name);
+  if (profileTab === "places") {
     const list = BUCKETS.flatMap(([b]) => ranks[b].map((k, i) => ({ k, b, score: scoreAt(b, i, ranks[b].length) })));
-    body = list.length ? `<div class="rank-list">${list.map((x, i) => `<div class="rank-item"><span class="rank-n">${i + 1}</span>
-        <span><b>${esc(places[x.k]?.name || "")}</b><small>${esc(places[x.k]?.address || "")}</small></span><span class="fp-score">${x.score.toFixed(1)}</span></div>`).join("")}</div>`
-      : `<div class="pf-empty">${icon("star")}<b>Your places</b>After a hangout, rank the spot. Your list builds itself, best first.</div>`;
+    body = list.length ? `<button class="rate-btn" data-rate-place>${icon("star")} Rate a place</button>
+      <div class="rank-list">${list.map((x, i) => `<button class="rank-item" data-rerank="${esc(x.k)}"><span class="rank-n">${i + 1}</span>
+        <span><b>${esc(places[x.k]?.name || "")}</b><small>${esc(places[x.k]?.address || "")}</small></span><span class="fp-score">${x.score.toFixed(1)}</span></button>`).join("")}</div>`
+      : `<div class="pf-empty">${icon("star")}<b>Your places</b>Rate the spots you go to. Your list builds itself, best first.
+        <button class="fe-go" data-rate-place>${icon("star")} Rate a place</button></div>`;
   } else if (profileTab === "posts") {
     if (profile.loading) body = `<div class="pf-empty">Loading…</div>`;
     else if (!list.length) body = mine ? `<div class="pf-empty">${icon("camera")}<b>Share your first post</b>Photos you share, and group photos from your hangouts, show up here by week.
@@ -454,6 +584,37 @@ function rankDraw() {
   }
   sheet.hidden = false;
 }
+// Places -> Rate a place: the spots you've been (past hangouts, your posts, saved places) not on your list yet, or search any place
+function ratePicker(found = null, q = "") {
+  const seen = new Set(Object.values(ranks).flat()), list = [];
+  const add = (name, address, venue) => { const key = placeKey({ name, address }); if (name && !seen.has(key)) { seen.add(key); list.push({ name, address: address || "", venue: venue || null }); } };
+  if (!found) {
+    (window.myHangouts || []).filter(h => new Date(h.start) < new Date()).sort((a, b) => b.start.localeCompare(a.start)).forEach(h => add(h.venueName, h.address, h.venue));
+    [...Object.values(posts), ...Object.values(profilePosts)].filter(p => p.members?.includes(me.uid)).forEach(p => add(p.venueName, p.address, p.venue));
+    (window.savedPlaces?.() || []).forEach(x => add(x.name, x.address, [x.lat, x.lng]));
+  } else found.forEach(p => add(p.name, p.address, p.lat != null ? [p.lat, p.lng] : null));
+  ratePicker.list = list;
+  $("actionSheet").innerHTML = `<div class="as-card rank-card" role="dialog" aria-label="Rate a place">
+    <div class="rank-head"><b>Rate a place</b><small>${found ? "Search results" : "Places you've been"}</small></div>
+    <label class="fl-search rate-search">${icon("search")}<input id="rateSearch" placeholder="Search any place" autocomplete="off" value="${esc(q)}"></label>
+    <div class="as-group rate-list">${list.length ? list.slice(0, 12).map((p, i) => `<button data-rate-pick="${i}"><b>${esc(p.name)}</b><small>${esc(p.address)}</small></button>`).join("")
+      : `<div class="rank-head"><small>${found ? "Nothing found. Try another name." : "Places from your hangouts and posts show up here. Or search above."}</small></div>`}</div>
+    <button class="as-cancel" data-sheet-cancel>Cancel</button></div>`;
+  $("actionSheet").hidden = false;
+  const input = $("rateSearch");
+  if (q) { input.focus(); input.setSelectionRange(q.length, q.length); }
+  input.oninput = () => {
+    clearTimeout(ratePicker.t);
+    const text = input.value.trim();
+    ratePicker.t = setTimeout(async () => {
+      if (!text) return ratePicker(null, "");
+      const c = window.myFix?.here || [37.7749, -122.4194];
+      const res = await fetch(`/places/suggest?q=${encodeURIComponent(text)}&lat=${c[0]}&lng=${c[1]}`).then(r => r.json()).catch(() => []);
+      if ($("rateSearch")?.value.trim() === text) ratePicker((res || []).filter(p => p.kind !== "query"), input.value);
+    }, 200);
+  };
+}
+
 async function rankFeel(bucket) {
   const r = ranking;
   for (const b of Object.keys(ranks)) ranks[b] = ranks[b].filter(k => k !== r.key);  // ranking it again moves it
@@ -478,7 +639,8 @@ async function rankSave() {
   const score = myScore(r.key);
   try {
     await setDoc(doc(db, "private", me.uid), { ranks, places }, { merge: true });
-    await updateDoc(doc(db, "feed", r.post), { [`ratings.${me.uid}`]: score });
+    if (r.post) await updateDoc(doc(db, "feed", r.post), { [`ratings.${me.uid}`]: score });  // rated from a post: it shows there too
+    if (profileTab === "places" && profile) renderProfile();
   } catch (e) { alert(friendly(e, "save that")); }
 }
 
@@ -634,7 +796,9 @@ function compose(msg = "") {
   if (input) input.oninput = () => {
     clearTimeout(compose.timer);
     const q = input.value.trim();
-    $("pcNear").hidden = q.length > 0;
+    // as you type: your nearby places that match show at once, then the search's answers
+    const term = q.toLowerCase(), near = (draft.near || []).map((p, i) => [p, i]).filter(([p]) => !term || p.name.toLowerCase().includes(term));
+    $("pcNear").innerHTML = near.map(([p, i]) => `<button data-pc-near="${i}">${esc(p.name)}</button>`).join("");
     if (q.length < 2) { $("pcFound").innerHTML = ""; return; }
     compose.timer = setTimeout(async () => {
       compose.session ||= crypto.randomUUID?.() || String(Math.random()).slice(2);
@@ -643,7 +807,7 @@ function compose(msg = "") {
       if (input.value.trim() !== q) return;
       draft.found = (list || []).filter(p => p.kind !== "query").slice(0, 6);
       $("pcFound").innerHTML = draft.found.map((p, i) => `<button data-pc-place="${i}"><b>${esc(p.name)}</b><small>${esc(p.address || "")}</small></button>`).join("");
-    }, 250);
+    }, 150);
   };
 }
 async function toJpeg(src, maxChars = 380000) {  // at most 1080 px and about 300 KB (it's stored in the database)
@@ -682,7 +846,7 @@ const pages = { plans: "plans", memories: "memories", me: "drawer", board: "boar
 function closePages() { for (const id of Object.values(pages)) if ($(id)) $(id).hidden = true; }
 function go(t) {
   closePages();
-  if (t === "plan") { window.openPlanner?.(); setTab("plan"); setTimeout(() => $("museText")?.focus(), 250); return; }
+  if (t === "plan") { window.openPlanner?.(); setTab("plan"); return; }  // no keyboard until you tap the box, like any iPhone app
   if (t === "plans") { $("plans").classList.add("instant"); $("plansBtn").click(); return setTab("plans"); }
   if (t === "me") { $("profile").classList.add("instant"); openProfile(me.uid); return setTab("me"); }
   setTab(t);
@@ -743,15 +907,32 @@ const scrollsSideways = el => el.closest?.(".ff-row, .fp-photo.many, .map-chips,
 // a tab's screen: what slides when you swipe (the map takes its search bar, chips and card with it)
 const screenOf = t => (t === "feed" ? [$("feed")] : t === "map" ? [$("map"), document.querySelector(".topbar"), $("mapChips"), $("mapPanel")]
   : t === "plans" ? [$("plans").querySelector(".drawer-card")] : t === "me" ? [$("profileCard")] : []).filter(Boolean);
-// under the screen that's moving: a plain page, so the map and the planner underneath never show through
-const cover = (() => { const d = document.createElement("div"); d.className = "swipe-cover"; d.hidden = true; document.body.append(d); return d; })();
-const coverAt = t => { cover.hidden = t === "map"; cover.style.zIndex = t === "feed" ? 939 : 1499; };
+// like Instagram and Snapchat, the next tab is already there beside this one, following your finger:
+// it's drawn when the swipe starts (shown), and put away again if you change your mind (unshown)
+function shown(t) {
+  if (t === "feed") { $("feed").hidden = false; render(); }
+  if (t === "map") $("mapChips").hidden = false;
+  if (t === "plans" && $("plans").hidden) { $("plans").classList.add("instant"); $("plans").hidden = false; }
+  if (t === "me" && $("profile").hidden) { $("profile").classList.add("instant"); openProfile(me.uid); }
+}
+function unshown(t) {
+  if (t === "feed") $("feed").hidden = true;
+  if (t === "map") $("mapChips").hidden = true;
+  if (t === "plans") $("plans").hidden = true;
+  if (t === "me") $("profile").hidden = true;
+}
+function arrive(t) {  // the swipe went through: t is the tab now (its screen is already up)
+  setTab(t);
+  for (const id of Object.values(pages)) if ($(id) && id !== { plans: "plans", me: "profile" }[t]) $(id).hidden = true;
+  if (t === "map") window.showMapTab?.();
+}
 const move = (els, x, ms = 0) => els.forEach(el => {
   el.style.transition = ms ? `transform ${ms}ms cubic-bezier(.25, .8, .25, 1)` : "none";
   el.style.transform = x ? `translateX(${x}px)` : "";
 });
 const after = ms => new Promise(ok => setTimeout(ok, ms));
 const unmove = els => els.forEach(el => { el.style.transition = ""; el.style.transform = ""; });
+const swiping = on => document.documentElement.classList.toggle("tab-swiping", on);  // the planner and the like stay out of sight
 document.addEventListener("touchstart", e => {
   sw = null;
   if (!document.documentElement.classList.contains("has-tabs") || e.touches.length > 1 || !ORDER.includes(tab)) return;
@@ -760,45 +941,46 @@ document.addEventListener("touchstart", e => {
     : t.closest?.(".drawer.instant:not([hidden])");  // Plans and your profile, opened from their tab
   if (!onScreen || scrollsSideways(t) || $("postCompose") && !$("postCompose").hidden) return;
   if (tab !== "map" && x < 28 && !t.closest?.(".drawer.instant")) return;
-  sw = { x, y: e.touches[0].clientY, at: Date.now(), dx: 0, on: false, els: screenOf(tab) };
+  sw = { x, y: e.touches[0].clientY, at: Date.now(), dx: 0, on: false, els: screenOf(tab), next: null, into: [] };
 }, { passive: true });
-// the screen follows your finger; let go and it carries on to the next tab, or springs back if you didn't mean it
 document.addEventListener("touchmove", e => {
   if (!sw || !sw.els.length) return;
   const dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y;
   if (!sw.on) {
     if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { sw = null; return; }
     if (Math.abs(dx) < 10) return;
-    sw.on = true; sw.x += dx > 0 ? 10 : -10; coverAt(tab);
+    sw.on = true; sw.x += dx > 0 ? 10 : -10; swiping(true);
   }
-  const d = e.touches[0].clientX - sw.x, next = ORDER[ORDER.indexOf(tab) + (d < 0 ? 1 : -1)];
+  const d = e.touches[0].clientX - sw.x, next = ORDER[ORDER.indexOf(tab) + (d < 0 ? 1 : -1)] || null;
+  if (next !== sw.next) {  // the tab on that side comes up beside this one
+    if (sw.next) { unmove(sw.into); unshown(sw.next); }
+    sw.next = next; sw.into = [];
+    if (next) { shown(next); sw.into = screenOf(next); }
+  }
   sw.vx = (d - sw.dx) / Math.max(1, Date.now() - (sw.t || sw.at)); sw.t = Date.now(); sw.dx = d;
-  move(sw.els, next ? d : d / 3);  // nothing that way: it gives a little, like the end of a list
+  const x = next ? d : d / 3;  // nothing that way: it gives a little, like the end of a list
+  move(sw.els, x);
+  move(sw.into, x + (d < 0 ? innerWidth : -innerWidth));
 }, { passive: true });
 document.addEventListener("touchend", async () => {
   if (!sw) return;
-  const { els, dx, on, vx = 0 } = sw;
+  const { els, into, next, dx, on, vx = 0 } = sw;
   sw = null;
   if (!on || !els.length) return;
-  const next = ORDER[ORDER.indexOf(tab) + (dx < 0 ? 1 : -1)];
   const flick = Math.abs(vx) > .45 && Math.sign(vx) === Math.sign(dx);
-  if (!next || !(Math.abs(dx) > innerWidth * .3 || flick && Math.abs(dx) > 30)) {
-    move(els, 0, 260); await after(260); unmove(els); cover.hidden = true; return;
+  if (!next || !(Math.abs(dx) > innerWidth * .3 || flick && Math.abs(dx) > 30)) {  // back to where it was
+    move(els, 0, 260); move(into, dx < 0 ? innerWidth : -innerWidth, 260); await after(260);
+    unmove(els); unmove(into); if (next) unshown(next); swiping(false); return;
   }
-  const ms = Math.round(Math.max(120, Math.min(220, (innerWidth - Math.abs(dx)) / Math.max(Math.abs(vx), 1.6))));
-  move(els, dx < 0 ? -innerWidth : innerWidth, ms); await after(ms);
-  coverAt(next);
-  const into = screenOf(next);
-  move(into, dx < 0 ? innerWidth : -innerWidth);  // waiting just off screen
-  tick(); go(next); unmove(els);
+  const ms = Math.round(Math.max(160, Math.min(300, (innerWidth - Math.abs(dx)) / Math.max(Math.abs(vx), 1.4))));
+  move(els, dx < 0 ? -innerWidth : innerWidth, ms); move(into, 0, ms); await after(ms);
+  tick(); arrive(next); unmove(els); unmove(into); swiping(false);
   if (next === "map") window.invalidateMap?.();
-  const fresh = screenOf(next);  // Plans and Me draw their screens when they open
-  move(fresh, dx < 0 ? innerWidth : -innerWidth);
-  void document.body.offsetWidth;
-  move(fresh, 0, 300); await after(300);
-  unmove(fresh); cover.hidden = true;
 }, { passive: true });
-document.addEventListener("touchcancel", () => { if (sw?.on) { const els = sw.els; move(els, 0, 200); after(200).then(() => { unmove(els); cover.hidden = true; }); } sw = null; }, { passive: true });
+document.addEventListener("touchcancel", () => {
+  if (sw?.on) { const { els, into, next } = sw; unmove(els); unmove(into); if (next) unshown(next); swiping(false); }
+  sw = null;
+}, { passive: true });
 
 const native = !!window.Capacitor?.isNativePlatform?.();
 function setUpTabs() {
@@ -817,7 +999,7 @@ document.addEventListener("click", async e => {
     [data-del-comment], [data-report-comment], [data-new-post], [data-pc-cancel], [data-pc-share], [data-pc-place], [data-pc-unplace], [data-pc-near], [data-pc-tag], [data-pc-who], [data-post-tags], #feedChats,
     [data-profile], [data-open-board], [data-close-profile], [data-close-post], [data-view-post], [data-edit-profile], [data-message],
     [data-add-friend], [data-my-calendar], [data-invite], [data-add-friends], [data-sheet-cancel], [data-pf-tab], [data-privacy-yes],
-    [data-album], [data-album-next], [data-friend-menu], [data-unfriend], [data-unfriend-yes]`);
+    [data-album], [data-album-next], [data-friend-menu], [data-unfriend], [data-unfriend-yes], [data-add-page], [data-accept-req], [data-decline-req], [data-rate-place], [data-rate-pick], [data-rerank]`);
   if (e.target.id === "actionSheet") return closeSheet();  // tapped outside the sheet
   if (!t || !t.closest("#feed, #tabs, #postCompose, #profile, #postView, #memories, #actionSheet")) return;
   const ds = t.dataset;
@@ -843,13 +1025,21 @@ document.addEventListener("click", async e => {
   if (ds.unfriendYes) {
     const was = friendOf(ds.unfriendYes);  // their profile keeps their name and picture once you're not friends
     if (was) cards[ds.unfriendYes] = { ...cards[ds.unfriendYes], name: was.name, photo: was.photo || "", code: was.code || "" };
-    await window.removeFriend?.(ds.unfriendYes); return profile?.uid === ds.unfriendYes ? openProfile(ds.unfriendYes) : null; }
+    await window.removeFriend?.(ds.unfriendYes); return profile?.uid === ds.unfriendYes ? openProfile(ds.unfriendYes) : profile ? renderProfile() : null; }
+  if (t.hasAttribute("data-add-page")) return openAddPage(profileTab === "friends");
+  if (ds.acceptReq) { t.disabled = true; return window.acceptRequest?.(ds.acceptReq).then(() => profileTab === "add" && renderProfile()); }
+  if (ds.declineReq) return window.declineRequest?.(ds.declineReq);
+  if (t.hasAttribute("data-rate-place")) return ratePicker();
+  if (ds.ratePick != null) { const p = ratePicker.list[+ds.ratePick]; if (p) setTimeout(() => rankStart({ venueName: p.name, address: p.address, venue: p.venue }), 10); return; }
+  if (ds.rerank) { const p = places[ds.rerank]; if (p) rankStart({ venueName: p.name, address: p.address, venue: p.venue }); return; }
   if (ds.addFriend) {
     const card = cards[ds.addFriend] || {}, mine = (window.myFriends || []).find(p => p.isMe) || {};
     t.disabled = true;
     return setDoc(doc(db, "requests", `${me.uid}_${ds.addFriend}`), { from: me.uid, to: ds.addFriend, fromName: mine.realName || myName(),
       fromPhoto: mine.photo || "", toName: card.name || "", createdAt: serverTimestamp() })
-      .then(() => { window.myRequestsOut = [...(window.myRequestsOut || []), ds.addFriend]; renderProfile(); })
+      .then(() => { window.myRequestsOut = [...(window.myRequestsOut || []), ds.addFriend];
+        if (profileTab === "add") { t.textContent = "Requested"; return; }
+        renderProfile(); })
       .catch(err => { t.disabled = false; alert(friendly(err, "send the request")); });
   }
   if (t.hasAttribute("data-new-post")) return pickPhoto();

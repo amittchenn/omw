@@ -55,6 +55,7 @@
         --shadow: 0 12px 32px rgba(0, 0, 0, .5); --shadow-sm: 0 2px 12px rgba(0, 0, 0, .4);
       }
       html .apple-btn, html .apple-btn:hover { background: #fff; border-color: #fff; color: #000; }  /* Apple's rule: white in dark mode */
+      .mapboxgl-ctrl-attrib-button, .maplibregl-ctrl-attrib-button { filter: invert(1); }
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; overscroll-behavior: none; }
@@ -74,7 +75,14 @@
               font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-sm); pointer-events: none; opacity: 0; transition: opacity .15s; }
     .gl-tip.bottom { transform: translate(-50%, 0); }
     .gl-tip.permanent, .gl-marker:hover .gl-tip { opacity: 1; }
-    .mapboxgl-ctrl-attrib.mapboxgl-compact, .maplibregl-ctrl-attrib.maplibregl-compact { background: var(--glass); color: var(--muted); }
+    /* the credits stay small and quiet in the corner, like Snap Map: Mapbox's compact logo (its icon, which their terms allow)
+       and a little ⓘ beside it that opens the text */
+    .mapboxgl-ctrl-bottom-left, .maplibregl-ctrl-bottom-left { display: flex; align-items: center; flex-direction: row-reverse; gap: 6px; padding: 0 0 8px 10px; }
+    .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl, .maplibregl-ctrl-bottom-left .maplibregl-ctrl { margin: 0 !important; float: none; }
+    a.mapboxgl-ctrl-logo { width: 20px !important; height: 20px !important; background-size: auto 20px; opacity: .45; }
+    .mapboxgl-ctrl-attrib.mapboxgl-compact, .maplibregl-ctrl-attrib.maplibregl-compact { min-height: 18px; padding: 0 0 0 18px !important; background: transparent; color: var(--muted); }
+    .mapboxgl-ctrl-attrib-button, .maplibregl-ctrl-attrib-button { width: 18px !important; height: 18px !important; background-color: transparent !important; background-size: 18px; opacity: .45; }
+    .mapboxgl-compact-show, .maplibregl-compact-show { padding: 2px 8px 2px 22px !important; background: var(--card) !important; border-radius: 10px; font-size: 11px; }
     .mapboxgl-ctrl-attrib a, .maplibregl-ctrl-attrib a { color: var(--muted); }
     html.has-tabs .mapboxgl-ctrl-bottom-left, html.has-tabs .maplibregl-ctrl-bottom-left,
     html.has-tabs .gl-corner.bottom-left, html.has-tabs .gl-corner.bottom-right { bottom: calc(55px + env(safe-area-inset-bottom)); }
@@ -743,7 +751,7 @@
     .inbox { position: fixed; z-index: 1400; top: calc(16px + env(safe-area-inset-top)); right: 16px; bottom: 16px; width: 420px; overflow: hidden;
              background: var(--card); color: var(--text); border-radius: 28px; box-shadow: var(--shadow); transform: translateX(calc(100% + 32px));
              transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
-    .inbox.ib-open { transform: none; }
+    .inbox.ib-open { transform: none; z-index: 1525; }  /* over profiles too: Message on a profile opens the chat on top, and back returns to it */
     .inbox.dragging, .convo.dragging { transition: none; }
     .ib-page, .convo { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
                        background: var(--card); }
@@ -985,12 +993,17 @@
     .mode-pick button.on { background: var(--ink); color: var(--on-ink); }
     #meHome b { font-weight: 600; }
     #meHome small { display: block; margin: 2px 0 0 26px; font-size: 12px; }
-    .home-search { position: relative; margin: 10px 0 8px; }
-    .home-search input { width: 100%; height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--soft);
-                         font: inherit; font-size: 15px; font-weight: 400; outline: none; box-sizing: border-box; }
-    .home-search input:focus { box-shadow: inset 0 0 0 1.5px var(--soft-2); }
-    .home-suggest { margin-top: 6px; border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm); overflow: hidden; }
+    /* Home: one card, like a settings row; Change opens the search */
+    .home-card { border-radius: 16px; background: var(--soft); overflow: hidden; }
+    .home-search { display: flex; align-items: center; gap: 8px; height: 44px; margin: 0 12px 8px; padding: 0 12px; border-radius: 12px; background: var(--card); color: var(--muted); }
+    .home-search .ic { width: 16px; height: 16px; flex: none; }
+    .home-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--text); font: inherit; font-size: 16px; outline: none; }
+    .home-suggest { margin: 0 12px 8px; border-radius: 12px; background: var(--card); overflow: hidden; }
     .home-suggest:empty { display: none; }
+    .home-edit { padding-top: 2px; } .home-edit[hidden] { display: none; }
+    .home-here { width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 14px 14px; border: 0; border-top: 1px solid var(--line); background: none;
+                 color: var(--link); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+    .home-here .ic { width: 18px; height: 18px; }
     .avatar.big { width: 88px; height: 88px; margin: 0 auto; border: 4px solid var(--card); box-shadow: 0 0 0 4px var(--sun), var(--shadow-sm); }
     .avatar.big span { font-size: 28px; }
     .avatar[style*="background-image"] { background-size: cover; background-position: center; }
@@ -1015,8 +1028,12 @@
     .mini { height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--soft); font-size: 13px; font-weight: 600;
             cursor: pointer; flex: none; }
     .mini.yes, .mini.dark { background: var(--ink); color: var(--on-ink); }
-    .home-line { font-size: 14px; font-weight: 400; margin-bottom: 8px; }
-    .home-line small { color: var(--muted); }
+    .home-line { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+    .home-pin { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--card); color: var(--ink); }
+    .home-pin .ic { width: 20px; height: 20px; } .home-pin.unset { color: var(--warn-fg); }
+    .home-line > span:not(.home-pin) { flex: 1; min-width: 0; display: grid; } .home-line b { color: var(--ink); }
+    .home-line small { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .home-line button { flex: none; height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
     .wide { width: 100%; height: 44px; border: 0; border-radius: 999px; background: var(--soft); font-weight: 600; cursor: pointer; }
     .sign-out { margin-top: 22px; background: var(--late-bg); color: var(--late-fg); }
     .delete-account { display: block; margin: 14px auto 0; padding: 8px 12px; border: 0; background: none; color: var(--late-fg); font-weight: 600; font-size: 14px; cursor: pointer; }
@@ -1209,7 +1226,15 @@
                       color: var(--ink); font: inherit; cursor: pointer; }
     .rank-vs b { font-size: 16px; } .rank-vs small { color: var(--muted); font-size: 12px; }
     .rank-list { display: grid; }
-    .rank-item { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-bottom: 1px solid var(--line); }
+    .rank-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 2px; border: 0; border-bottom: 1px solid var(--line); background: none;
+                 color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+    .rate-btn { width: 100%; height: 44px; margin: 4px 0 6px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 12px;
+                background: var(--soft); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+    .rate-btn .ic { width: 18px; height: 18px; }
+    .rate-search { margin: 0 0 4px; background: var(--card); }
+    .rate-list { max-height: 46vh; overflow-y: auto; }
+    .rate-list button { height: auto; min-height: 56px; display: grid; justify-items: start; align-content: center; padding: 8px 18px; text-align: left; }
+    .rate-list button b { font-size: 16px; color: var(--ink); } .rate-list button small { font-size: 13px; font-weight: 400; color: var(--muted); }
     .rank-item > span:nth-child(2) { flex: 1; display: grid; min-width: 0; } .rank-item b { color: var(--ink); } .rank-item small { color: var(--muted); font-size: 13px; }
     .rank-n { width: 24px; text-align: center; font-weight: 800; color: var(--muted); }
     .fpost footer { display: flex; align-items: center; gap: 4px; padding: 0 2px; }
@@ -1222,7 +1247,7 @@
     .fp-caption b, .fc b { color: var(--ink); font-weight: 800; }
     .fp-comments { display: grid; gap: 4px; }
     .fc-more { justify-self: start; padding: 0 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
-    .fc-x { margin-left: 6px; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .fc[data-comment] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }  /* press and hold opens its menu */
     .fc-form { display: flex; gap: 6px; margin-top: 4px; }
     .fc-input { flex: 1; min-width: 0; height: 42px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--soft); color: var(--text); font: inherit; font-size: 16px; outline: none; }
     .fc-send { height: 42px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: var(--ink); font: inherit; font-weight: 800; cursor: pointer; }
@@ -1251,7 +1276,7 @@
     .pc-found button:hover { background: var(--soft); }
     .pc-found small, .pc-picked small { color: var(--muted); font-size: 13px; }
     .pc-picked { display: flex; align-items: center; gap: 10px; background: var(--soft); cursor: default; }
-    .pc-near { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; scrollbar-width: none; } .pc-near:empty { display: none; }
+    .pc-near { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; scrollbar-width: none; } .pc-near:empty, .pc-near[hidden] { display: none; }
     .pc-near button { flex: none; height: 34px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--soft); color: var(--text);
                       font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
     .pc-row { width: 100%; display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 14px; border: 0; border-radius: 16px; background: var(--soft);
@@ -1350,7 +1375,7 @@
     html.has-tabs .drawer .pf-top, html.has-tabs .drawer .board-title { margin-right: 0; }
     /* switching tabs with a swipe: the new screen slides in from that side */
     html.has-tabs #feed, html.has-tabs .drawer.instant .drawer-card { touch-action: pan-y; }
-    .swipe-cover { position: fixed; inset: 0; background: var(--page); pointer-events: none; }
+    html.tab-swiping .sheet, html.tab-swiping .chat-edge, html.tab-swiping .dir { visibility: hidden; }  /* not part of any tab while swiping between them */
     /* no scroll bars in the app (like Instagram); and the status bar keeps a solid strip so lists don't scroll under the clock */
     html.has-tabs * { scrollbar-width: none; } html.has-tabs *::-webkit-scrollbar { display: none; }
     html.has-tabs:not([data-tab="map"]) body::after { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top);
@@ -1380,7 +1405,7 @@
     .pf-private { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--soft); cursor: pointer; }
     .pf-private span { flex: 1; display: grid; } .pf-private b { color: var(--ink); } .pf-private small { color: var(--muted); font-size: 13px; }
     .pf-private + .pf-private { margin-top: 8px; }
-    .home-search + .wide + .pf-private { margin-top: 12px; }
+    .home-card + .pf-private { margin-top: 12px; }
     /* iPhone Settings switch */
     input.switch { appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 51px; height: 31px; margin: 0; border-radius: 999px;
                    background: var(--soft-2); cursor: pointer; transition: background .2s; }
@@ -1392,16 +1417,35 @@
     .pf-tabs { display: flex; border-bottom: 1px solid var(--line); }
     .pf-stat { display: grid; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
     .pf-stat b { font-size: 18px; color: var(--ink); }
-    .pf-list-head { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
-    .pf-list-head b { text-align: center; font-size: 16px; color: var(--ink); }
-    .pf-list-head button { width: 40px; height: 40px; border: 0; background: none; color: var(--ink); display: grid; place-items: center; cursor: pointer; }
-    .pf-list-head .ic { width: 22px; height: 22px; }
-    .pf-people { display: grid; }
-    .pf-person { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-    .pf-person .ff { width: 48px; height: 48px; font-size: 18px; flex: none; }
-    .pf-person > span:not(.ff) { flex: 1; min-width: 0; display: grid; } .pf-person b { color: var(--ink); }
-    .pf-person small { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pf-person > .ic { width: 18px; height: 18px; color: var(--muted); }
+    /* a friends list, like Instagram's Followers page */
+    .fl { display: grid; gap: 4px; }
+    .fl-head { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin: -4px -6px 0; }
+    .fl-head b { text-align: center; font-size: 17px; color: var(--ink); }
+    .fl-head button { width: 44px; height: 44px; border: 0; background: none; color: var(--ink); display: grid; place-items: center; cursor: pointer; }
+    .fl-head .ic { width: 26px; height: 26px; }
+    .fl-tabs { display: flex; justify-content: center; border-bottom: 1px solid var(--line); }
+    .fl-tabs span { padding: 10px 18px; border-bottom: 1.5px solid var(--ink); margin-bottom: -1px; font-size: 14px; font-weight: 700; color: var(--ink); }
+    .fl-search { display: flex; align-items: center; gap: 8px; height: 38px; margin: 10px 0 6px; padding: 0 12px; border-radius: 10px; background: var(--soft); color: var(--muted); }
+    .fl-search .ic { width: 16px; height: 16px; flex: none; }
+    .fl-search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 16px; outline: none; }
+    .fl-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; } .fl-row[hidden] { display: none; }
+    .fl-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+    .fl-who .ff { width: 52px; height: 52px; font-size: 18px; flex: none; }
+    .fl-who > span:not(.ff) { min-width: 0; display: grid; } .fl-who b { font-size: 15px; color: var(--ink); }
+    .fl-who small { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pf-btn { flex: none; height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--soft-2); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .pf-btn.add { background: #1e88ff; color: #fff; } .pf-btn:disabled { opacity: .6; }
+    .fl-label { margin: 14px 0 4px; font-size: 15px; font-weight: 800; color: var(--ink); }
+    .fl-note { padding: 10px 0; color: var(--muted); font-size: 14px; }
+    .fl-x { flex: none; width: 32px; height: 32px; border: 0; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+    .fl-x .ic { width: 18px; height: 18px; }
+    .fl-row .pf-btn + .fl-x { margin-left: -6px; }
+    .fl-invite { width: 100%; display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 14px; border: 0; border-radius: 16px; background: var(--soft);
+                 color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+    .fl-invite > span { flex: 1; display: grid; } .fl-invite b { color: var(--ink); } .fl-invite small { color: var(--muted); font-size: 13px; }
+    .fl-invite .ic { width: 20px; height: 20px; } .fl-invite .ic:last-child { color: var(--muted); }
+    /* the friends and Add friends pages have their own header */
+    html.has-tabs .drawer .drawer-card:has(> .fl) { padding-top: calc(10px + env(safe-area-inset-top)); }
     .pf-tabs button { flex: 1; height: 44px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-bottom: 2px solid transparent;
                       background: none; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
     .pf-tabs button.on { color: var(--ink); border-bottom-color: var(--ink); } .pf-tabs .ic { width: 18px; height: 18px; }
@@ -1458,7 +1502,10 @@
     .me-board span { flex: 1; display: grid; } .me-board b { color: var(--ink); } .me-board small { color: var(--muted); font-size: 13px; }
     .me-board .ic { width: 22px; height: 22px; color: var(--ink); }
     html.has-tabs .sheet { bottom: calc(55px + env(safe-area-inset-bottom)); padding-bottom: 24px; }
-    html.has-tabs .gl-corner.top-right { top: calc(112px + env(safe-area-inset-top)); }
+    html.kb-open .tabbar { display: none; }  /* typing: the keyboard takes the bottom, like Instagram */
+    html.has-tabs.kb-open .sheet, html.has-tabs.kb-open .dir, html.has-tabs.kb-open .drawer .drawer-card { bottom: 0; }
+    html.has-tabs .gl-corner.bottom-right { padding: 0 12px 14px; }
+    body:has(#mapPanel:not([hidden])) .locate { opacity: 0; pointer-events: none; }
     html.has-tabs .locate { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); }
     .locate .ic { width: 20px; height: 20px; }
     html[data-tab="map"] .me-dot { display: none; }  /* on the Map tab you're your avatar (maptab.js) */
@@ -1469,7 +1516,11 @@
     html[data-tab="map"] .sheet, html[data-tab="map"] .chat-edge { display: none; }
     html[data-tab="plan"] .sheet { top: calc(70px + env(safe-area-inset-top)); max-height: none; border-radius: 14px 14px 0 0; background: var(--page);
       box-shadow: 0 -8px 30px rgba(0, 0, 0, .18); padding-top: 6px; animation: sheet-up .34s cubic-bezier(.2, .9, .25, 1); }
-    html[data-tab="plan"] .sheet.collapsed { top: auto; max-height: 150px; animation: none; }
+    html[data-tab="plan"] .sheet { transition: transform .4s cubic-bezier(.2, .9, .25, 1); }
+    html[data-tab="plan"] .sheet.collapsed { top: calc(70px + env(safe-area-inset-top)); max-height: none; overflow: hidden; transform: translateY(var(--fold, 60vh)); animation: none; }
+    html[data-tab="plan"] .sheet.dragging { transition: none; }
+    html[data-tab="plan"] #map { transition: filter .3s; }
+    html[data-tab="plan"]:has(.sheet.collapsed) #map { filter: none; }
     html[data-tab="plan"] #map { filter: brightness(.6); }  /* the map dims behind the sheet, like iOS */
     html[data-tab="plan"] .sheet .section { padding: 14px 0; border-top: 1px solid var(--line); margin: 0; }
     html[data-tab="plan"] .sheet .hello h1 { font-size: 30px; }
@@ -1654,6 +1705,7 @@
 <section class="feed" id="feed" hidden aria-label="Feed">
   <div class="feed-head">
     <span class="feed-logo">omw<b>!</b></span>
+    <button class="feed-round" data-add-page title="Add friends" aria-label="Add friends" data-ic="user-round-plus"></button>
     <button class="feed-round" data-new-post title="New post" aria-label="New post" data-ic="square-plus"></button>
     <div class="me-btn"><button class="feed-round" id="feedChats" title="Chats" aria-label="Chats" data-ic="message-circle"></button>
       <span class="count" id="feedChatBadge" hidden>0</span></div>
@@ -1867,12 +1919,14 @@
 
     <div class="section">
       <div class="label">Home</div>
-      <div class="home-line" id="meHome"></div>
-      <div class="home-search">
-        <input id="homeInput" placeholder="Type your home address" autocomplete="street-address">
-        <div class="home-suggest" id="homeSuggest"></div>
+      <div class="home-card">
+        <div class="home-line" id="meHome"></div>
+        <div class="home-edit" id="homeEdit">
+          <label class="home-search"><i data-ic="search"></i><input id="homeInput" placeholder="Search an address" autocomplete="street-address"></label>
+          <div class="home-suggest" id="homeSuggest"></div>
+          <button class="home-here" id="setHome">Use my current location</button>
+        </div>
       </div>
-      <button class="wide" id="setHome">Use my current location</button>
       <label class="pf-private"><span><b>Share my location</b><small>Friends see you on the map.</small></span>
         <input type="checkbox" class="switch" id="shareLive" checked></label>
     </div>
@@ -1949,7 +2003,7 @@ navigator.geolocation?.watchPosition(p => {
   if (!centeredOnMe) { centeredOnMe = true; if (!venue && !shown) map.setView(myLocation, 14); }
   if (shown) drawHangout();  // keep "You" on a hangout's map in step with the dot
 }, () => {}, { enableHighAccuracy: true, maximumAge: 10000 });
-const Locate = L.Control.extend({ options: { position: phone() ? "topright" : "bottomright" }, onAdd() {
+const Locate = L.Control.extend({ options: { position: "bottomright" }, onAdd() {  // bottom right, like Snap Map
   const b = L.DomUtil.create("button", "locate");
   b.title = "Show where I am"; b.setAttribute("aria-label", "Show where I am"); b.innerHTML = icon("navigation");
   L.DomEvent.disableClickPropagation(b);
@@ -1964,8 +2018,12 @@ const viewPadding = () => phone() ? { paddingTopLeft: [40, 90], paddingBottomRig
                                   : { paddingTopLeft: [460, 100], paddingBottomRight: [60, 60] };
 
 // on phones, tap the handle or title to fold the planner away
+// the + tab's planner is an iOS sheet: always full size, it slides down to fold (just its top shows) and back up
+const planSheet = () => document.documentElement.dataset.tab === "plan";
+const foldY = () => Math.max(0, $("sheet").offsetHeight - 150);
 function toggleSheet(force) {
   if (!phone()) return;
+  $("sheet").style.setProperty("--fold", `${foldY()}px`);
   const folded = $("sheet").classList.toggle("collapsed", force);
   if (folded) $("sheet").scrollTop = 0;  // show the title when folded
 }
@@ -1980,7 +2038,7 @@ $("sheet").addEventListener("touchstart", e => {
   const s = $("sheet");
   sheetDragged = false;
   // folded: any swipe opens it. Open: only when it's scrolled to the top, so normal scrolling still works
-  sheetDrag = s.classList.contains("collapsed") || s.scrollTop <= 0 ? { y: e.touches[0].clientY, x: e.touches[0].clientX, dy: 0 } : null;
+  sheetDrag = s.classList.contains("collapsed") || s.scrollTop <= 0 ? { y: e.touches[0].clientY, x: e.touches[0].clientX, dy: 0, v: 0, t: Date.now() } : null;
 }, { passive: true });
 $("sheet").addEventListener("touchmove", e => {
   if (!sheetDrag) return;
@@ -1993,16 +2051,31 @@ $("sheet").addEventListener("touchmove", e => {
   const folded = s.classList.contains("collapsed");
   if (!folded && (dy <= 0 || s.scrollTop > 0)) { sheetDrag.dy = 0; s.style.transform = ""; return; }  // scrolling the list up
   e.preventDefault();
+  sheetDrag.v = (dy - sheetDrag.dy) / Math.max(1, Date.now() - sheetDrag.t); sheetDrag.t = Date.now();
   sheetDrag.dy = dy;
   sheetDragged = Math.abs(dy) > 8;
   s.classList.add("dragging");
+  if (planSheet()) {  // follows your finger the whole way, and gives a little past the top
+    const y = (folded ? foldY() : 0) + dy;
+    s.style.transform = `translateY(${y < 0 ? y * 0.25 : y}px)`;
+    return;
+  }
   s.style.transform = folded ? `translateY(${Math.max(dy, -40) * 0.5}px)` : `translateY(${dy}px)`;
 }, { passive: false });
 const endSheetDrag = () => {
   if (!sheetDrag) return;
-  const s = $("sheet"), { dy } = sheetDrag, folded = s.classList.contains("collapsed");
+  const s = $("sheet"), { dy, v } = sheetDrag, folded = s.classList.contains("collapsed");
   sheetDrag = null;
   s.classList.remove("dragging");
+  if (planSheet()) {  // lands open or folded: a flick decides, otherwise whichever is closer
+    const y = (folded ? foldY() : 0) + dy, fold = v > .4 ? true : v < -.4 ? false : y > foldY() / 2;
+    s.style.transition = "transform .4s cubic-bezier(.2, .9, .25, 1)";
+    s.style.setProperty("--fold", `${foldY()}px`);
+    s.classList.toggle("collapsed", fold); if (fold) s.scrollTop = 0;
+    s.style.transform = "";
+    setTimeout(() => { s.style.transition = ""; sheetDragged = false; }, 420);
+    return;
+  }
   s.style.transition = "transform .2s ease, max-height .25s ease"; s.style.transform = "";
   setTimeout(() => (s.style.transition = ""), 260);
   if (!folded && dy > 70) toggleSheet(true);

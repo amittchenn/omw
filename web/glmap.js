@@ -188,6 +188,7 @@
       // the corners (the locate button…) sit over the map like before
       Object.values(this._corners).forEach(c => this._box.append(c));
       gl.addControl(new this._lib.AttributionControl({ compact: true }), "bottom-left");
+      gl.once("load", () => this._box.querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show"));  // folded until tapped
       gl.on("style.load", () => { this._styled = true; this._live.forEach(i => i instanceof Shape && i._show(this)); });
       gl.on("click", e => {
         if (e.originalEvent?.target?.closest?.(".gl-marker, .gl-corner")) return;  // a marker or a button, not the map

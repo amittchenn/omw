@@ -26,6 +26,10 @@
     "SplashScreen": {
       "launchAutoHide": true,
       "backgroundColor": "#FFE600"
+    },
+    "Keyboard": {
+      "resize": "native",
+      "resizeOnFullScreen": true
     }
   },
   "experimental": {
