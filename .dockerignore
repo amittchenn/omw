@@ -7,3 +7,6 @@ mobile/
 docs/
 web/avatar.zip
 *.md
+tests/
+demo/
+APP_STORE.md

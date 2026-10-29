@@ -86,12 +86,14 @@ uvicorn server:app --reload  # then open http://127.0.0.1:8000
 | `MAPBOX_TOKEN` | Map tiles and fallback search |
 | `OPENAI_API_KEY` | AI avatars, and typing a plan in plain words |
 | `MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL` | Meta Muse for typed plans (tried first, falls back to OpenAI; `LLM_PROVIDER=openai` skips it) |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Calendar feeds, and keeping traffic readings across deploys |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Calendar feeds, keeping traffic readings across deploys, checking sign-in on API calls, deleting accounts |
 | `TRAFFIC_COLLECT_EVERY_MIN` | Optional: check the routes in the traffic data on a schedule (uses Google calls) |
-| `PUSH_ENABLED` | `1` on the one live server only: sends push notifications to the iPhone app (`push.py`) |
+| `PUSH_ENABLED` | `1` on the one live server only: sends push notifications and Live Activity updates to the iPhone app (`push.py`) |
+| `SUPPORT_EMAIL` | The contact address on the Privacy, Terms and Support pages (`/privacy`, `/terms`, `/support`) |
+| `CORS_ORIGINS` | Optional: which other sites may call the API from a browser (default: the iPhone app and localhost) |
 
-Sign-in, friends, plans, chats and memories use Firebase (Auth + Firestore). Put your web config in
-`web/firebase-config.js` and publish `firestore.rules`.
+Sign-in, friends, plans, chats, photos and the feed use Firebase (Auth + Firestore). Put your web config in
+`web/firebase-config.js` and publish `firestore.rules` (see `DEPLOY.md`, step 0).
 
 ## Where things are
 
@@ -101,7 +103,12 @@ Sign-in, friends, plans, chats and memories use Firebase (Auth + Firestore). Put
 | `predictor.py`, `features.py`, `train.py` | The lateness model |
 | `traffic.py`, `travel.py` | The traffic model and trip times (Google Maps, then Mapbox, then a straight-line estimate) |
 | `weather.py`, `places.py`, `schedule.py` | Forecasts, place search and names, finding times everyone's free |
-| `push.py` | Push notifications for the iPhone app: leave-now alerts, invites, chat messages |
+| `push.py` | Push notifications for the iPhone app: leave-now alerts, invites, chat messages, Live Activity updates |
+| `security.py` | HTTPS only, security headers, sign-in check on API calls, rate limits |
+| `account.py` | Deleting an account and everything in it (Profile -> Delete account) |
+| `firestore.rules`, `tests/` | Who can read and change what in the database, and the tests for it (`tests/rules.test.mjs`) |
+| `demo/` | The demo account for App Review (`python demo/seed_demo.py`) |
+| `APP_STORE.md` | Submitting the iPhone app: the checklist |
 | `mobile/` | The iPhone app (Capacitor): see `mobile/README.md` |
 | `Dockerfile`, `railway.json` | Deploying on Railway: see `DEPLOY.md` |
-| `web/` | The app: `index.html` (planner and map), `friends.js` (profile, friends, plans), `chat.js` and `dms.js` (chats), `memories.js`, `live.js` (live map), `leaderboard.js` |
+| `web/` | The app: `index.html` (planner and map), `feed.js` (the home feed and tabs), `friends.js` (profile, friends, plans), `chat.js` and `dms.js` (chats), `memories.js` (group photos), `live.js` (live map), `leaderboard.js`, `island.js` (the Dynamic Island), `privacy.html`, `terms.html`, `support.html` |

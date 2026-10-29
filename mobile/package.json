@@ -1,21 +1,26 @@
 {
   "name": "omw-ios",
   "private": true,
-  "description": "omw! as an iPhone app: a Capacitor shell around the live site (server.url in capacitor.config.json)",
+  "description": "omw! as an iPhone app (Capacitor): the screens from ../web packed inside the app, data from the omw! server",
   "scripts": {
-    "assets": "capacitor-assets generate --ios",
-    "sync": "cap sync ios",
+    "build": "node build-web.mjs",
+    "assets": "npx --yes @capacitor/assets@3 generate --ios",
+    "sync": "node build-web.mjs && cap sync ios",
     "open": "cap open ios"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.5.2",
     "@capacitor-firebase/messaging": "^8.5.2",
+    "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.0",
     "@capacitor/ios": "^8.5.3",
     "firebase": "^12.6.0"
   },
   "devDependencies": {
-    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.3"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.3"
   }
 }

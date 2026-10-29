@@ -46,6 +46,7 @@ function renderPrompt() {
     <button class="snap-x" data-snap-skip="${esc(h.id)}" title="Not now">${icon("x")}</button>`;
 }
 setInterval(renderPrompt, 30000);
+window.snapWaiting = waiting;  // the feed shows the same prompt
 
 // the bit inside a hangout's card in My plans
 window.memoryCard = h => {
@@ -157,6 +158,8 @@ function showComposer(msg = "") {
     <div class="mem-sub">${esc(plainTitle(h.title))} · ${esc(h.venueName || "")}</div>
     <div class="mem-photo"><img src="${photo}" alt="Group photo"></div>
     <div class="mem-who">${h.attendees.map(u => `<span>${esc(u === me.uid ? "You" : h.names?.[u] || "Friend")}</span>`).join("")}</div>
+    ${mine ? "" : `<label class="mem-share"><input type="checkbox" id="memShare" checked> <span><b>Share with friends</b>
+      <small>Your friends and theirs see it in their feed</small></span></label>`}
     <div class="mem-actions">
       <button class="mini" data-snap-again="camera">${icon("camera")} Retake</button>
       <button class="mini" data-snap-again="library">${icon("image")} Pick another</button>
@@ -167,14 +170,19 @@ function showComposer(msg = "") {
 }
 async function post() {
   const { h, photo } = draft, old = memories[h.id], at = new Date().toISOString();
+  const share = !old && $("memShare")?.checked;
   const btn = $("memCompose").querySelector("[data-post]");
   btn.disabled = true; btn.textContent = "Posting…";
   try {
-    if (old) await updateDoc(doc(db, "memories", h.id), { photo, at });  // yours: retaken
-    else await setDoc(doc(db, "memories", h.id), {
+    if (old) {  // yours: retaken
+      await updateDoc(doc(db, "memories", h.id), { photo, at });
+      window.updateFeedPhoto?.(h.id, photo, at).catch(() => {});
+    } else await setDoc(doc(db, "memories", h.id), {
       members: h.attendees, names: Object.fromEntries(h.attendees.map(u => [u, h.names?.[u] || (u === me.uid ? myName() : "Friend")])),
       by: me.uid, byName: h.names?.[me.uid] || myName(), photo, at, allHereAt: new Date(allHereAt(h)).toISOString(),
       title: plainTitle(h.title), venueName: h.venueName || "", address: h.address || "", start: h.start });
+    if (share) await window.shareToFeed?.(h, { photo, at, members: h.attendees, names: h.names, byName: h.names?.[me.uid] || myName() })
+      .catch(e => console.warn("feed:", e.message));
     window.sendChat?.(h.id, "posted the group photo in Memories").catch?.(() => {});
     draft = null; $("memCompose").hidden = true;
     openWhenSaved = h.id;  // show it as soon as it's saved
@@ -237,7 +245,9 @@ function open(id) {
     <div class="mem-who">${m.members.map(u => `<span>${esc(nameOf(m, u))}</span>`).join("")}</div>
     <div class="mem-actions">
       <button class="mini" data-save>${icon("share")} Save</button>
-      ${m.by === me.uid ? `<button class="mini" data-retake="${esc(id)}">${icon("camera")} Retake</button>
+      ${m.by === me.uid ? `${window.feedHas?.(id) ? `<button class="mini" data-unshare="${esc(id)}">${icon("users")} Take off the feed</button>`
+                                                  : `<button class="mini" data-share="${esc(id)}">${icon("users")} Share with friends</button>`}
+                           <button class="mini" data-retake="${esc(id)}">${icon("camera")} Retake</button>
                            <button class="mini danger" data-delete="${esc(id)}">${icon("trash-2")} Delete for everyone</button>`
                         : `<button class="mini" data-hide="${esc(id)}">${icon("eye")} Remove from my memories</button>`}
     </div>
@@ -256,7 +266,7 @@ async function save(m) {  // share sheet on phones (Save Image), a download else
 // ---------- taps ----------
 document.addEventListener("click", async e => {
   // only taps inside the memories screens and prompts (other screens have their own "save" and "delete" buttons)
-  if (!e.target.closest("#memView, #memCompose, #memCam, #snapPrompt, #memList, .mem-take-row, .mem-strip")) return;
+  if (!e.target.closest("#memView, #memCompose, #memCam, #snapPrompt, #memList, .mem-take-row, .mem-strip, .feed-snap")) return;
   const cb = e.target.closest("[data-cam-close], [data-cam-shoot], [data-cam-timer], [data-cam-flip], [data-cam-upload]");
   if (cb) {
     e.stopPropagation(); e.preventDefault();
@@ -268,7 +278,7 @@ document.addEventListener("click", async e => {
     return;
   }
   if (e.target.id === "memCam") return closeCamera();
-  const t = e.target.closest("[data-snap], [data-snap-upload], [data-snap-skip], [data-memory], [data-snap-again], [data-post], [data-compose-close], [data-view-close], [data-save], [data-retake], [data-delete], [data-hide]");
+  const t = e.target.closest("[data-snap], [data-snap-upload], [data-snap-skip], [data-memory], [data-snap-again], [data-post], [data-compose-close], [data-view-close], [data-save], [data-retake], [data-delete], [data-hide], [data-share], [data-unshare]");
   if (!t) {
     if (e.target.id === "memView") { $("memView").hidden = true; viewing = null; }
     if (e.target.id === "memCompose") { $("memCompose").hidden = true; draft = null; }
@@ -286,9 +296,20 @@ document.addEventListener("click", async e => {
   if (t.hasAttribute("data-view-close")) { $("memView").hidden = true; viewing = null; return; }
   if (t.hasAttribute("data-save")) return save(memories[viewing]);
   if (ds.retake) { $("memView").hidden = true; return pickPhoto(ds.retake, true); }
+  if (ds.share || ds.unshare) {
+    const m = memories[ds.share || ds.unshare];
+    try {
+      if (ds.unshare) await window.unshareFromFeed(m.id);
+      else await window.shareToFeed({ ...(hangoutsList().find(x => x.id === m.id) || { id: m.id, attendees: m.members, names: m.names }) }, m);
+      t.outerHTML = ds.unshare ? `<button class="mini" data-share="${esc(m.id)}">${icon("users")} Share with friends</button>`
+                               : `<button class="mini" data-unshare="${esc(m.id)}">${icon("users")} Take off the feed</button>`;
+    } catch (err) { alert(friendly(err, ds.unshare ? "take it off" : "share it")); }
+    return;
+  }
   if (ds.delete) {
     if (!confirm("Delete this photo for everyone who went?")) return;
     await deleteDoc(doc(db, "memories", ds.delete)).catch(err => alert(friendly(err, "delete it")));
+    if (window.feedHas?.(ds.delete)) window.unshareFromFeed(ds.delete).catch(() => {});
     $("memView").hidden = true; viewing = null; return;
   }
   if (ds.hide) {

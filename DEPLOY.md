@@ -2,6 +2,20 @@
 
 The server runs on **Railway** from this repo's `Dockerfile`. It doesn't sleep, so there's no 30-second cold start like on
 Render's free plan. Your domain lives on **Cloudflare**. Sign-in, data, chat and photos stay on **Firebase**.
+Staying on Render instead? Everything below works there too: add the same variables under Environment, and pick a paid
+instance so it doesn't sleep (notifications and the Dynamic Island need the server awake).
+
+## 0. Firebase: database rules and one index (5 minutes, do this first)
+1. Firebase console -> **Firestore Database -> Rules** -> replace everything with the contents of `firestore.rules` -> **Publish**.
+   These decide who can read and change what: everyone only reaches their own data, their friends' profiles, and the plans,
+   chats and photos they're in, and on shared things they can only change their own part. (Tests: `tests/rules.test.mjs`.)
+2. **Firestore Database -> Indexes -> Composite -> Create index**: collection `feed`, fields `viewers` *Arrays* and
+   `at` *Descending*. (Or open the app once: the browser console prints a link that creates it.) Until it's built the feed
+   still shows, just not newest-first.
+3. **Authentication -> Settings -> User actions**: turn on **Email enumeration protection**. Firebase already hashes
+   passwords and slows down repeated wrong logins.
+4. Recommended once the app is live: **App Check** (Build -> App Check) with App Attest for iOS and reCAPTCHA for the
+   website, so only the real app can use your Firebase project.
 
 ## 1. Railway (about 10 minutes)
 1. [railway.com](https://railway.com) → sign in with GitHub → **New Project → Deploy from GitHub repo** → `amittchenn/omw`.
@@ -17,6 +31,7 @@ Render's free plan. Your domain lives on **Cloudflare**. Sign-in, data, chat and
    MUSE_MODEL=...
    FIREBASE_SERVICE_ACCOUNT_JSON={...the whole JSON on one line...}
    PUSH_ENABLED=1
+   SUPPORT_EMAIL=you@example.com
    ```
    Don't set `PORT`: Railway sets it.
 3. **Settings → Networking → Generate Domain**. You get something like `omw-production.up.railway.app`.

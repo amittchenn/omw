@@ -148,6 +148,9 @@ function publish() {
                                   // where they are right now (their app shares it with friends for planning), if it's fresh
                                   ...liveOf(uid), photo: safePhoto(p.photo), real: true, code: p.code || "",
                                   busy: p.busy || [],
+                                  // what they're up to, for the feed: free (they said so), out at a hangout, or on their way
+                                  freeUntil: p.freeUntil || null, now: p.now || null, sharing: p.shareLive !== false,
+                                  blocked: Array.isArray(p.blocked) ? p.blocked : [],  // people whose posts you don't want to see
                                   // how many minutes after their alert they really left, from their check-ins (the model learns from these)
                                   habits: (Array.isArray(p.habits) ? p.habits : []).filter(x => typeof x?.delay === "number").slice(-30).map(x => x.delay),
                                   // every check-in they've made (any hangout, even ones you weren't at): minutes late, for the leaderboard
@@ -330,7 +333,7 @@ function renderAvatarEditor() {
   const ai = draft.pane !== "ai" ? "" : aiReady === false ? `<p class="ai-off">AI avatars aren't turned on for this app yet. Build your own for now.</p>`
     : `<div class="ai-form">
         ${s.kind === "ai" ? `<div class="ai-mode"><button class="${editing ? "on" : ""}" data-ai-mode="edit">${icon("pencil")} Change this one</button>
-          <button class="${editing ? "" : "on"}" data-ai-mode="new">${icon("sparkles")} Make a new one</button></div>
+          <button class="${editing ? "" : "on"}" data-ai-mode="new">${icon("refresh-cw")} Make a new one</button></div>
           ${editing ? `<p class="ai-note">Pick only what should change.</p>` : ""}` : ""}
         ${editing ? "" : `<div class="ai-row"><small>Start from a selfie <em>(optional)</em></small><div class="ai-selfie">
           ${draft.selfie ? `<img src="${esc(draft.selfie)}" alt="Your selfie"><button data-no-selfie="1">Remove</button>`
@@ -341,7 +344,7 @@ function renderAvatarEditor() {
         <div class="ai-row"><small>${editing ? "Anything else to change?" : "Anything else?"}</small>
           <input id="aiExtra" maxlength="100" placeholder="${editing ? "e.g. make the cap red, add a nose ring" : "e.g. pink streak, gap tooth, dimples"}" value="${esc(editing ? draft.changeText : draft.extra)}"></div>
         <button class="wide dark ai-go" data-make="1" ${busy ? "disabled" : ""}>${busy ? "Drawing…"
-          : editing ? `${icon("pencil")} Apply changes` : `${icon("sparkles")} Create my avatar`}</button>
+          : editing ? `${icon("pencil")} Apply changes` : `${icon("palette")} Create my avatar`}</button>
         ${draft.selfie && !editing ? `<p class="ai-note">Your selfie isn't saved.</p>` : ""}
       </div>`;
 
@@ -363,7 +366,7 @@ function renderAvatarEditor() {
           : x.kind !== "account" ? `<button class="lib-del" data-del="${esc(x.id)}" title="Delete">${icon("x")}</button>` : ""}</div>`).join("")}</div></div>` : ""}
     <div class="lib-head"><b>Make a new one</b></div>
     <div class="make">
-      <button class="${draft.pane === "ai" ? "on" : ""}" data-pane="ai"><i>${icon("sparkles")}</i><b>Create with AI</b></button>
+      <button class="${draft.pane === "ai" ? "on" : ""}" data-pane="ai"><i>${icon("palette")}</i><b>Create with AI</b></button>
       <button class="${draft.pane === "build" ? "on" : ""}" data-pane="build"><i>${icon("user")}</i><b>Build your own</b><small>Change every detail</small></button>
       <label class="${draft.pane === "upload" ? "on" : ""}"><i>${icon("upload")}</i><b>Upload photo</b><small>From your phone</small><input type="file" accept="image/*" id="photoFile" hidden></label>
     </div>
@@ -1085,7 +1088,7 @@ if (configured) {
     } catch (e) {
       $("schedMsg").textContent = e.message; $("schedMsg").className = "";
     } finally {
-      $("readSched").disabled = false; $("readSched").innerHTML = `${icon("sparkles")} Read my schedule`;
+      $("readSched").disabled = false; $("readSched").innerHTML = `${icon("calendar")} Read my schedule`;
     }
   };
   $("shareLive").onchange = async e => {

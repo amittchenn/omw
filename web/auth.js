@@ -4,7 +4,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail, signOut,
-  initializeAuth, indexedDBLocalPersistence, signInWithCredential, OAuthProvider,
+  initializeAuth, indexedDBLocalPersistence, signInWithCredential, OAuthProvider, revokeAccessToken,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // In the iPhone app (Capacitor) there are no popups: Google and Apple sign in natively (the
@@ -68,11 +68,11 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE")) {
   onAuthStateChanged(auth, user => {
     document.body.classList.remove("checking");
     document.body.classList.toggle("signed-in", !!user);
+    window.currentUser = user;  // the rest of the page can read who's signed in (and requests to the server carry it)
     if (!user) { setMode("signin"); $("password").value = ""; return; }
     const name = user.displayName || user.email.split("@")[0];
     $("userName").textContent = greeting(name);
     if (!$("userPic").style.backgroundImage) $("userPic").textContent = name.slice(0, 1).toUpperCase();  // until your avatar loads
-    window.currentUser = user;  // the rest of the page can read who's signed in
   });
 
   const cancelled = e => /cancel|closed|1001|12501/i.test(`${e?.code} ${e?.message}`);  // you backed out: say nothing
@@ -108,6 +108,29 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE")) {
     const email = $("email").value.trim();
     if (!email) return say("Type your email above first, then click “Forgot password?”.");
     run(async () => { await sendPasswordResetEmail(auth, email); say("Check your inbox for a reset link.", true); });
+  };
+
+  // Profile -> Delete account: the server deletes your data and sign-in (account.py), then you're signed out here
+  $("deleteAccount").onclick = async () => {
+    if (!confirm("Delete your omw! account?\n\nYour profile, friends, plans you made, photos and messages are deleted for good. This can't be undone.")) return;
+    const b = $("deleteAccount"), user = auth.currentUser;
+    b.disabled = true; b.textContent = "Deleting…";
+    try {
+      // signed up with Apple: Apple asks apps to cancel that sign-in too, which needs one more confirmation from Apple
+      if (native && user.providerData.some(p => p.providerId === "apple.com")) {
+        const r = await nativeAuth().signInWithApple({ skipNativeAuth: true });
+        if (r.credential?.authorizationCode) await revokeAccessToken(auth, r.credential.authorizationCode).catch(() => {});
+      }
+      const token = await user.getIdToken(true);
+      await window.omwPushSignOut?.();
+      const res = await fetch("/account/delete", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Couldn't delete your account. Try again.");
+      if (native) await nativeAuth().signOut().catch(() => {});
+      await signOut(auth);
+      alert("Your account and everything in it has been deleted.");
+    } catch (e) {
+      if (!cancelled(e)) alert(friendly(e, "delete your account"));
+    } finally { b.disabled = false; b.textContent = "Delete account"; }
   };
 
   $("signOut").onclick = async () => {

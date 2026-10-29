@@ -4,3 +4,4 @@ ios/DerivedData/
 GoogleService-Info.plist
 *.xcuserstate
 xcuserdata/
+www/

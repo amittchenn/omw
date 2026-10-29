@@ -25,7 +25,7 @@ if (native && firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE"
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   const db = getFirestore(app);
   let uid = null, token = null;
-  const save = t => uid && t && setDoc(doc(db, "private", uid), { pushTokens: arrayUnion(t) }, { merge: true }).catch(() => {});
+  const save = t => { window.omwPushToken = t; return uid && t && setDoc(doc(db, "private", uid), { pushTokens: arrayUnion(t) }, { merge: true }).catch(() => {}); };  // island.js sends it with the Live Activity's token
 
   FM().addListener("notificationActionPerformed", e => openFrom(e.notification?.data || {}));
   FM().addListener("tokenReceived", e => { token = e.token; save(token); });

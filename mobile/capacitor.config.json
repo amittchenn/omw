@@ -3,11 +3,6 @@
   "appName": "omw!",
   "webDir": "www",
   "backgroundColor": "#FFE600",
-  "server": {
-    "url": "https://omw-bzq4.onrender.com",
-    "cleartext": false,
-    "errorPath": "offline.html"
-  },
   "ios": {
     "contentInset": "never",
     "scheme": "omw",
@@ -16,10 +11,17 @@
   "plugins": {
     "FirebaseAuthentication": {
       "skipNativeAuth": true,
-      "providers": ["google.com", "apple.com"]
+      "providers": [
+        "google.com",
+        "apple.com"
+      ]
     },
     "FirebaseMessaging": {
-      "presentationOptions": ["alert", "badge", "sound"]
+      "presentationOptions": [
+        "alert",
+        "badge",
+        "sound"
+      ]
     },
     "SplashScreen": {
       "launchAutoHide": true,
@@ -31,11 +33,17 @@
       "spm": {
         "swiftToolsVersion": "6.1",
         "packageOptions": {
-          "@capacitor-firebase/authentication": { "symlink": true },
-          "@capacitor-firebase/messaging": { "symlink": true }
+          "@capacitor-firebase/authentication": {
+            "symlink": true
+          },
+          "@capacitor-firebase/messaging": {
+            "symlink": true
+          }
         },
         "packageTraits": {
-          "@capacitor-firebase/authentication": ["Google"]
+          "@capacitor-firebase/authentication": [
+            "Google"
+          ]
         }
       }
     }

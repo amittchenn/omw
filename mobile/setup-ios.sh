@@ -51,8 +51,8 @@ if ! grep -q capacitorDidRegisterForRemoteNotifications "$DELEGATE"; then
 fi
 
 cp GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
-npx capacitor-assets generate --ios
-npx cap sync ios
+npx --yes @capacitor/assets@3 generate --ios  # icon + splash (run on demand: an old tool, kept out of the project)
+node build-web.mjs && npx cap sync ios  # the app's screens from ../web, then the Xcode project
 echo
 echo "Done. Now in Xcode (npx cap open ios):"
 echo "  1. Drag ios/App/App/GoogleService-Info.plist into the App folder in the left sidebar (tick the 'App' target) if it isn't listed."

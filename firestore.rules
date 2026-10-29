@@ -1,0 +1,197 @@
+rules_version = '2';
+
+// Who can read and change what in omw!'s database. Publish: Firebase console -> Firestore -> Rules -> paste -> Publish
+// (or `firebase deploy --only firestore:rules`). Tested in tests/rules.test.mjs against the Firestore emulator.
+// Everyone must be signed in; each person only reaches their own data, their friends' profiles, and the plans, chats and
+// photos they're part of. On shared documents, people can only change their own part (their RSVP, their leave time,
+// their like). The server (push.py, account.py, calendar feeds) uses the admin key, which these rules don't limit.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function isFriend(uid) { return exists(/databases/$(database)/documents/users/$(uid)/friends/$(me())); }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function onlyChanged(keys) { return changed().hasOnly(keys); }
+    function unchanged(key) { return !changed().hasAny([key]); }
+    // in a map keyed by person ({ uid: ... }), only your own entry changed
+    function onlyMyEntry(field) {
+      return request.resource.data.get(field, {}).diff(resource.data.get(field, {})).affectedKeys().hasOnly([me()]);
+    }
+    // a list where the only difference is you, added or removed
+    function onlyMeInOrOut(field) {
+      let before = resource.data.get(field, []).toSet();
+      let after = request.resource.data.get(field, []).toSet();
+      return after.difference(before).hasOnly([me()]) && before.difference(after).hasOnly([me()]);
+    }
+    function grows(field) { return request.resource.data.get(field, []).toSet().hasAll(resource.data.get(field, [])); }
+    function text(v, max) { return v is string && v.size() <= max; }
+    function jpeg(v, maxChars) { return v is string && v.size() <= maxChars && v.matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$'); }
+    function picture(v) { return v == null || v == "" || (v is string && v.size() <= 400000 && v.matches('^(data:image/(jpeg|png);base64,|https://).*')); }
+
+    // ---------- people ----------
+    match /users/{uid} {
+      allow read: if signedIn() && (me() == uid || isFriend(uid));
+      allow create, update: if signedIn() && me() == uid
+        && text(request.resource.data.get('name', ''), 60)
+        && picture(request.resource.data.get('photo', null))
+        && request.resource.data.get('blocked', []).size() <= 500
+        && request.resource.data.get('habits', []).size() <= 500;
+      allow delete: if signedIn() && me() == uid;
+
+      // friends: both sides are written when a request is accepted, which needs a request from them to you
+      match /friends/{fid} {
+        allow read: if signedIn() && me() == uid;
+        allow create: if signedIn() && (
+          (me() == uid && exists(/databases/$(database)/documents/requests/$(fid + '_' + uid))) ||
+          (me() == fid && exists(/databases/$(database)/documents/requests/$(uid + '_' + fid))));
+        allow delete: if signedIn() && (me() == uid || me() == fid);
+      }
+    }
+
+    // friend IDs: anyone signed in can look one up to send a request; only the owner changes theirs
+    match /codes/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == me() && code.matches('^[A-Z0-9_]{3,15}$')
+        && text(request.resource.data.get('name', ''), 60);
+      allow update: if signedIn() && resource.data.uid == me() && request.resource.data.uid == me()
+        && text(request.resource.data.get('name', ''), 60);
+      allow delete: if signedIn() && resource.data.uid == me();
+    }
+
+    match /requests/{id} {
+      allow read: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+      allow create: if signedIn() && request.resource.data.from == me() && id == me() + '_' + request.resource.data.to
+        && request.resource.data.to != me()
+        && text(request.resource.data.get('fromName', ''), 60) && picture(request.resource.data.get('fromPhoto', null));
+      allow delete: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+    }
+
+    // only you: calendar link secret, notification tokens, Live Activity tokens, your saved avatars
+    match /private/{uid}/{rest=**} {
+      allow read, write: if signedIn() && me() == uid;
+    }
+    match /private/{uid} {
+      allow read, write: if signedIn() && me() == uid;
+    }
+
+    // your live location, for your friends while you share it
+    match /locations/{uid} {
+      allow read: if signedIn() && (me() == uid || isFriend(uid));
+      allow write: if signedIn() && me() == uid
+        && (request.resource == null || (request.resource.data.lat is number && request.resource.data.lng is number));
+    }
+
+    // ---------- plans ----------
+    match /hangouts/{hid} {
+      function going() { return me() in resource.data.attendees; }
+      function asked() { return me() in resource.data.get('invited', []); }
+      function planner() { return resource.data.createdBy == me(); }
+      function alone() { return resource.data.attendees.hasOnly([me()]); }
+
+      allow read: if signedIn() && (resource == null || going() || asked());
+      allow create: if signedIn() && request.resource.data.createdBy == me() && request.resource.data.attendees == [me()]
+        && text(request.resource.data.get('title', ''), 120) && request.resource.data.start is string
+        && request.resource.data.get('invited', []).size() <= 50;
+      // the planner can throw it away while nobody else has said yes
+      allow delete: if signedIn() && planner() && alone();
+      allow update: if signedIn() && unchanged('createdBy') && (
+        // the planner edits it freely until someone else says yes (then it's locked)
+        (planner() && alone() && request.resource.data.attendees == resource.data.attendees
+          && text(request.resource.data.get('title', ''), 120))
+        // anyone going can invite more friends
+        || (going() && onlyChanged(['invited', 'names', 'modes']) && grows('invited')
+          && request.resource.data.get('invited', []).size() <= 50)
+        // your own part: yes / no, how you're getting there, your leave time, where you leave from, your arrival
+        || ((going() || asked())
+          && onlyChanged(['attendees', 'rsvp', 'modes', 'alerts', 'travel', 'origins', 'arrivals'])
+          && onlyMeInOrOut('attendees')
+          && onlyMyEntry('rsvp') && onlyMyEntry('modes') && onlyMyEntry('alerts') && onlyMyEntry('travel')
+          && onlyMyEntry('origins') && onlyMyEntry('arrivals'))
+      );
+
+      // the plan's group chat: the people going
+      match /messages/{mid} {
+        function inIt() { return me() in get(/databases/$(database)/documents/hangouts/$(hid)).data.attendees; }
+        allow read: if signedIn() && inIt();
+        allow create: if signedIn() && inIt() && request.resource.data.from == me() && text(request.resource.data.text, 1000)
+          && text(request.resource.data.get('name', ''), 60);
+      }
+      // live locations around hangout time: the people going
+      match /where/{uid} {
+        allow read: if signedIn() && me() in get(/databases/$(database)/documents/hangouts/$(hid)).data.attendees;
+        allow write: if signedIn() && me() == uid && me() in get(/databases/$(database)/documents/hangouts/$(hid)).data.attendees;
+      }
+    }
+
+    // ---------- photos ----------
+    match /memories/{hid} {
+      allow read: if signedIn() && me() in resource.data.members;
+      // the group photo: posted by someone who went, for exactly the people who went
+      allow create: if signedIn() && request.resource.data.by == me()
+        && request.resource.data.members == get(/databases/$(database)/documents/hangouts/$(hid)).data.attendees
+        && jpeg(request.resource.data.photo, 950000);
+      allow update: if signedIn() && (
+        (resource.data.by == me() && unchanged('by') && unchanged('members') && jpeg(request.resource.data.photo, 950000))
+        // take it off your own calendar
+        || (me() in resource.data.members && onlyChanged(['members']) && onlyMeInOrOut('members')
+          && !(me() in request.resource.data.members)));
+      allow delete: if signedIn() && resource.data.by == me();
+    }
+
+    // the feed: a group photo the poster chose to share with friends
+    match /feed/{hid} {
+      allow read: if signedIn() && me() in resource.data.viewers;
+      allow create: if signedIn() && request.resource.data.by == me()
+        && get(/databases/$(database)/documents/memories/$(hid)).data.by == me()
+        && request.resource.data.members == get(/databases/$(database)/documents/memories/$(hid)).data.members
+        && me() in request.resource.data.viewers && request.resource.data.viewers.size() <= 2000
+        && request.resource.data.get('likes', []).size() == 0 && request.resource.data.get('ratings', {}).size() == 0
+        && jpeg(request.resource.data.photo, 400000);
+      allow update: if signedIn() && unchanged('by') && unchanged('members') && (
+        // the poster: a retaken photo
+        (resource.data.by == me() && onlyChanged(['photo', 'at']) && jpeg(request.resource.data.photo, 400000))
+        // the people who went: show it to their friends, rate the place, like it
+        || (me() in resource.data.members && onlyChanged(['viewers', 'ratings', 'likes']) && grows('viewers')
+          && request.resource.data.viewers.size() <= 2000 && onlyMyEntry('ratings') && onlyMeInOrOut('likes')
+          && request.resource.data.get('ratings', {}).get(me(), 0) in [0, 2, 5.5, 9])
+        // everyone who can see it: like or unlike
+        || (me() in resource.data.viewers && onlyChanged(['likes']) && onlyMeInOrOut('likes')));
+      allow delete: if signedIn() && resource.data.by == me();
+    }
+
+    // reports of posts, for us to review (nobody can read them in the app)
+    match /reports/{id} {
+      allow create: if signedIn() && request.resource.data.by == me() && id == request.resource.data.post + '_' + me();
+    }
+
+    // ---------- chats ----------
+    match /chats/{cid} {
+      function member() { return me() in resource.data.members; }
+      allow read: if signedIn() && (resource == null || member());
+      allow create: if signedIn() && request.resource.data.createdBy == me() && me() in request.resource.data.members
+        && request.resource.data.members.size() <= 50 && text(request.resource.data.get('title', ''), 40)
+        // a DM's id is made of the two people in it
+        && (request.resource.data.group == true || request.resource.data.members.size() == 2 && cid == 'dm_' + request.resource.data.members[0] + '_' + request.resource.data.members[1]);
+      allow update: if signedIn() && member() && unchanged('createdBy') && unchanged('group')
+        && onlyMyEntry('read') && text(request.resource.data.get('title', ''), 40)
+        && request.resource.data.members.size() <= 50
+        // only group chats take new people, and you can only take yourself out
+        && (resource.data.group == true || request.resource.data.members.toSet().difference(resource.data.members.toSet()).size() == 0)
+        && resource.data.members.toSet().difference(request.resource.data.members.toSet()).hasOnly([me()]);
+
+      match /messages/{mid} {
+        function inIt() { return me() in get(/databases/$(database)/documents/chats/$(cid)).data.members; }
+        allow read: if signedIn() && inIt();
+        allow create: if signedIn() && inIt() && request.resource.data.from == me() && text(request.resource.data.text, 1000)
+          && text(request.resource.data.get('name', ''), 60);
+      }
+    }
+
+    // anything not listed above: nobody (the server's admin key still can)
+    match /{everything=**} {
+      allow read, write: if false;
+    }
+  }
+}

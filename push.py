@@ -4,6 +4,7 @@ Push notifications for the iPhone app (Firebase Cloud Messaging -> APNs).
 What gets sent:
   - "Time to leave": at each person's leave-now alert (hangouts/{id}.alerts[uid]), unless they've already arrived
   - invites ("Priya invited you to ..."), and "Sam is in" to whoever planned it
+  - Live Activity updates (the Dynamic Island while you head there): who's arrived, your leave time, and "end" once everyone's in
   - new chat messages, in a hangout's group chat (hangouts/{id}/messages) and in DMs / group chats (chats/{id}/messages),
     including the automatic "running late" and "arrived" ones
 
@@ -98,6 +99,42 @@ def _safe(fn, *a):
         print(f"[push] {fn.__name__}: {e}")
 
 
+# ---------- Live Activities: the Dynamic Island and lock screen (web/island.js starts them, this keeps them current) ----------
+def _live_state(h, uid):  # the same numbers web/island.js sends (keep them in step)
+    att, arr = h.get("attendees") or [], h.get("arrivals") or {}
+    start = _parse(h.get("start"))
+    leave = _parse((h.get("alerts") or {}).get(uid)) or start - timedelta(minutes=30)
+    others = sorted((u for u in att if u != uid and arr.get(u)), key=lambda u: arr[u], reverse=True)
+    return {"leaveAt": leave.timestamp(), "startAt": start.timestamp(), "here": sum(1 for u in att if arr.get(u)),
+            "total": len(att), "arrived": bool(arr.get(uid)), "note": f"{_name(h, others[0]).split()[0]} is here" if others else ""}
+
+
+def _live_push(hid, h):
+    from firebase_admin import messaging
+    from google.cloud.firestore_v1 import DELETE_FIELD
+    att = h.get("attendees") or []
+    if not att or not _parse(h.get("start")):
+        return
+    everyone_here = all((h.get("arrivals") or {}).get(u) for u in att)
+    for snap in _db.get_all([_db.collection("private").document(u) for u in att]):
+        live = ((snap.to_dict() or {}).get("live") or {}).get(hid) if snap.exists else None
+        if not live or not live.get("token") or not live.get("fcm"):
+            continue
+        now = int(time.time())
+        aps = {"timestamp": now, "event": "end" if everyone_here else "update", "content-state": _live_state(h, snap.id)}
+        if everyone_here:
+            aps["dismissal-date"] = now + 5 * 60  # stays on the lock screen a few minutes, then goes
+        try:
+            messaging.send(messaging.Message(token=live["fcm"], apns=messaging.APNSConfig(
+                live_activity_token=live["token"], headers={"apns-priority": "10"},
+                payload=messaging.APNSPayload(aps=messaging.Aps(custom_data=aps)))))
+        except Exception as e:
+            print(f"[push] live activity: {e}")
+            everyone_here = True  # that one's gone: forget it below
+        if everyone_here:
+            _db.collection("private").document(snap.id).update({f"live.{hid}": DELETE_FIELD})
+
+
 # ---------- leave-now alerts ----------
 def _alerts_tick():
     now = _now()
@@ -146,6 +183,8 @@ def _on_hangouts(docs, changes, read_time):
         if new_invited:
             who = h.get("createdByName") or "A friend"
             _safe(send, new_invited, f"{who} invited you", f"{title} · {when}", {"hangout": hid, "kind": "invite"})
+        if old and any(old.get(k) != h.get(k) for k in ("arrivals", "alerts", "attendees", "start")):
+            _safe(_live_push, hid, h)
         if old:
             joined = [u for u in h.get("attendees") or [] if u not in (old.get("attendees") or [])]
             planner = h.get("createdBy")

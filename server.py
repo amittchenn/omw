@@ -10,12 +10,17 @@ from datetime import date, datetime, timedelta, timezone
 import re
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Annotated
+
+# input limits: every text and list a request can carry has a maximum size (anything bigger gets a 422)
+Short = Annotated[str, Field(max_length=200)]
+LatLng = Annotated[list[float], Field(min_length=2, max_length=2)]
 
 from avatar_ai import TooMany, make_avatar, ready as avatars_ready
 from calendar_feed import build_ics, hangouts_for_token
@@ -33,7 +38,11 @@ import retrain
 retrain.start_background()  # the lateness model: retrains daily on real check-ins next to the simulated data (retrain.py)
 import push
 push.start_background()  # notifications for the iPhone app: leave-now alerts, invites, chat (push.py; only where PUSH_ENABLED=1)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+import security
+security.add_to(app)  # https only, security headers, sign-in check, rate limits (security.py)
+# other sites can't call the API from a browser; the iPhone app (capacitor://localhost) and the site itself can
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "capacitor://localhost,http://localhost:8000,http://127.0.0.1:8000").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"])
 app.mount("/static", StaticFiles(directory="web"), name="static")  # serves web/auth.js, web/firebase-config.js
 
 
@@ -49,13 +58,13 @@ async def always_fresh(request, call_next):
 
 
 class DepartureRequest(BaseModel):
-    user_id: str
-    start_time: str                   # e.g. "2026-09-10T19:00"
-    travel_mode: str = "driving"      # driving, walking, cycling, transit
-    origin: Optional[list[float]] = None   # [lat, lng] where they are now
-    venue: Optional[list[float]] = None    # [lat, lng] of the hangout
+    user_id: Short
+    start_time: Short                 # e.g. "2026-09-10T19:00"
+    travel_mode: Short = "driving"    # driving, walking, cycling, transit
+    origin: Optional[LatLng] = None   # [lat, lng] where they are now
+    venue: Optional[LatLng] = None    # [lat, lng] of the hangout
     travel_minutes: Optional[float] = None  # skip Mapbox by giving this directly
-    hangout_type: str = "food"
+    hangout_type: Short = "food"
     raining: bool = False
     came_from_event: bool = False
     planned_days_ahead: int = 2
@@ -93,6 +102,48 @@ def demo_home(user_id, mode, venue):
 @app.get("/")
 def home_page():
     return FileResponse("web/index.html")
+
+
+# ---------- privacy policy, terms and support (linked from the app and from App Store Connect) ----------
+def _page(name):
+    html = open(f"web/{name}.html", encoding="utf-8").read()
+    email = os.getenv("SUPPORT_EMAIL", "").strip()
+    contact = f'<a href="mailto:{email}">{email}</a>' if email else "the contact link on omw!'s App Store page"
+    return Response(html.replace("{{CONTACT}}", contact), media_type="text/html")
+
+
+@app.get("/privacy")
+def privacy_page():
+    return _page("privacy")
+
+
+@app.get("/terms")
+def terms_page():
+    return _page("terms")
+
+
+@app.get("/support")
+def support_page():
+    return _page("support")
+
+
+@app.post("/account/delete")
+async def delete_my_account(request: Request):
+    """Profile -> Delete account. The app sends your Firebase sign-in token; everything of yours is removed (account.py)."""
+    from account import delete_account
+    from calendar_feed import firestore_client
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    try:
+        db = firestore_client()
+    except Exception:
+        raise HTTPException(503, "Deleting accounts isn't set up on this server yet (FIREBASE_SERVICE_ACCOUNT_JSON).")
+    try:
+        from firebase_admin import auth
+        uid = auth.verify_id_token(token)["uid"]
+    except Exception:
+        raise HTTPException(401, "Sign in again, then delete your account.")
+    await run_in_threadpool(delete_account, db, uid)
+    return {"ok": True}
 
 
 # ---------- installing omw! on a phone (Add to Home Screen) ----------
@@ -146,17 +197,17 @@ def config():
 
 
 @app.get("/places")
-def places(q: str, lat: float, lng: float):
+def places(q: Annotated[str, Query(max_length=200)], lat: float, lng: float):
     # search real places by name, closest to where the map is looking
     return search_places(q, lat, lng)
 
 
 # directions like Google Maps: turn by turn (or which bus to take), trip time and distance
 class DirectionsRequest(BaseModel):
-    origin: list[float]            # [lat, lng]: where you are now, or your home
-    venue: list[float]
-    mode: str = "driving"
-    start_time: Optional[str] = None      # the hangout's start (local time), so transit picks buses that get you there on time
+    origin: LatLng                 # [lat, lng]: where you are now, or your home
+    venue: LatLng
+    mode: Short = "driving"
+    start_time: Optional[Short] = None      # the hangout's start (local time), so transit picks buses that get you there on time
     utc_offset_min: Optional[int] = None
 
 
@@ -172,10 +223,10 @@ def get_directions(req: DirectionsRequest):
 
 # ---------- Muse ----------
 class AIPlanRequest(BaseModel):
-    text: str
-    friends: list[dict] = []       # [{"id", "name"}]
-    categories: list[dict] = []    # [{"id", "name"}]
-    now: str                       # your local time, "YYYY-MM-DDTHH:MM"
+    text: Annotated[str, Field(max_length=500)]
+    friends: Annotated[list[dict], Field(max_length=300)] = []       # [{"id", "name"}]
+    categories: Annotated[list[dict], Field(max_length=100)] = []    # [{"id", "name"}]
+    now: Short                     # your local time, "YYYY-MM-DDTHH:MM"
     lat: float
     lng: float
 
@@ -195,9 +246,9 @@ def ai_plan(req: AIPlanRequest):
 
 class AvatarRequest(BaseModel):
     traits: dict = {}              # {"skin", "hair", "hairColor", "hat", "glasses", "face", "extras": [...]}: only what was picked
-    extra: str = ""                # "anything else", in their own words
-    selfie: Optional[str] = None   # optional photo to base it on, "data:image/jpeg;base64,..."
-    base: Optional[str] = None     # an avatar they already have, to change (traits/extra are then the changes)
+    extra: Annotated[str, Field(max_length=300)] = ""   # "anything else", in their own words
+    selfie: Optional[Annotated[str, Field(max_length=2_800_000, pattern=r"^data:image/(jpeg|png|webp);base64,")]] = None  # optional photo to base it on
+    base: Optional[Annotated[str, Field(max_length=2_800_000)]] = None  # an avatar they already have, to change (traits/extra are then the changes)
 
 
 @app.get("/ai/avatar")
@@ -232,8 +283,8 @@ async def ai_avatar(req: AvatarRequest, request: Request):
 
 
 class FairSpotRequest(BaseModel):
-    query: str                     # what kind of place: "coffee", "cheap tacos open late"
-    people: list[dict]             # [{"id", "name", "home": [lat, lng] or null, "mode"}]
+    query: Annotated[str, Field(max_length=100)]   # what kind of place: "coffee", "cheap tacos open late"
+    people: Annotated[list[dict], Field(max_length=30)]  # [{"id", "name", "home": [lat, lng] or null, "mode"}]
     lat: float
     lng: float
 
@@ -259,14 +310,14 @@ def ai_fair_spot(req: FairSpotRequest):
 
 # Google-Maps-style search. lat/lng = where the map is looking; here_lat/here_lng = where you are (for distances)
 @app.get("/places/suggest")
-def places_suggest(q: str, lat: float, lng: float, here_lat: Optional[float] = None, here_lng: Optional[float] = None,
+def places_suggest(q: Annotated[str, Query(max_length=200)], lat: float, lng: float, here_lat: Optional[float] = None, here_lng: Optional[float] = None,
                    session: Optional[str] = None):
     here = (here_lat, here_lng) if here_lat is not None and here_lng is not None else None
     return suggest(q[:100], lat, lng, here, session)
 
 
 @app.get("/places/search")
-def places_search(q: str, lat: float, lng: float, here_lat: Optional[float] = None, here_lng: Optional[float] = None):
+def places_search(q: Annotated[str, Query(max_length=200)], lat: float, lng: float, here_lat: Optional[float] = None, here_lng: Optional[float] = None):
     here = (here_lat, here_lng) if here_lat is not None and here_lng is not None else None
     return search(q[:100], lat, lng, here)
 
@@ -389,22 +440,22 @@ def predict(req: DepartureRequest):
 
 class Guest(BaseModel):
     # a real signed-in friend (not one of the demo people)
-    user_id: str
-    name: str
-    travel_mode: str = "driving"
-    home: Optional[list[float]] = None  # [lat, lng]; None if they haven't set one yet
-    busy: list[dict] = []               # weekly busy blocks, e.g. {"day": "Mon", "start": "10:00", "end": "11:30"}
-    habits: list[float] = []            # minutes after their alert they actually left, from their check-ins in omw
+    user_id: Short
+    name: Short
+    travel_mode: Short = "driving"
+    home: Optional[LatLng] = None       # [lat, lng]; None if they haven't set one yet
+    busy: Annotated[list[dict], Field(max_length=200)] = []  # weekly busy blocks, e.g. {"day": "Mon", "start": "10:00", "end": "11:30"}
+    habits: Annotated[list[float], Field(max_length=500)] = []  # minutes after their alert they actually left, from their check-ins in omw
 
 
 class PlanRequest(BaseModel):
-    user_ids: list[str]
-    start_time: str
-    venue: list[float]
-    hangout_type: str = "food"
+    user_ids: Annotated[list[Short], Field(max_length=30)]
+    start_time: Short
+    venue: LatLng
+    hangout_type: Short = "food"
     raining: Optional[bool] = None  # None = look up the forecast at the venue
-    guests: list[Guest] = []
-    modes: dict[str, str] = {}      # someone's way of getting there for THIS plan, e.g. {"u05": "transit"}
+    guests: Annotated[list[Guest], Field(max_length=30)] = []
+    modes: dict[str, Short] = {}      # someone's way of getting there for THIS plan, e.g. {"u05": "transit"}
     utc_offset_min: Optional[int] = None  # the planner's time zone, so transit can find buses that arrive in time
     group_size: Optional[int] = None  # re-planning one person: how many are in the whole group
 
@@ -454,7 +505,7 @@ def plan(req: PlanRequest):
 
 
 class ScheduleText(BaseModel):
-    text: str
+    text: Annotated[str, Field(max_length=3000)]
 
 
 @app.post("/parse-schedule")
@@ -470,15 +521,15 @@ def read_schedule(req: ScheduleText):
 
 
 class FindTimesRequest(BaseModel):
-    user_ids: list[str]
-    guests: list[Guest] = []
-    from_date: str                # first day to consider, "YYYY-MM-DD"
-    days: int = 7
-    duration_min: int = 120
-    earliest: str = "09:00"
-    latest: str = "23:00"
-    hangout_type: str = "food"
-    now: Optional[str] = None             # the person's local time now; suggestions start an hour after it
+    user_ids: Annotated[list[Short], Field(max_length=30)]
+    guests: Annotated[list[Guest], Field(max_length=30)] = []
+    from_date: Short              # first day to consider, "YYYY-MM-DD"
+    days: Annotated[int, Field(ge=1, le=31)] = 7
+    duration_min: Annotated[int, Field(ge=15, le=1440)] = 120
+    earliest: Short = "09:00"
+    latest: Short = "23:00"
+    hangout_type: Short = "food"
+    now: Optional[Short] = None             # the person's local time now; suggestions start an hour after it
     venue: Optional[list[float]] = None   # [lat, lng] for the forecast (the chosen spot, or where the map is)
 
 
