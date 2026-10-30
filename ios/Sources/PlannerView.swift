@@ -71,9 +71,13 @@ struct PlanSheet: View {
     @State private var naming = false
     @State private var newType = ""
 
-    /// `start`: a place picked already (Plan here on the map)
-    init(start: PlaceHit? = nil) {
+    /// `start`: a place picked already (Plan here on the map); `day`: a day picked already (from the calendar), at 7 PM
+    /// (or the next half hour, if that's already gone)
+    init(start: PlaceHit? = nil, day: Date? = nil) {
         _place = State(initialValue: start)
+        if let day, let seven = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: day) {
+            _when = State(initialValue: seven > .now ? seven : PlanSheet.nextHalfHour())
+        }
     }
 
     var body: some View {
