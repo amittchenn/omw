@@ -741,15 +741,17 @@ function listenComments() {
 }
 
 // ---------- inviting friends: the phone's share sheet (Messages, Instagram, WhatsApp…), or copy the text ----------
+// the App Store link, once omw! is live (until then invites are just your friend ID, never a server address)
+const APP_LINK = "";
 async function invite() {
   const code = (window.myFriends || []).find(p => p.isMe)?.code || "";
-  const url = window.OMW_SERVER || location.origin;
   const text = `Add me on omw! so we can plan hangouts and actually show up on time. My friend ID is ${code}.`;
+  const share = APP_LINK ? { title: "omw!", text, url: APP_LINK } : { title: "omw!", text };
   try {
-    if (navigator.share) return await navigator.share({ title: "omw!", text, url });
-    await navigator.clipboard.writeText(`${text} ${url}`);
+    if (navigator.share) return await navigator.share(share);
+    await navigator.clipboard.writeText([text, APP_LINK].filter(Boolean).join(" "));
     alert("Invite copied. Paste it to your friends.");
-  } catch (e) { if (e.name !== "AbortError") alert(`${text} ${url}`); }
+  } catch (e) { if (e.name !== "AbortError") alert(text); }
 }
 
 // ---------- making a post ----------
@@ -979,13 +981,13 @@ const screenOf = t => (t === "feed" ? [$("feed")] : t === "map" ? [$("map"), doc
 // it's drawn when the swipe starts (shown), and put away again if you change your mind (unshown)
 function shown(t) {
   if (t === "feed") { $("feed").hidden = false; render(); }
-  if (t === "map") $("mapChips").hidden = false;
+  if (t === "map") { $("mapChips").hidden = false; document.documentElement.classList.add("map-peek"); }
   if (t === "plans" && $("plans").hidden) { $("plans").classList.add("instant"); $("plans").hidden = false; }
   if (t === "me" && $("profile").hidden) { $("profile").classList.add("instant"); openProfile(me.uid); }
 }
 function unshown(t) {
   if (t === "feed") $("feed").hidden = true;
-  if (t === "map") $("mapChips").hidden = true;
+  if (t === "map") { $("mapChips").hidden = true; document.documentElement.classList.remove("map-peek"); }
   if (t === "plans") $("plans").hidden = true;
   if (t === "me") $("profile").hidden = true;
 }
@@ -993,6 +995,7 @@ function arrive(t) {  // the swipe went through: t is the tab now (its screen is
   setTab(t);
   for (const id of Object.values(pages)) if ($(id) && id !== { plans: "plans", me: "profile" }[t]) $(id).hidden = true;
   if (t === "map") window.showMapTab?.();
+  document.documentElement.classList.remove("map-peek");
 }
 const move = (els, x, ms = 0) => els.forEach(el => {
   el.style.transition = ms ? `transform ${ms}ms cubic-bezier(.25, .8, .25, 1)` : "none";
@@ -1082,7 +1085,7 @@ document.addEventListener("click", async e => {
   if (t.hasAttribute("data-close-post")) { viewing = null; $("postView").hidden = true; return; }
   if (ds.viewPost) return viewPost(ds.viewPost);
   if (t.hasAttribute("data-edit-profile")) return $("userPic").click();
-  if (t.hasAttribute("data-add-friends")) { $("userPic").click(); return setTimeout(() => { $("addInput").scrollIntoView({ block: "center" }); $("addInput").focus(); }, 300); }
+  if (t.hasAttribute("data-add-friends")) return openAddPage(profileTab === "friends");
   if (t.hasAttribute("data-invite")) return invite();
   if (t.hasAttribute("data-my-calendar")) return $("memoriesBtn").click();
   if (ds.pfTab) { profileTab = ds.pfTab; return renderProfile(); }

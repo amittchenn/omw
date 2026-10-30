@@ -1212,7 +1212,10 @@ if (configured) {
     const b = e.target.closest("button, a");
     const show = e.target.closest("[data-show]");
     if (!b && e.target.closest(".from-panel, .add-people")) return;  // typing or tapping inside a panel isn't "show on the map"
-    if (show && (!b || b.dataset.show)) { $("plans").hidden = true; return window.showHangout(hangoutDocs[show.dataset.show]); }
+    if (show && (!b || b.dataset.show)) {  // the live map: on the + tab's map, with everyone going in the sheet
+      $("plans").hidden = true; window.showTab?.("plan");
+      return window.showHangout(hangoutDocs[show.dataset.show]);
+    }
     if (b?.dataset.chat) { $("plans").hidden = true; return window.openChat(b.dataset.chat); }
     if (b?.dataset.editPlan) { editingPlan = editingPlan === b.dataset.editPlan ? "" : b.dataset.editPlan; editPlace = null; editFound = []; return renderHangouts(); }
     if (b?.dataset.editCancel) { editingPlan = ""; editPlace = null; editFound = []; return renderHangouts(); }
