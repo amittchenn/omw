@@ -183,6 +183,8 @@ struct Card: Identifiable, Equatable {
     var name: String
     var photo: String
     var code: String
+    /// shows up in name search and Quick Add. A private account doesn't: people find it only by its exact @username.
+    var findable: Bool
     var handle: String { code.isEmpty ? (name.split(separator: " ").first.map(String.init) ?? name).lowercased() : code.lowercased() }
 
     init(id: String, data: [String: Any]) {
@@ -190,10 +192,11 @@ struct Card: Identifiable, Equatable {
         name = data["name"] as? String ?? ""
         photo = Person.safePhoto(data["photo"] as? String)
         code = data["code"] as? String ?? ""
+        findable = data["public"] as? Bool != false  // accounts from before the setting existed are findable
     }
 
     nonisolated init(person: Person) {
-        id = person.id; name = person.name; photo = person.photo; code = person.code
+        id = person.id; name = person.name; photo = person.photo; code = person.code; findable = true
     }
 }
 

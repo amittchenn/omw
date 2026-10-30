@@ -190,7 +190,7 @@ final class Session {
         stops.append(db.collection("publicProfiles").document(uid).addSnapshotListener { [weak self] snap, _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                self.isPublic = snap?.data()?["public"] as? Bool ?? false
+                self.isPublic = snap?.data()?["public"] as? Bool != false  // no setting yet: findable, like everyone else
             }
         })
 

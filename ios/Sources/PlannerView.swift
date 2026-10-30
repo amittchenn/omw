@@ -185,24 +185,37 @@ struct PlanSheet: View {
                     }
 
                     block("When") {
-                        ScrollView(.horizontal) {
-                            HStack(spacing: 8) {
-                                ForEach(PlanSheet.quickTimes()) { quick in
-                                    let date = quick.date
-                                    Button { when = date } label: {
-                                        Text(quick.label)
-                                            .font(.subheadline.weight(.bold))
-                                            .padding(.horizontal, 14).frame(height: 38)
-                                            .background(when == date ? Color.primary : Color(.secondarySystemFill), in: Capsule())
-                                            .foregroundStyle(when == date ? Color(.systemBackground) : Color.primary)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
+                        Text(when.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))
+                            .font(.headline)
+                        // quick picks, then any day (scroll along) and any time (spin the wheel)
+                        strip {
+                            ForEach(PlanSheet.quickTimes()) { quick in
+                                let date = quick.date
+                                pill(quick.label, on: when == date) { when = date }
                             }
                         }
-                        .scrollIndicators(.hidden)
-                        DatePicker("Pick a time", selection: $when, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
-                            .font(.subheadline.weight(.semibold))
+                        strip {
+                            ForEach(PlanSheet.nextDays(), id: \.self) { day in
+                                let cal = Calendar.current
+                                Button { setDay(day) } label: {
+                                    VStack(spacing: 2) {
+                                        Text(cal.isDateInToday(day) ? "Today" : cal.isDateInTomorrow(day) ? "Tmrw" : day.formatted(.dateTime.weekday(.abbreviated)))
+                                            .font(.caption.weight(.semibold))
+                                        Text(day.formatted(.dateTime.day())).font(.headline)
+                                    }
+                                    .frame(width: 52, height: 56)
+                                    .background(cal.isDate(day, inSameDayAs: when) ? Color.primary : Color(.secondarySystemFill), in: .rect(cornerRadius: 14))
+                                    .foregroundStyle(cal.isDate(day, inSameDayAs: when) ? Color(.systemBackground) : Color.primary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        DatePicker("Time", selection: Binding(get: { when }, set: { setTime($0) }), displayedComponents: .hourAndMinute)
+                            .datePickerStyle(.wheel)
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 130)
+                            .clipped()
                     }
 
                     block("Weather") {
@@ -391,6 +404,48 @@ struct PlanSheet: View {
             list.append(QuickTime(label: "Sat 2 PM", date: afternoon))
         }
         return list
+    }
+
+    /// a row that scrolls sideways, edge to edge (past the block's margins), so nothing looks cut off
+    private func strip<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ScrollView(.horizontal) { HStack(spacing: 8) { content() } }
+            .scrollIndicators(.hidden)
+            .contentMargins(.horizontal, 16, for: .scrollContent)
+            .padding(.horizontal, -16)
+    }
+
+    private func pill(_ label: String, on: Bool, run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            Text(label)
+                .font(.subheadline.weight(.bold))
+                .padding(.horizontal, 14).frame(height: 38)
+                .background(on ? Color.primary : Color(.secondarySystemFill), in: Capsule())
+                .foregroundStyle(on ? Color(.systemBackground) : Color.primary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// today and the next five weeks
+    static func nextDays() -> [Date] {
+        let cal = Calendar.current, today = cal.startOfDay(for: .now)
+        return (0..<35).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    /// a new day, same time (never in the past)
+    private func setDay(_ day: Date) {
+        let cal = Calendar.current
+        let t = cal.dateComponents([.hour, .minute], from: when)
+        let d = cal.date(bySettingHour: t.hour ?? 19, minute: t.minute ?? 0, second: 0, of: day) ?? day
+        when = d > .now ? d : PlanSheet.nextHalfHour()
+    }
+
+    /// a new time, same day (if that's already gone today, the same time tomorrow)
+    private func setTime(_ time: Date) {
+        let cal = Calendar.current
+        let t = cal.dateComponents([.hour, .minute], from: time)
+        var d = cal.date(bySettingHour: t.hour ?? 19, minute: t.minute ?? 0, second: 0, of: when) ?? time
+        if d <= .now { d = cal.date(byAdding: .day, value: 1, to: d) ?? d }
+        when = d
     }
 
     static func nextHalfHour() -> Date {

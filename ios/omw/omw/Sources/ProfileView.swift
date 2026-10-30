@@ -254,10 +254,15 @@ struct SettingsView: View {
                 }
                 Section("Privacy") {
                     // the switch asks first, like Instagram ("Switch to private account?")
-                    Toggle(isOn: Binding(get: { !session.isPublic }, set: { privacyAsk = $0 })) {
-                        Label("Private account", systemImage: "lock")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle(isOn: Binding(get: { !session.isPublic }, set: { privacyAsk = $0 })) {
+                            Label("Private account", systemImage: "lock")
+                        }
+                        .tint(.green)
+                        Text(session.isPublic ? "People can find you by name and in Quick Add."
+                                              : "People can only find you by your exact @username.")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
-                    .tint(.green)
                     // where you are: chosen in the iPhone's Settings, like any Apple app
                     Button {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
@@ -304,7 +309,9 @@ struct SettingsView: View {
                     privacyAsk = nil
                 }
             } message: {
-                Text(privacyAsk == true ? "Only your friends will see your memories." : "Anyone on omw! will see your memories.")
+                Text(privacyAsk == true
+                     ? "You won't show up in name search or Quick Add. People can still add you if they type your exact @username."
+                     : "People will be able to find you by your name and see you in Quick Add.")
             }
             .confirmationDialog("Delete your omw! account?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete account", role: .destructive) {

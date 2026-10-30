@@ -33,7 +33,8 @@ extension Session {
                 MainActor.assumeIsolated {
                     for d in snap?.documents ?? [] where !blocked.contains(d.documentID) {
                         let c = Card(id: d.documentID, data: d.data())
-                        if !c.code.isEmpty { box.found[c.id] = c }
+                        // private accounts only by their exact @username
+                        if !c.code.isEmpty, c.findable || c.code.lowercased() == lower { box.found[c.id] = c }
                     }
                     box.left -= 1
                     guard box.left == 0 else { return }
@@ -72,8 +73,8 @@ extension Session {
                     guard tally.waiting == 0, let self else { return }
                     let top = tally.counts.sorted { $0.value > $1.value }.prefix(15)
                     self.cards(Array(top.map(\.key))) { cards in
-                        // only people we can show (a card with a name or username)
-                        done(top.compactMap { pair in cards[pair.key].flatMap { $0.name.isEmpty && $0.code.isEmpty ? nil : QuickAdd(card: $0, mutual: pair.value) } })
+                        // only people we can show (a card with a name or username), and never private accounts
+                        done(top.compactMap { pair in cards[pair.key].flatMap { ($0.name.isEmpty && $0.code.isEmpty) || !$0.findable ? nil : QuickAdd(card: $0, mutual: pair.value) } })
                     }
                 }
             }
