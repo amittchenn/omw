@@ -5,6 +5,7 @@ import SwiftUI
 struct FeedView: View {
     @Environment(Session.self) private var session
     @State private var commentsFor: Post?
+    @State private var posting = false
 
     var body: some View {
         NavigationStack {
@@ -31,9 +32,13 @@ struct FeedView: View {
                         .font(.system(size: 28, weight: .black, design: .rounded))
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    NavigationLink { ComingSoon(title: "Add friends", symbol: "person.badge.plus") } label: {
+                    NavigationLink { AddFriendsView() } label: {
                         Image(systemName: "person.badge.plus")
+                            .overlay(alignment: .topTrailing) {
+                                if !session.incoming.isEmpty { Circle().fill(.red).frame(width: 9, height: 9).offset(x: 3, y: -2) }
+                            }
                     }
+                    Button { posting = true } label: { Image(systemName: "plus.app") }
                     NavigationLink { ComingSoon(title: "Chats", symbol: "bubble.left.and.bubble.right") } label: {
                         Image(systemName: "paperplane")
                     }
@@ -45,6 +50,7 @@ struct FeedView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .newPostFlow($posting)
         }
     }
 }

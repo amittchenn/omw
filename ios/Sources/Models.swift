@@ -104,6 +104,42 @@ struct Comment: Identifiable, Equatable {
     }
 }
 
+/// requests/{from}_{to}: someone asking to be friends
+struct FriendRequest: Identifiable, Equatable {
+    var from: String
+    var to: String
+    var fromName: String
+    var fromPhoto: String
+    var id: String { from }
+
+    init(data: [String: Any]) {
+        from = data["from"] as? String ?? ""
+        to = data["to"] as? String ?? ""
+        fromName = data["fromName"] as? String ?? "Someone"
+        fromPhoto = Person.safePhoto(data["fromPhoto"] as? String)
+    }
+}
+
+/// publicProfiles/{uid}: what anyone signed in can see about someone (for search and Add friends)
+struct Card: Identifiable, Equatable {
+    let id: String
+    var name: String
+    var photo: String
+    var code: String
+    var handle: String { code.isEmpty ? (name.split(separator: " ").first.map(String.init) ?? name).lowercased() : code.lowercased() }
+
+    init(id: String, data: [String: Any]) {
+        self.id = id
+        name = data["name"] as? String ?? ""
+        photo = Person.safePhoto(data["photo"] as? String)
+        code = data["code"] as? String ?? ""
+    }
+
+    init(person: Person) {
+        id = person.id; name = person.name; photo = person.photo; code = person.code
+    }
+}
+
 /// hangouts/{id}: a plan.
 struct Hangout: Identifiable, Equatable {
     let id: String

@@ -10,18 +10,23 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 | Sign in (Apple, email) | Done |
 | Feed: friends row with statuses, posts with photo swipe, likes, double-tap to like, report/hide/delete | Done |
 | Comments sheet (hold a comment to delete or report) | Done |
-| Profiles (yours and friends'), posts grid, post on its own | Done |
+| New post: Apple's photo picker (up to 4), caption, location search, tag friends | Done |
+| Add friends: search usernames, requests, Quick Add (friends of friends), invite | Done |
+| Profiles: yours and anyone's, Add / Requested / Accept, Friends ▾ → Remove, posts grid | Done |
 | Map (Apple Maps): friends sharing their location, you, 3D buildings | Done |
 | Plans: coming up and past | Done |
-| Settings: sign out | Started |
-| + planner, new post, add friends, chats, ranking places, Live Activity | Next (still in the current app) |
+| Settings: sign out, delete account (with Apple's confirm), privacy/terms/help | Done |
+| + planner, chats, edit profile, ranking places, sharing your location, notifications, Live Activity | Next (still in the current app) |
 
 `Sources/`:
 - `OmwApp.swift`: app start; signed out → sign in, signed in → tabs
 - `Session.swift`: who's signed in and the live data
 - `Models.swift`: the Firestore documents
 - `Components.swift`: colors, pictures, avatars
-- the screens: `SignInView`, `MainTabView`, `FeedView`, `CommentsSheet`, `ProfileView`, `FriendsMapView`, `PlansView`
+- `Session+Actions.swift`: adding friends and posting
+- `API.swift`: the omw! server (place search, deleting accounts; the planner next)
+- the screens: `SignInView`, `MainTabView`, `FeedView`, `CommentsSheet`, `NewPostView`, `AddFriendsView`, `ProfileView`,
+  `FriendsMapView`, `PlansView`
 
 ## Set it up in Xcode (once)
 
@@ -42,6 +47,8 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
    - Signing & Capabilities → Team: your Apple developer team → **+ Capability** → **Sign in with Apple**
    - Info → hover any row → **+** → `Privacy - Location When In Use Usage Description` →
      `omw! shows you on the map with your friends.`
+   - Same way, add `Privacy - Photo Library Usage Description` → `Pick photos to post.`
+     (Apple's photo picker doesn't strictly need it, but App Review likes it there)
 6. Pick an iPhone simulator at the top and press **▶**.
 
 Both apps use the bundle ID `com.amittchenn.omw`, so installing this one replaces the Capacitor app on that device or

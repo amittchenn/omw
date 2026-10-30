@@ -15,6 +15,9 @@ final class Session {
     var hangouts: [Hangout] = []
     var comments: [String: [Comment]] = [:]
     var hidden: Set<String> = []
+    var incoming: [FriendRequest] = []   // people who want to be your friend
+    var outgoing: [String] = []          // people you asked
+    var isPublic = true                  // your account: public (anyone sees your posts) or private (friends only)
 
     @ObservationIgnored let db = Firestore.firestore()
     @ObservationIgnored private var authHandle: AuthStateDidChangeListenerHandle?
@@ -157,6 +160,27 @@ final class Session {
                 }
             })
 
+        // friend requests, both ways
+        stops.append(db.collection("requests").whereField("to", isEqualTo: uid).addSnapshotListener { [weak self] snap, _ in
+            MainActor.assumeIsolated {
+                guard let self, let snap else { return }
+                self.incoming = snap.documents.map { FriendRequest(data: $0.data()) }
+            }
+        })
+        stops.append(db.collection("requests").whereField("from", isEqualTo: uid).addSnapshotListener { [weak self] snap, _ in
+            MainActor.assumeIsolated {
+                guard let self, let snap else { return }
+                self.outgoing = snap.documents.compactMap { $0.data()["to"] as? String }
+            }
+        })
+        // your public card: whether your account is public
+        stops.append(db.collection("publicProfiles").document(uid).addSnapshotListener { [weak self] snap, _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.isPublic = snap?.data()?["public"] as? Bool ?? false
+            }
+        })
+
         // plans you're going to
         stops.append(db.collection("hangouts").whereField("attendees", arrayContains: uid)
             .addSnapshotListener { [weak self] snap, _ in
@@ -202,5 +226,6 @@ final class Session {
         friendStops.values.flatMap { $0 }.forEach { $0.remove() }; friendStops = [:]
         commentStops.values.forEach { $0.remove() }; commentStops = [:]
         friendsByID = [:]; friends = []; spots = [:]; allPosts = []; hangouts = []; comments = [:]; me = nil
+        incoming = []; outgoing = []
     }
 }
