@@ -105,3 +105,4 @@ extension Avatar {
 /// Where tapping someone goes: their profile
 struct ProfileRoute: Hashable { let uid: String }
 struct PostRoute: Hashable { let id: String }
+struct PlanRoute: Hashable { let id: String }

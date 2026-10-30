@@ -115,7 +115,7 @@ Sign-in, friends, plans, chats, photos and the feed use Firebase (Auth + Firesto
 | `traffic.py`, `travel.py` | The traffic model and trip times (Google Maps, then Mapbox, then a straight-line estimate) |
 | `weather.py`, `places.py`, `schedule.py` | Forecasts, place search and names, finding times everyone's free |
 | `push.py` | Push notifications for the iPhone app: leave-now alerts, invites, chat messages, Live Activity updates |
-| `security.py` | HTTPS only, security headers, sign-in check on API calls, rate limits |
+| `security.py` | HTTPS only, security headers, sign-in check on API calls, rate limits. XSS: every screen escapes what people write, and `web/index.html`'s Content-Security-Policy runs only omw!'s own script files (no inline script or handlers) |
 | `account.py` | Deleting an account and everything in it (Profile -> Delete account) |
 | `firestore.rules`, `tests/` | Who can read and change what in the database, and the tests for it (`tests/rules.test.mjs`) |
 | `demo/` | The demo account for App Review (`python demo/seed_demo.py`) |

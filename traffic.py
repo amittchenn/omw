@@ -59,6 +59,26 @@ SLOTS = 24 * 60 // SLOT_MIN
 BANDS_KM = [5, 15, 30]                     # trip lengths: <5, 5-15, 15-30, 30+ km
 WEATHER_PRIOR = {"clear": 1.0, "rain": 1.10, "heavy": 1.20, "snow": 1.35}  # FHWA road-weather studies, until our data says otherwise
 K_FINE, K_COARSE, K_WEATHER, K_BAND = 8.0, 12.0, 40.0, 60.0  # "pseudo-rows": how much evidence it takes to move off the fallback
+
+# Until there's enough of our own data, a typical city's traffic (how much slower than empty roads, by time of day; the
+# shape of published US metro congestion curves, e.g. INRIX and TomTom): weekday rush hours, a busier midday, quiet nights,
+# and weekend afternoons. Real drives replace it slot by slot as they come in.
+TYPICAL_WEEKDAY = [(0, 1.0), (6 * 60, 1.02), (7 * 60, 1.28), (8 * 60, 1.40), (9 * 60, 1.22), (10 * 60, 1.12), (15 * 60, 1.18),
+                   (16 * 60, 1.34), (17 * 60 + 30, 1.50), (18 * 60 + 30, 1.32), (19 * 60 + 30, 1.15), (21 * 60, 1.06), (24 * 60, 1.0)]
+TYPICAL_FRIDAY = [(0, 1.0), (6 * 60, 1.02), (7 * 60, 1.24), (8 * 60, 1.34), (9 * 60, 1.20), (10 * 60, 1.14), (14 * 60, 1.22),
+                  (15 * 60 + 30, 1.38), (17 * 60, 1.46), (18 * 60 + 30, 1.30), (20 * 60, 1.14), (22 * 60, 1.07), (24 * 60, 1.0)]
+TYPICAL_WEEKEND = [(0, 1.0), (8 * 60, 1.0), (11 * 60, 1.10), (13 * 60, 1.16), (16 * 60, 1.14), (19 * 60, 1.08), (22 * 60, 1.02), (24 * 60, 1.0)]
+
+
+def typical_table():
+    """[7][SLOTS] log ratios for a typical city week (Monday = 0), used where we don't have our own drives yet"""
+    def at(curve, minute):
+        for (m0, r0), (m1, r1) in zip(curve, curve[1:]):
+            if m0 <= minute <= m1:
+                return r0 + (r1 - r0) * (minute - m0) / (m1 - m0)
+        return 1.0
+    curves = [TYPICAL_WEEKDAY] * 4 + [TYPICAL_FRIDAY] + [TYPICAL_WEEKEND] * 2
+    return np.log([[at(curves[d], s * SLOT_MIN + SLOT_MIN / 2) for s in range(SLOTS)] for d in range(7)])
 SIGMA_FINE, SIGMA_COARSE = 40.0, 180.0     # minutes: how far a reading's influence spreads to nearby times
 
 _lock = threading.Lock()
@@ -261,7 +281,7 @@ def train(fetch_weather=True, save=True):
     now = datetime.now(TZ)
     m = {"trained_at": now.isoformat(timespec="seconds"), "rows": len(rows), "window_days": WINDOW_DAYS,
          "since": rows[0]["t"].isoformat(timespec="minutes") if rows else None, "slot_min": SLOT_MIN,
-         "table": [[0.0] * SLOTS for _ in range(7)], "n_eff": [[0.0] * SLOTS for _ in range(7)],
+         "table": np.round(typical_table(), 4).tolist(), "n_eff": [[0.0] * SLOTS for _ in range(7)],
          "weather": {c: math.log(v) for c, v in WEATHER_PRIOR.items()}, "weather_rows": {}, "bands": [0.0] * (len(BANDS_KM) + 1),
          "band_rows": [0] * (len(BANDS_KM) + 1), "spread": 0.12}
     if rows:
@@ -272,12 +292,10 @@ def train(fetch_weather=True, save=True):
         w_row = 0.5 ** (age / 7)                                # a week-old reading counts half
         band = np.array([_band(r["km"]) for r in rows])
         cond = np.array([weather.get(r["t"].strftime("%Y-%m-%dT%H:00")) or "" for r in rows])
-        overall = float(np.average(y, weights=w_row))
         band_eff, wx_eff = np.zeros(len(BANDS_KM) + 1), dict(m["weather"])
         for _ in range(3):                                       # fit time, trip length and weather in turn
             adj = y - band_eff[band] - np.array([wx_eff.get(c, 0.0) if c else 0.0 for c in cond])
-            flat = np.full((7, SLOTS), overall)
-            coarse, _ = _kernel_table(mins, dows, adj, w_row, SIGMA_COARSE, K_COARSE, flat)
+            coarse, _ = _kernel_table(mins, dows, adj, w_row, SIGMA_COARSE, K_COARSE, typical_table())  # thin data leans on a typical week
             fine, n_eff = _kernel_table(mins, dows, adj, w_row, SIGMA_FINE, K_FINE, coarse)
             slot = (mins // SLOT_MIN).astype(int)
             base = fine[dows, slot]

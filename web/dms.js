@@ -86,16 +86,24 @@ function renderInbox() {
 }
 
 // ---------- starting a chat ----------
-let picked = new Set();
+let picked = new Set(), findQ = "";
 function renderNew() {
   const fs = friendsList();
   $("ibBody").innerHTML = `
+    <label class="ib-find">${ic("search")}<input id="ibFind" placeholder="Search" autocomplete="off" value="${esc(findQ)}"></label>
     <div class="ib-sub">${picked.size > 1 ? "New group" : "New message"}</div>
     ${picked.size > 1 ? `<input class="ib-name" id="ibGroupName" maxlength="40" placeholder="Group name (optional)" value="${esc($("ibGroupName")?.value || "")}">` : ""}
-    ${fs.length ? fs.map(f => `<button class="ib-row pick ${picked.has(f.user_id) ? "on" : ""}" data-pick="${esc(f.user_id)}">${face(f.name, f.photo, "ib-face")}
+    ${fs.length ? fs.map(f => `<button class="ib-row pick ${picked.has(f.user_id) ? "on" : ""}" data-pick="${esc(f.user_id)}" data-q="${esc(`${f.name} ${f.code || ""}`.toLowerCase())}">${face(f.name, f.photo, "ib-face")}
         <div class="ib-text"><b>${esc(f.name)}</b></div><i class="ib-check">${picked.has(f.user_id) ? ic("check") : ""}</i></button>`).join("")
       : `<div class="nobody">Add friends to start chatting.</div>`}
     <div class="ib-go"><button class="wide dark" id="ibStart" ${picked.size ? "" : "disabled"}>${picked.size > 1 ? `Create group (${picked.size + 1})` : "Chat"}</button></div>`;
+  // search: filters in place, so the keyboard stays up
+  const find = $("ibFind"), filter = () => {
+    const q = findQ.trim().toLowerCase();
+    $("ibBody").querySelectorAll("[data-pick]").forEach(r => { r.hidden = !!q && !r.dataset.q.includes(q); });
+  };
+  find.oninput = () => { findQ = find.value; filter(); };
+  filter();
 }
 
 window.openDmWith = uid => { openInbox(); openDm(uid); };  // "Message" on someone's profile

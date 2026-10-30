@@ -186,7 +186,7 @@ struct PostCard: View {
                 if mine {
                     Button("Delete post", systemImage: "trash", role: .destructive) { session.deletePost(post) }
                 } else {
-                    Button("Hide", systemImage: "eye.slash") { withAnimation { session.hide(post) } }
+                    Button("Hide", systemImage: "eye.slash") { withAnimation(.snappy(duration: 0.25)) { session.hide(post) } }
                     Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) { session.report(post) }
                 }
             } label: {

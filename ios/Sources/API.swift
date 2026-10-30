@@ -45,6 +45,26 @@ extension API {
     }
 }
 
+extension API {
+    /// POST some JSON with your sign-in, and read the JSON answer (the server's own message if it says no)
+    static func send<Body: Encodable, T: Decodable>(_ path: String, _ body: Body, as: T.Type = T.self) async throws -> T {
+        var request = URLRequest(url: base.appending(path: path))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60  // the server may be waking up
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        if let token = try? await Auth.auth().currentUser?.getIDToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["detail"] as? String
+            throw Failure(message: detail ?? "The server didn't answer. Try again in a moment.")
+        }
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+}
+
 /// A place from the server's search (Google Places, or Mapbox when Google isn't set up)
 struct PlaceHit: Decodable, Hashable {
     var kind: String?

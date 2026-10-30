@@ -43,7 +43,7 @@ struct SignInView: View {
                     .frame(height: 54)
                     .clipShape(.rect(cornerRadius: 14))
 
-                    Button("Use email") { withAnimation { usingEmail = true } }
+                    Button("Use email") { withAnimation(.snappy(duration: 0.25)) { usingEmail = true } }
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 54)
                         .background(.white.opacity(0.65), in: .rect(cornerRadius: 14))
@@ -84,7 +84,7 @@ struct SignInView: View {
             HStack {
                 Button(creating ? "I have an account" : "New here? Create an account") { creating.toggle(); message = "" }
                 Spacer()
-                Button("Back") { withAnimation { usingEmail = false; message = "" } }
+                Button("Back") { withAnimation(.snappy(duration: 0.25)) { usingEmail = false; message = "" } }
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.black)

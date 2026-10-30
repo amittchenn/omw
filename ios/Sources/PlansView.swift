@@ -7,20 +7,27 @@ struct PlansView: View {
     var body: some View {
         NavigationStack {
             List {
-                if session.hangouts.isEmpty {
+                if !session.invites.isEmpty {
+                    Section("Invitations") {
+                        ForEach(session.invites) { h in NavigationLink(value: PlanRoute(id: h.id)) { PlanRow(hangout: h) } }
+                    }
+                }
+                if session.hangouts.isEmpty && session.invites.isEmpty {
                     ContentUnavailableView("Nothing planned yet", systemImage: "calendar",
                                            description: Text("Tap + to plan a hangout with your friends."))
                         .listRowBackground(Color.clear)
                 }
                 if !session.upcoming.isEmpty {
-                    Section("Coming up") { ForEach(session.upcoming) { PlanRow(hangout: $0) } }
+                    Section("Coming up") { ForEach(session.upcoming) { h in NavigationLink(value: PlanRoute(id: h.id)) { PlanRow(hangout: h) } } }
                 }
                 if !session.past.isEmpty {
-                    Section("Past") { ForEach(session.past) { PlanRow(hangout: $0) } }
+                    Section("Past") { ForEach(session.past) { h in NavigationLink(value: PlanRoute(id: h.id)) { PlanRow(hangout: h) } } }
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Plans")
+            .navigationDestination(for: PlanRoute.self) { PlanDetailView(id: $0.id) }
+            .withProfileRoutes()
         }
     }
 }
@@ -52,21 +59,5 @@ struct PlanRow: View {
             }
         }
         .padding(.vertical, 2)
-    }
-}
-
-/// The + tab. The planner (who, where, when, leave-on-time alerts) moves over from the web app next.
-struct PlanSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView {
-                Label("Plan a hangout", systemImage: "plus.app")
-            } description: {
-                Text("The planner is coming to the new app next. Plan in the current omw! app for now. Your plans show up here either way.")
-            }
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
-        }
     }
 }

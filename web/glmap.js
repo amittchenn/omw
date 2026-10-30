@@ -189,7 +189,11 @@
       Object.values(this._corners).forEach(c => this._box.append(c));
       gl.addControl(new this._lib.AttributionControl({ compact: true }), "bottom-left");
       gl.once("load", () => this._box.querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show"));  // folded until tapped
-      gl.on("style.load", () => { this._styled = true; this._live.forEach(i => i instanceof Shape && i._show(this)); });
+      gl.on("style.load", () => {
+        this._styled = true;
+        this._live.forEach(i => i instanceof Shape && i._show(this));
+        if (this._heat?.length) this.heat(this._heat);
+      });
       gl.on("click", e => {
         if (e.originalEvent?.target?.closest?.(".gl-marker, .gl-corner")) return;  // a marker or a button, not the map
         this.fire("click", { latlng: { lat: e.lngLat.lat, lng: e.lngLat.lng }, originalEvent: e.originalEvent });
@@ -234,7 +238,7 @@
       // padding can't take up the whole map (GL refuses); shrink it to fit
       const kx = l + r > W - 60 ? (W - 60) / (l + r) : 1, ky = t + btm > H - 60 ? (H - 60) / (t + btm) : 1;
       this._gl.fitBounds(box.toGL(), { padding: { left: l * kx, right: r * kx, top: t * ky, bottom: btm * ky },
-        maxZoom: glZoom(o.maxZoom || 17), duration: 700, essential: true });
+        maxZoom: glZoom(o.maxZoom || 17), duration: 500, essential: true });
       return this;
     }
     invalidateSize() { this._gl?.resize(); return this; }
@@ -244,6 +248,26 @@
       return 12742000 * Math.asin(Math.sqrt(x));
     }
     corner(where) { return this._corners[where]; }
+    /** a soft glow where things happen, like Snap Map's heat (points: [[lat, lng], …]); empty clears it */
+    heat(points) {
+      this._heat = points;
+      const gl = this._gl;
+      if (!gl || !this._styled) return this;
+      const data = { type: "FeatureCollection", features: points.map(p => ({ type: "Feature", geometry: { type: "Point", coordinates: toLngLat(p) } })) };
+      if (gl.getSource("omw-heat")) { gl.getSource("omw-heat").setData(data); return this; }
+      gl.addSource("omw-heat", { type: "geojson", data });
+      gl.addLayer({ id: "omw-heat", type: "heatmap", source: "omw-heat", ...(this._lib === window.mapboxgl ? { slot: "middle" } : {}), maxzoom: 17,
+        paint: {
+          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 9, 18, 13, 42, 16, 70],
+          "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 9, 0.6, 15, 1.4],
+          "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 14, 0.65, 17, 0],
+          "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"],
+            0, "rgba(255,230,0,0)", 0.25, "rgba(255,230,0,0.45)", 0.55, "rgba(255,150,40,0.65)", 0.85, "rgba(255,70,110,0.8)", 1, "rgba(255,40,140,0.9)"],
+        } });
+      return this;
+    }
+    /** lean the map back to see buildings in 3D (Map tab), or flat again (the planner) */
+    tilt(pitch) { this._gl?.easeTo({ pitch, duration: 450 }); return this; }
   }
 
   const osmStyle = dark => ({

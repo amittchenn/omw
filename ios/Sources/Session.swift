@@ -13,6 +13,7 @@ final class Session {
     var spots: [String: LiveSpot] = [:]
     var allPosts: [Post] = []
     var hangouts: [Hangout] = []
+    var invites: [Hangout] = []          // plans you're asked to and haven't answered
     var comments: [String: [Comment]] = [:]
     var hidden: Set<String> = []
     var incoming: [FriendRequest] = []   // people who want to be your friend
@@ -108,6 +109,7 @@ final class Session {
     }
 
     // ---------- your plans ----------
+    func hangout(_ id: String) -> Hangout? { hangouts.first { $0.id == id } ?? invites.first { $0.id == id } }
     var upcoming: [Hangout] { hangouts.filter { !$0.isOver }.sorted { $0.start < $1.start } }
     var past: [Hangout] { hangouts.filter(\.isOver).sorted { $0.start > $1.start } }
 
@@ -181,6 +183,17 @@ final class Session {
             }
         })
 
+        // plans you're asked to (and haven't said yes or no)
+        stops.append(db.collection("hangouts").whereField("invited", arrayContains: uid)
+            .addSnapshotListener { [weak self] snap, _ in
+                MainActor.assumeIsolated {
+                    guard let self, let snap else { return }
+                    self.invites = snap.documents.map { Hangout(id: $0.documentID, data: $0.data()) }
+                        .filter { !$0.attendees.contains(uid) && $0.rsvp[uid] == nil && !$0.isOver }
+                        .sorted { $0.start < $1.start }
+                }
+            })
+
         // plans you're going to
         stops.append(db.collection("hangouts").whereField("attendees", arrayContains: uid)
             .addSnapshotListener { [weak self] snap, _ in
@@ -226,6 +239,6 @@ final class Session {
         friendStops.values.flatMap { $0 }.forEach { $0.remove() }; friendStops = [:]
         commentStops.values.forEach { $0.remove() }; commentStops = [:]
         friendsByID = [:]; friends = []; spots = [:]; allPosts = []; hangouts = []; comments = [:]; me = nil
-        incoming = []; outgoing = []
+        incoming = []; outgoing = []; invites = []
     }
 }

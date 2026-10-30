@@ -27,10 +27,17 @@ const pinFace = p => p.photo ? `<span class="mf-face" style="background-image:ur
 // ---------- drawing on the map ----------
 function draw() {
   if (!map() || !window.L) return;
-  layers ||= { friends: L.layerGroup(), saved: L.layerGroup() };
-  layers.friends.clearLayers(); layers.saved.clearLayers();
-  if (!on) { layers.friends.remove(); layers.saved.remove(); return; }
-  layers.friends.addTo(map()); layers.saved.addTo(map());
+  layers ||= { friends: L.layerGroup(), saved: L.layerGroup(), posts: L.layerGroup() };
+  layers.friends.clearLayers(); layers.saved.clearLayers(); layers.posts.clearLayers();
+  map().heat?.(on ? window.heatPoints?.() || [] : []);
+  if (!on) { layers.friends.remove(); layers.saved.remove(); layers.posts.remove(); return; }
+  layers.friends.addTo(map()); layers.saved.addTo(map()); layers.posts.addTo(map());
+  // friends' photos where they took them, like Snap Map's stories on the map; tap to open the newest
+  for (const p of window.mapPosts?.() || []) {
+    L.marker(p.venue, { zIndexOffset: 200, icon: L.divIcon({ className: "", iconSize: [50, 58], iconAnchor: [25, 58],
+      html: `<div class="map-post" style="background-image:url('${esc(p.photo)}')" title="${esc(p.name)}">${p.count > 1 ? `<i>${p.count}</i>` : ""}</div>` }) })
+      .on("click", () => window.viewPost?.(p.id)).addTo(layers.posts);
+  }
   // like Snap Map: everyone as their character, with a name tag (and how long ago, if it's been a while)
   for (const p of liveFriends()) {
     const mins = p.liveAt ? Math.round((Date.now() - p.liveAt) / 6e4) : 0, st = status(p);
@@ -134,8 +141,10 @@ window.addEventListener("tab-changed", e => {
   if (!on) card(""); else showPlace();
   draw();
   if (on) setTimeout(() => map()?.invalidateSize(), 60);
+  map()?.tilt?.(on ? 50 : 0);  // the Map tab leans back to show buildings in 3D; the planner stays flat
 });
 window.addEventListener("friends-changed", () => { if (on) draw(); });
+window.addEventListener("posts-changed", () => { if (on) draw(); });
 window.addEventListener("my-fix", () => { if (on) draw(); });
 
 if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {

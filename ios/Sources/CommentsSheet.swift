@@ -27,7 +27,7 @@ struct CommentsSheet: View {
                         .padding(16)
                     }
                     .scrollIndicators(.hidden)
-                    .onChange(of: list.count) { if let last = list.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } } }
+                    .onChange(of: list.count) { if let last = list.last { withAnimation(.snappy(duration: 0.25)) { proxy.scrollTo(last.id, anchor: .bottom) } } }
                     .onAppear { if let last = list.last { proxy.scrollTo(last.id, anchor: .bottom) } }
                 }
             }

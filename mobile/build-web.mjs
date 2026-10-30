@@ -9,8 +9,10 @@ const SKIP = ["avatar.zip", "sw.js"];  // not needed in the app
 rmSync("www", { recursive: true, force: true });
 mkdirSync("www/static", { recursive: true });
 cpSync("../web", "www/static", { recursive: true, filter: f => !SKIP.some(s => f.endsWith(s)) });
+// a file, not an inline <script>: the page's Content-Security-Policy only runs script files
+writeFileSync("www/static/server.js", `window.OMW_SERVER = ${JSON.stringify(SERVER)};\n`);
 const html = readFileSync("../web/index.html", "utf8")
-  .replace("<head>", `<head>\n  <script>window.OMW_SERVER = ${JSON.stringify(SERVER)};</script>`);
-if (!html.includes("window.OMW_SERVER")) throw new Error("couldn't find <head> in web/index.html");
+  .replace("<head>", `<head>\n  <script src="/static/server.js"></script>`);
+if (!html.includes("/static/server.js")) throw new Error("couldn't find <head> in web/index.html");
 writeFileSync("www/index.html", html);
 console.log(`www/ ready: the app talks to ${SERVER}`);

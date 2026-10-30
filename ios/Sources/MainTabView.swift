@@ -21,6 +21,7 @@ struct MainTabView: View {
                 .tag(Tab.plan)
             PlansView()
                 .tabItem { Label("Plans", systemImage: "calendar") }
+                .badge(session.invites.count)
                 .tag(Tab.plans)
             NavigationStack {
                 ProfileView(uid: session.uid ?? "")

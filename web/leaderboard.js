@@ -137,7 +137,7 @@ const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
 function face(p, i) {
   const src = p.photo || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(p.user_id)}&backgroundColor=${COLORS[i % COLORS.length].slice(1)}`;
   return `<div class="avatar" style="--c:${COLORS[i % COLORS.length]}"><span>${esc((p.name || "?").slice(0, 2).toUpperCase())}</span>` +
-         `<img src="${esc(src)}" alt="" onerror="this.remove()"></div>`;
+         `<img src="${esc(src)}" alt="" data-fail="remove"></div>`;
 }
 
 function rows(board) {

@@ -6,8 +6,10 @@ import CoreLocation
 
 struct FriendsMapView: View {
     @Environment(Session.self) private var session
-    @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
+    // leaning back a little, like Snap Map, so buildings stand up in 3D
+    @State private var position: MapCameraPosition = .userLocation(followsHeading: false, fallback: .automatic)
     @State private var selected: Person?
+    @State private var openPost: Post?
     @Environment(LocationService.self) private var location
 
     private var live: [LiveFriend] {
@@ -17,10 +19,28 @@ struct FriendsMapView: View {
         }
     }
 
+    /// friends' photos where they took them, like Snap Map: the newest at each place, with how many there are
+    private var photoSpots: [PhotoSpot] {
+        var by: [String: [Post]] = [:]
+        for p in session.posts where p.venue.count == 2 && !p.photo.isEmpty {
+            by[String(format: "%.4f,%.4f", p.venue[0], p.venue[1]), default: []].append(p)
+        }
+        return by.values.compactMap { posts in
+            let newest = posts.sorted { $0.at > $1.at }
+            return newest.first.map { PhotoSpot(post: $0, count: posts.count) }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Map(position: $position) {
                 UserAnnotation()
+                ForEach(photoSpots) { spot in
+                    Annotation(spot.post.venueName, coordinate: CLLocationCoordinate2D(latitude: spot.post.venue[0], longitude: spot.post.venue[1]), anchor: .bottom) {
+                        PhotoPin(spot: spot).onTapGesture { openPost = spot.post }
+                    }
+                    .annotationTitles(.hidden)
+                }
                 ForEach(live) { item in
                     Annotation(item.person.firstName, coordinate: item.spot.coordinate, anchor: .bottom) {
                         FriendPin(person: item.person, minutesAgo: Int(Date.now.timeIntervalSince(item.spot.at) / 60))
@@ -44,6 +64,11 @@ struct FriendsMapView: View {
                 }
             }
             .onAppear { location.apply() }
+            .sheet(item: $openPost) { post in
+                NavigationStack { PostDetailView(id: post.id).withProfileRoutes() }
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
             .sheet(item: $selected) { f in
                 FriendCard(person: f)
                     .presentationDetents([.height(190)])
@@ -51,6 +76,36 @@ struct FriendsMapView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+}
+
+struct PhotoSpot: Identifiable {
+    let post: Post
+    let count: Int
+    var id: String { post.id }
+}
+
+/// a friend's photo standing on its spot: a framed picture with a little point, and a count if there are more
+struct PhotoPin: View {
+    let spot: PhotoSpot
+
+    var body: some View {
+        VStack(spacing: -2) {
+            RemoteImage(source: spot.post.photo)
+                .frame(width: 50, height: 50)
+                .clipShape(.rect(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white, lineWidth: 3))
+                .overlay(alignment: .topTrailing) {
+                    if spot.count > 1 {
+                        Text("\(spot.count)").font(.caption2.weight(.heavy)).foregroundStyle(.white)
+                            .padding(.horizontal, 6).frame(minWidth: 22, minHeight: 22)
+                            .background(Color.red, in: Capsule()).overlay(Capsule().strokeBorder(.white, lineWidth: 2))
+                            .offset(x: 9, y: -9)
+                    }
+                }
+            Image(systemName: "triangle.fill").font(.system(size: 10)).foregroundStyle(.white).rotationEffect(.degrees(180))
+        }
+        .shadow(color: .black.opacity(0.3), radius: 6, y: 4)
     }
 }
 

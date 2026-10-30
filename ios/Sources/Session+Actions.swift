@@ -1,5 +1,6 @@
 // Adding friends and posting, on the same documents the web app uses (requests/, users/{uid}/friends/, feed/).
 import UIKit
+import CoreLocation
 import FirebaseFirestore
 
 extension Session {
@@ -33,7 +34,8 @@ extension Session {
                     guard tally.waiting == 0, let self else { return }
                     let top = tally.counts.sorted { $0.value > $1.value }.prefix(15)
                     self.cards(Array(top.map(\.key))) { cards in
-                        done(top.compactMap { pair in cards[pair.key].map { QuickAdd(card: $0, mutual: pair.value) } })
+                        // only people we can show (a card with a name or username)
+                        done(top.compactMap { pair in cards[pair.key].flatMap { $0.name.isEmpty && $0.code.isEmpty ? nil : QuickAdd(card: $0, mutual: pair.value) } })
                     }
                 }
             }
@@ -86,6 +88,47 @@ extension Session {
     func decline(_ request: FriendRequest) {
         guard let uid else { return }
         db.collection("requests").document("\(request.from)_\(uid)").delete()
+    }
+
+    // ---------- plans: saying yes or no ----------
+    /// Going: you join, and your own leave time is worked out from `from` (where you are, or home), like the web app.
+    /// If the server can't be reached you still join; your alert just waits until it can be worked out.
+    func accept(_ h: Hangout, from: CLLocationCoordinate2D?) async throws {
+        guard let uid, let me else { return }
+        var update: [String: Any] = ["attendees": FieldValue.arrayUnion([uid]), "rsvp.\(uid)": "going", "modes.\(uid)": me.travelMode]
+        if let venue = h.venue, let from {
+            let request = PlanRequest(user_ids: [uid], start_time: When.local.string(from: h.start), venue: [venue.latitude, venue.longitude],
+                                      hangout_type: h.type,
+                                      guests: [.init(user_id: uid, name: me.name, travel_mode: me.travelMode, home: [from.latitude, from.longitude], habits: me.habits)],
+                                      utc_offset_min: TimeZone.current.secondsFromGMT(for: h.start) / 60, group_size: max(h.attendees.count + 1, 2))
+            if let r = try? await API.send("/plan", request, as: [PlanResult].self).first, let leave = r.leaveAt {
+                update["alerts.\(uid)"] = When.string(leave)
+                update["travel.\(uid)"] = (r.travel_minutes * 10).rounded() / 10
+            }
+        }
+        try await write(db.collection("hangouts").document(h.id), update)
+    }
+
+    /// Can't make it: you come off the plan and the others keep it. If nobody else is going or still deciding and it's
+    /// yours, the plan goes away (only the planner may delete it).
+    func cantMakeIt(_ h: Hangout) async throws {
+        guard let uid else { return }
+        let others = h.attendees.filter { $0 != uid }
+        let deciding = h.invited.filter { $0 != uid && !h.attendees.contains($0) && h.rsvp[$0] == nil }
+        let ref = db.collection("hangouts").document(h.id)
+        if others.isEmpty, deciding.isEmpty, h.createdBy == uid {
+            try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
+                ref.delete { error in if let error { done.resume(throwing: error) } else { done.resume() } }
+            }
+            return
+        }
+        try await write(ref, ["attendees": FieldValue.arrayRemove([uid]), "rsvp.\(uid)": "declined"])
+    }
+
+    private func write(_ ref: DocumentReference, _ update: [String: Any]) async throws {
+        try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
+            ref.updateData(update) { error in if let error { done.resume(throwing: error) } else { done.resume() } }
+        }
     }
 
     // ---------- "I'm free" ----------

@@ -303,7 +303,7 @@ function csList() {
 function closeComments() {
   if (cs.hidden) return;
   cs.classList.add("closing");
-  setTimeout(() => { cs.hidden = true; cs.classList.remove("closing"); cs.innerHTML = ""; csPost = null; }, 220);
+  setTimeout(() => { cs.hidden = true; cs.classList.remove("closing"); cs.innerHTML = ""; csPost = null; }, 180);
 }
 cs.addEventListener("click", e => {
   if (e.target === cs) return closeComments();  // tapped above the sheet
@@ -344,6 +344,13 @@ function postMenu(p) {
 }
 const closeSheet = () => { $("actionSheet").hidden = true; };
 // "I'm free": tap your picture in the friends row, pick how long, and your friends see "Free till 9" over it
+// the time picker starts at the end you have now, or an hour from now (on the quarter hour)
+const untilDefault = () => {
+  const mine = (window.myFriends || []).find(p => p.isMe) || {};
+  const d = mine.freeUntil && new Date(mine.freeUntil) > Date.now() ? new Date(mine.freeUntil) : new Date(Date.now() + 36e5);
+  d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
 function freeSheet() {
   const mine = (window.myFriends || []).find(p => p.isMe) || {}, free = mine.freeUntil && new Date(mine.freeUntil) > Date.now();
   const late = new Date().getHours() >= 21;
@@ -352,6 +359,7 @@ function freeSheet() {
       ${free ? "Change it, or turn it off." : "They'll see it over your picture, so they can ask you to hang out."}</div>
       <button data-free="1">For an hour</button><button data-free="2">Next 2 hours</button>
       ${late ? "" : `<button data-free="tonight">Tonight</button>`}
+      <label class="as-time"><span>Until</span><input type="time" id="freeUntil" value="${esc(untilDefault())}"><button data-free="pick">Set</button></label>
       ${free ? `<button class="danger" data-free="off">I'm not free anymore</button>` : ""}</div>
     <button class="as-cancel" data-sheet-cancel>Cancel</button></div>`;
   $("actionSheet").hidden = false;
@@ -391,14 +399,7 @@ function friendMenu(uid, sure = false) {
 }
 
 // ---------- profiles ----------
-const weekOf = iso => { const d = new Date(iso); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };  // Monday
-const weekLabel = d => {
-  const now = weekOf(new Date().toISOString()), weeks = Math.round((now - d) / 6048e5), end = new Date(d.getTime() + 6 * 864e5);
-  if (weeks === 0) return "This week";
-  if (weeks === 1) return "Last week";
-  const f = x => x.toLocaleDateString([], { month: "short", day: "numeric" });
-  return `${f(d)} – ${f(end)}`;
-};
+
 function openProfile(uid) {
   profileStop?.(); profilePosts = {}; profileTab = "posts";
   profile = { uid, loading: true, friendIds: null };
@@ -458,6 +459,8 @@ const addButton = id => id === me.uid ? "" : friendOf(id) ? `<button class="pf-b
   : (window.myRequestsIn || []).some(r => r.from === id) ? `<button class="pf-btn add" data-accept-req="${esc(id)}">Accept</button>`
   : (window.myRequestsOut || []).includes(id) ? `<button class="pf-btn" disabled>Requested</button>`
   : `<button class="pf-btn add" data-add-friend="${esc(id)}">Add</button>`;
+// only people we can show: someone with no public card yet (they haven't opened a recent omw!) would just be "Friend"
+const known = list => list.filter(x => cards[x.id]?.name || cards[x.id]?.code);
 function addPage() {
   if (document.activeElement?.id === "addSearch") return;  // typing: don't redraw under the keyboard
   const q = profile.q || "", inc = window.myRequestsIn || [];
@@ -471,8 +474,8 @@ function addPage() {
       ${inc.length ? `<div class="fl-label">Added me</div>${inc.map(r => personRow(r.from, "wants to be friends",
           `<button class="pf-btn add" data-accept-req="${esc(r.from)}">Accept</button><button class="fl-x" data-decline-req="${esc(r.from)}" aria-label="Decline">${icon("x")}</button>`)).join("")}` : ""}
       <div class="fl-label">Quick Add</div>
-      ${!quick ? `<div class="fl-note">Finding friends of friends…</div>` : quick.list.length
-        ? quick.list.map(x => personRow(x.id, `${x.mutual} mutual ${x.mutual === 1 ? "friend" : "friends"}`, addButton(x.id))).join("")
+      ${!quick ? `<div class="fl-note">Finding friends of friends…</div>` : known(quick.list).length
+        ? known(quick.list).map(x => personRow(x.id, `${x.mutual} mutual ${x.mutual === 1 ? "friend" : "friends"}`, addButton(x.id))).join("")
         : `<div class="fl-note">Friends of your friends show up here.</div>`}
       <button class="fl-invite" data-invite>${icon("share")}<span><b>Invite friends to omw!</b><small>Send your link in Messages, Instagram or anywhere</small></span>${icon("chevron-right")}</button>
     </div>
@@ -568,11 +571,9 @@ function renderProfile() {
       : (open => `<div class="pf-empty">${icon(open ? "images" : "lock")}<b>${open ? "No posts yet" : "This account is private"}</b>${open ? ""
           : `Add ${esc(first(name))} as a friend to see their posts.`}</div>`)(f || card.public);
     else {
-      const weeks = [];
-      for (const p of list) { const w = weekOf(p.at).getTime(); (weeks.at(-1)?.w === w ? weeks.at(-1).items : (weeks.push({ w, items: [] }), weeks.at(-1).items)).push(p); }
-      body = weeks.map(w => `<div class="label">${esc(weekLabel(new Date(w.w)))}</div>
-        <div class="pf-grid">${w.items.map(p => `<button data-view-post="${esc(p.id)}" style="background-image:url('${esc(p.photo)}')" aria-label="${esc(p.caption || p.title || "Post")}">
-          ${p.photos?.length > 1 ? `<span class="pf-many">${icon("images")}</span>` : ""}</button>`).join("")}</div>`).join("");
+      // one grid, newest first, like Instagram (Calendar is where they go by date)
+      body = `<div class="pf-grid">${list.map(p => `<button data-view-post="${esc(p.id)}" style="background-image:url('${esc(p.photo)}')" aria-label="${esc(p.caption || p.title || "Post")}">
+          ${p.photos?.length > 1 ? `<span class="pf-many">${icon("images")}</span>` : ""}</button>`).join("")}</div>`;
     }
   }
   setHtml($("profileCard"), `<button class="x" data-close-profile aria-label="Close">${icon("x")}</button>
@@ -713,6 +714,19 @@ async function rankSave() {
 }
 
 // the spots your friends rated, best first (the map's "Friends' spots")
+// the Map tab, like Snap Map: friends' photos where they took them (newest on top, with how many), and a glow where
+// friends have been (their posts and your plans)
+window.mapPosts = () => {
+  const by = {};
+  for (const p of visible()) {
+    if (!p.venue || !p.photo) continue;
+    (by[p.venue.map(n => (+n).toFixed(4)).join(",")] ||= []).push(p);
+  }
+  return Object.values(by).map(ps => ps.sort((a, b) => b.at.localeCompare(a.at)))
+    .map(ps => ({ id: ps[0].id, venue: ps[0].venue, photo: ps[0].photo, name: ps[0].venueName || "", count: ps.length }));
+};
+window.heatPoints = () => [...visible().filter(p => p.venue).map(p => p.venue), ...(window.myHangouts || []).filter(h => h.venue).map(h => h.venue)];
+window.viewPost = id => viewPost(id);
 window.friendSpots = () => {
   const by = {};
   for (const p of visible()) {
@@ -743,10 +757,26 @@ function listenComments() {
 // ---------- inviting friends: the phone's share sheet (Messages, Instagram, WhatsApp…), or copy the text ----------
 // the App Store link, once omw! is live (until then invites are just your friend ID, never a server address)
 const APP_LINK = "";
+// a little invite card to go with it (the share sheet shows it as the preview): the omw! yellow and clock, and your username
+async function inviteCard(code, name) {
+  const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = (window.OMW_SERVER || "") + "/static/splash.png"; });
+  const c = Object.assign(document.createElement("canvas"), { width: 1080, height: 1080 }), g = c.getContext("2d");
+  g.fillStyle = "#FFE600"; g.fillRect(0, 0, 1080, 1080);
+  g.drawImage(img, img.width * .3, img.height * .3, img.width * .4, img.height * .4, 0, -150, 1080, 1080);  // the clock, big
+  g.fillStyle = "#111114"; g.textAlign = "center";
+  g.font = "800 92px -apple-system, 'Nunito', sans-serif"; g.fillText("Add me on omw!", 540, 830);
+  g.font = "700 64px -apple-system, 'Nunito', sans-serif"; g.globalAlpha = .7; g.fillText(code ? `@${code.toLowerCase()}` : name, 540, 930);
+  const blob = await new Promise(ok => c.toBlob(ok, "image/png"));
+  return new File([blob], "omw-invite.png", { type: "image/png" });
+}
 async function invite() {
-  const code = (window.myFriends || []).find(p => p.isMe)?.code || "";
+  const mine = (window.myFriends || []).find(p => p.isMe) || {}, code = mine.code || "";
   const text = `Add me on omw! so we can plan hangouts and actually show up on time. My friend ID is ${code}.`;
-  const share = APP_LINK ? { title: "omw!", text, url: APP_LINK } : { title: "omw!", text };
+  let share = APP_LINK ? { title: "omw!", text, url: APP_LINK } : { title: "omw!", text };
+  try {
+    const card = await inviteCard(code, mine.realName || "");
+    if (navigator.canShare?.({ files: [card] })) share = { ...share, files: [card] };
+  } catch { /* just the text */ }
   try {
     if (navigator.share) return await navigator.share(share);
     await navigator.clipboard.writeText([text, APP_LINK].filter(Boolean).join(" "));
@@ -1040,10 +1070,10 @@ document.addEventListener("touchend", async () => {
   if (!on || !els.length) return;
   const flick = Math.abs(vx) > .45 && Math.sign(vx) === Math.sign(dx);
   if (!next || !(Math.abs(dx) > innerWidth * .3 || flick && Math.abs(dx) > 30)) {  // back to where it was
-    move(els, 0, 260); move(into, dx < 0 ? innerWidth : -innerWidth, 260); await after(260);
+    move(els, 0, 200); move(into, dx < 0 ? innerWidth : -innerWidth, 200); await after(200);
     unmove(els); unmove(into); if (next) unshown(next); swiping(false); return;
   }
-  const ms = Math.round(Math.max(160, Math.min(300, (innerWidth - Math.abs(dx)) / Math.max(Math.abs(vx), 1.4))));
+  const ms = Math.round(Math.max(130, Math.min(240, (innerWidth - Math.abs(dx)) / Math.max(Math.abs(vx), 1.6))));
   move(els, dx < 0 ? -innerWidth : innerWidth, ms); move(into, 0, ms); await after(ms);
   tick(); arrive(next); unmove(els); unmove(into); swiping(false);
   if (next === "map") window.invalidateMap?.();
@@ -1145,7 +1175,11 @@ document.addEventListener("click", async e => {
   if (t.hasAttribute("data-free-menu")) return freeSheet();
   if (ds.free) {
     const end = new Date();
-    if (ds.free === "1") end.setHours(end.getHours() + 1);
+    if (ds.free === "pick") {  // the time you picked: later today, or tomorrow morning if that time's already gone
+      const [hh, mm] = ($("freeUntil")?.value || untilDefault()).split(":").map(Number);
+      end.setHours(hh, mm, 0, 0);
+      if (end <= new Date()) end.setDate(end.getDate() + 1);
+    } else if (ds.free === "1") end.setHours(end.getHours() + 1);
     else if (ds.free === "2") end.setHours(end.getHours() + 2);
     else if (end.getHours() >= 21) end.setHours(end.getHours() + 3);  // late already: the next few hours
     else end.setHours(23, 59, 0, 0);
@@ -1335,6 +1369,7 @@ if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
     if (!u) { setUpTabs.done = false; return; }
     const listen = q => onSnapshot(q, s => {
       posts = Object.fromEntries(s.docs.map(d => [d.id, { ...d.data(), id: d.id }]));
+      window.dispatchEvent(new Event("posts-changed"));  // the Map tab's photo bubbles
       loaded = true; widen(); listenComments(); render();
       window.dispatchEvent(new Event("feed-changed"));  // the map's "Friends' spots"
     }, err => {

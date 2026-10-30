@@ -354,7 +354,7 @@ function renderAvatarEditor() {
   $("avatarEditor").innerHTML = `
     <div class="cc-top">
       <div class="cc-preview ${s.kind === "ai" ? "pick ai" : ""} ${busy ? "busy" : ""}" style="${s.kind === "ai" ? `background:#${s.bg}` : ""}">
-        ${preview ? `<img src="${esc(preview)}" alt="Preview" referrerpolicy="no-referrer" onerror="this.classList.add('gone')">` : ""}${busy ? `<i class="av-spin"></i>` : ""}</div>
+        ${preview ? `<img src="${esc(preview)}" alt="Preview" referrerpolicy="no-referrer" data-fail="gone">` : ""}${busy ? `<i class="av-spin"></i>` : ""}</div>
       <div><b>${s.old ? "Your picture" : KIND_NAME[s.kind]}</b><small>${status}</small>
         ${s.kind === "ai" ? `<div class="cc-bgs small">${AV_BGS.map(c => `<button class="${c === s.bg ? "on" : ""}" style="background:#${c}" data-bg="${c}" title="Background color"></button>`).join("")}</div>` : ""}
         ${s.kind === "character" && draft.pane !== "build" ? `<div class="cc-actions"><button data-pane="build">${icon("pencil")} Edit</button></div>` : ""}
@@ -364,7 +364,7 @@ function renderAvatarEditor() {
     ${items.length ? `<div class="lib"><div class="lib-head"><b>My pictures</b><small>${library ? `${items.length}` : "Loading…"}</small></div>
       <div class="lib-row">${items.map((x, i) => `<div class="lib-tile">
         <button class="${x.id === s.id ? "on" : ""}" style="${x.kind === "ai" ? `background:#${x.id === s.id ? s.bg : x.bg}` : ""}" data-lib="${i}" title="${KIND_NAME[x.kind]}">
-          <img src="${esc(tileSrc(x))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.classList.add('gone')">${x.kind === "account" ? `<i class="lib-tag">${icon("user")}</i>` : ""}</button>
+          <img src="${esc(tileSrc(x))}" alt="" loading="lazy" referrerpolicy="no-referrer" data-fail="gone">${x.kind === "account" ? `<i class="lib-tag">${icon("user")}</i>` : ""}</button>
         ${used && x.id === used.id ? `<i class="lib-inuse" title="Your picture now">${icon("check")}</i>`
           : x.kind !== "account" ? `<button class="lib-del" data-del="${esc(x.id)}" title="Delete">${icon("x")}</button>` : ""}</div>`).join("")}</div></div>` : ""}
     <div class="lib-head"><b>Make a new one</b></div>

@@ -137,7 +137,8 @@ struct PlacePicker: View {
         var seen = Set<String>()
         return session.allPosts.compactMap { p in
             guard !p.venueName.isEmpty, seen.insert(p.venueName).inserted else { return nil }
-            return PlaceHit(kind: "place", id: nil, name: p.venueName, address: p.address, lat: nil, lng: nil)
+            return PlaceHit(kind: "place", id: nil, name: p.venueName, address: p.address,
+                            lat: p.venue.count == 2 ? p.venue[0] : nil, lng: p.venue.count == 2 ? p.venue[1] : nil)
         }
     }
 

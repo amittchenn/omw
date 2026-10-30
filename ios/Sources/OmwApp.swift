@@ -44,6 +44,6 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: session.user == nil)
+        .animation(.snappy(duration: 0.22), value: session.user == nil)
     }
 }
