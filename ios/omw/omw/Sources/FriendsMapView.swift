@@ -128,7 +128,7 @@ struct FriendsMapView: View {
                 hits = await API.suggestPlaces(q, near: (near.latitude, near.longitude))
             }
             .sheet(item: $place) { p in
-                PlaceCard(place: p).withOmw()  // it sizes its own sheet to what it shows
+                PlaceCard(place: p).withOmw()  // it sets its own sheet size, the same every time
                     .presentationDragIndicator(.visible)
                     .presentationBackgroundInteraction(.enabled)
             }
@@ -385,7 +385,7 @@ struct PlaceCard: View {
     @State private var going: DirectionsTarget?
     @State private var info: PlaceInfo?
     @State private var lookAround: MKLookAroundScene?
-    @State private var height: CGFloat = 220
+    @State private var loaded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -412,21 +412,20 @@ struct PlaceCard: View {
             }
         }
         .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 12)
-        // the sheet is exactly as tall as the card (measured), so nothing's cut off and there's no empty space
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
-        // never wider than the sheet (Look Around would otherwise stretch everything off the side)
+        // every place card the same: same width as the sheet, same height (room for a two-line name)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .presentationDetents([.height(max(160, height))])
+        .presentationDetents([.height(372)])
         .presentationBackground(Color(.systemBackground))  // a solid card, not glass over a busy map
         .presentationCornerRadius(28)
-        .animation(.snappy(duration: 0.25), value: height)
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
+            loaded = false; info = nil; lookAround = nil  // a new place: start clean
             info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
             if info?.photos?.isEmpty != false {
                 lookAround = try? await MKLookAroundSceneRequest(coordinate: place.coordinate).scene  // Apple's street view instead
             }
+            loaded = true
         }
         .sheet(isPresented: $planning) {
             PlanSheet(start: place.hit).withOmw().presentationDetents([.large]).presentationDragIndicator(.visible)
@@ -438,27 +437,37 @@ struct PlaceCard: View {
     }
 
     /// its photos side by side (Google's), or Apple's Look Around of the street, or nothing
-    @ViewBuilder private var photos: some View {
-        if let refs = info?.photos, !refs.isEmpty {
-            ScrollView(.horizontal) {
-                HStack(spacing: 6) {
-                    ForEach(refs, id: \.self) { ref in
-                        RemoteImage(source: "\(API.base.absoluteString)/place-photo?ref=\(ref)&w=600")
-                            .frame(width: refs.count == 1 ? 300 : 200, height: 140)
-                            .background(Color(.secondarySystemFill))
-                            .clipShape(.rect(cornerRadius: 14))
+    /// the picture at the top, always the same size: its photos side by side (Google's), Apple's Look Around of the
+    /// street, or a little map of the spot. Whatever's inside sits in an overlay of a fixed box, so it can never push
+    /// the card wider or taller.
+    private var photos: some View {
+        Color(.secondarySystemFill)
+            .frame(maxWidth: .infinity)
+            .frame(height: 140)
+            .overlay {
+                if let refs = info?.photos, !refs.isEmpty {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 6) {
+                            ForEach(refs, id: \.self) { ref in
+                                RemoteImage(source: "\(API.base.absoluteString)/place-photo?ref=\(ref)&w=600")
+                                    .frame(width: refs.count == 1 ? 340 : 200, height: 140)
+                                    .clipShape(.rect(cornerRadius: 14))
+                            }
+                        }
                     }
+                    .scrollIndicators(.hidden)
+                } else if let lookAround {
+                    LookAroundPreview(initialScene: lookAround, allowsNavigation: false, badgePosition: .bottomTrailing)
+                } else if loaded {
+                    Map(initialPosition: .camera(MapCamera(centerCoordinate: place.coordinate, distance: 600, heading: 0, pitch: 45))) {
+                        Marker(place.name, coordinate: place.coordinate).tint(.red)
+                    }
+                    .allowsHitTesting(false)
+                } else {
+                    Color.clear.shimmer()
                 }
             }
-            .scrollIndicators(.hidden)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 140)
-        } else if let lookAround {
-            LookAroundPreview(initialScene: lookAround, allowsNavigation: false, badgePosition: .bottomTrailing)
-                .frame(maxWidth: .infinity)
-                .frame(height: 140)
-                .clipShape(.rect(cornerRadius: 14))
-        }
+            .clipShape(.rect(cornerRadius: 14))
     }
 
     /// ★ 4.5 (1,203) · $$ · Café · Open now
