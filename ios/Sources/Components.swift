@@ -88,6 +88,7 @@ struct Avatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .compositingGroup()  // fading a picture fades it as one image (no letter showing through)
         .padding(ring == nil ? 0 : 3)
         .overlay {
             if let ring { Circle().strokeBorder(ring, lineWidth: 2.5) }
@@ -99,6 +100,15 @@ extension Avatar {
     init(_ person: Person?, fallback: String = "", size: CGFloat = 40, showStatus: Bool = false) {
         self.init(photo: person?.photo ?? "", name: person?.name ?? fallback, size: size,
                   ring: showStatus ? person?.status.color : nil)
+    }
+}
+
+extension View {
+    /// a soft rounded box, like the web app's search fields and rows
+    func softField() -> some View {
+        padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .background(Color(.secondarySystemFill), in: .rect(cornerRadius: 16))
     }
 }
 

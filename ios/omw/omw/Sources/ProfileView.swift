@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 import AuthenticationServices
 import FirebaseAuth
+internal import FirebaseFirestoreInternal
 
 struct ProfileView: View {
     let uid: String
@@ -11,6 +12,10 @@ struct ProfileView: View {
     @State private var posting = false
     @State private var removing = false
     @State private var card: Card?  // for people who aren't your friends: their public card
+    @State private var tab = Tab.posts
+    @State private var friendCount = 0
+
+    enum Tab: String, CaseIterable { case posts = "Posts", places = "Places", calendar = "Calendar" }
 
     private var mine: Bool { uid == session.uid }
     private var person: Person? { session.person(uid) }
@@ -34,15 +39,30 @@ struct ProfileView: View {
                 }
                 HStack(spacing: 28) {
                     stat(posts.count, posts.count == 1 ? "post" : "posts")
-                    if mine { stat(session.friends.count, session.friends.count == 1 ? "friend" : "friends") }
+                    if mine || session.isFriend(uid) {
+                        NavigationLink { FriendsListView(uid: uid) } label: {
+                            stat(mine ? session.friends.count : friendCount, (mine ? session.friends.count : friendCount) == 1 ? "friend" : "friends")
+                        }
+                        .buttonStyle(.plain)
+                    }
                     if hangoutCount > 0 { stat(hangoutCount, hangoutCount == 1 ? "hangout" : "hangouts") }
                 }
                 buttons
-                Divider()
-                grid
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
+            .padding(.bottom, 14)
+            if mine {
+                tabs
+                switch tab {
+                case .posts: grid.padding(.top, 1.5)  // edge to edge, like Instagram
+                case .places: PlacesList()
+                case .calendar: MemoriesCalendar()
+                }
+            } else {
+                Divider()
+                grid.padding(.top, 1.5)
+            }
         }
         .scrollIndicators(.hidden)
         .navigationTitle(mine ? (person?.handle ?? "") : "")
@@ -66,7 +86,33 @@ struct ProfileView: View {
         }
         .task(id: uid) {
             if person == nil { session.cards([uid]) { card = $0[uid] } }
+            if !mine, session.isFriend(uid) {
+                session.db.collection("users").document(uid).collection("friends").getDocuments { snap, _ in
+                    MainActor.assumeIsolated { friendCount = snap?.documents.count ?? 0 }
+                }
+            }
         }
+    }
+
+    /// Posts | Places | Calendar, underlined like Instagram's
+    private var tabs: some View {
+        HStack(spacing: 0) {
+            ForEach(Tab.allCases, id: \.self) { t in
+                Button { withAnimation(.snappy(duration: 0.2)) { tab = t } } label: {
+                    Label(t.rawValue, systemImage: t == .posts ? "square.grid.3x3" : t == .places ? "star" : "calendar")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(tab == t ? Color.primary : Color.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .overlay(alignment: .bottom) {
+                            Rectangle().fill(tab == t ? Color.primary : Color.clear).frame(height: 2)
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .overlay(alignment: .bottom) { Rectangle().fill(Color(.separator)).frame(height: 0.5) }
+        .sensoryFeedback(.selection, trigger: tab)
     }
 
     private func stat(_ n: Int, _ label: String) -> some View {
@@ -79,8 +125,8 @@ struct ProfileView: View {
     @ViewBuilder private var buttons: some View {
         if mine {
             HStack(spacing: 8) {
-                NavigationLink { ComingSoon(title: "Edit profile", symbol: "pencil") } label: { pill("Edit profile") }
-                ShareLink(item: "Add me on omw! My friend ID is \(code)") { pill("Share profile") }
+                NavigationLink { EditProfileView() } label: { pill("Edit profile") }
+                ShareLink(item: "Add me on omw! My username is @\(code.lowercased())") { pill("Share profile") }
             }
             .buttonStyle(.plain)
         } else if !session.isFriend(uid) {
@@ -117,11 +163,14 @@ struct ProfileView: View {
             }
             .padding(.top, 40)
         } else {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 3), spacing: 2) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1.5), count: 3), spacing: 1.5) {
                 ForEach(posts) { post in
                     NavigationLink(value: PostRoute(id: post.id)) {
-                        RemoteImage(source: post.allPhotos.first ?? "")
-                            .aspectRatio(1, contentMode: .fill)
+                        Color(.secondarySystemFill)
+                            .aspectRatio(3 / 4, contentMode: .fit)  // portrait tiles, like the web app
+                            .overlay { RemoteImage(source: post.allPhotos.first ?? "") }
+                            .clipped()
+                            .contentShape(Rectangle())
                             .overlay(alignment: .topTrailing) {
                                 if post.allPhotos.count > 1 {
                                     Image(systemName: "square.fill.on.square.fill").font(.caption).foregroundStyle(.white).padding(6).shadow(radius: 2)
@@ -130,7 +179,6 @@ struct ProfileView: View {
                     }
                 }
             }
-            .padding(.horizontal, -16)  // edge to edge, like Instagram
         }
     }
 }
@@ -151,8 +199,25 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section("Account") {
-                    LabeledContent("Name", value: session.me?.name ?? "")
-                    LabeledContent("Friend ID", value: session.me?.code ?? "")
+                    NavigationLink { EditProfileView() } label: {
+                        HStack(spacing: 12) {
+                            Avatar(session.me, size: 44)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(session.me?.name ?? "").font(.headline)
+                                Text("@\((session.me?.code ?? "").lowercased())").font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                Section {
+                    Toggle("Private account", isOn: Binding(get: { !session.isPublic }, set: { session.setPublic(!$0) }))
+                    if let blocked = session.me?.blocked, !blocked.isEmpty {
+                        NavigationLink("Blocked (\(blocked.count))") { BlockedList() }
+                    }
+                } header: {
+                    Text("Privacy")
+                } footer: {
+                    Text(session.isPublic ? "Anyone on omw! can see your posts, name and picture." : "Only your friends can see your posts.")
                 }
                 Section {
                     ForEach(ShareMode.allCases) { mode in
@@ -245,5 +310,25 @@ struct SettingsView: View {
             }
             deleting = false
         }
+    }
+}
+
+/// people you blocked: tap to unblock
+struct BlockedList: View {
+    @Environment(Session.self) private var session
+    @State private var cards: [String: Card] = [:]
+
+    var body: some View {
+        List(session.me?.blocked ?? [], id: \.self) { id in
+            HStack(spacing: 12) {
+                Avatar(photo: cards[id]?.photo ?? "", name: cards[id]?.name ?? "?", size: 40)
+                Text(cards[id]?.name ?? "Someone").font(.subheadline.weight(.semibold))
+                Spacer()
+                Button("Unblock") { session.unblock(id) }.buttonStyle(.bordered)
+            }
+        }
+        .navigationTitle("Blocked")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { session.cards(session.me?.blocked ?? []) { cards = $0 } }
     }
 }

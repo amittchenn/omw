@@ -26,7 +26,6 @@ struct PlansView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Plans")
-            .navigationDestination(for: PlanRoute.self) { PlanDetailView(id: $0.id) }
             .withProfileRoutes()
         }
     }

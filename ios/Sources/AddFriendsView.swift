@@ -13,8 +13,10 @@ struct AddFriendsView: View {
         List {
             if !query.trimmingCharacters(in: .whitespaces).isEmpty {
                 Section {
-                    if results.isEmpty && !searching {
-                        Text("No one with a username like “\(query)”.").foregroundStyle(.secondary)
+                    if query.lowercased().replacingOccurrences(of: "@", with: "").trimmingCharacters(in: .whitespaces) == session.me?.code.lowercased() {
+                        Text("That's you!").foregroundStyle(.secondary)
+                    } else if results.isEmpty && !searching {
+                        Text("No one called @\(query.lowercased().replacingOccurrences(of: "@", with: "")) yet.").foregroundStyle(.secondary)
                     }
                     ForEach(results) { card in
                         PersonRow(card: card, detail: card.name)

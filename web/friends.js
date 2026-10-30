@@ -891,11 +891,11 @@ async function ensureId(user) {
 // and your old one is freed. Friends and requests are linked to your account, not your ID, so nothing else changes.
 let idCheck = 0;
 async function idStatus(code) {
-  if (code === profile.code) return ["same", "That's your ID now."];
+  if (code === profile.code) return ["same", "That's your username now."];
   if (code.length < 3) return ["bad", "At least 3 characters."];
   if (!ID_RULE.test(code)) return ["bad", "Only letters, numbers and _ (up to 15)."];
   const owner = await getDoc(doc(db, "codes", code));
-  return owner.exists() ? ["taken", `${code} is taken. Try another.`] : ["ok", `${code} is available!`];
+  return owner.exists() ? ["taken", `@${code.toLowerCase()} is taken. Try another.`] : ["ok", `@${code.toLowerCase()} is available!`];
 }
 async function checkNewId() {
   const n = ++idCheck, code = cleanId($("idInput").value);
@@ -924,7 +924,7 @@ async function changeId() {
     profile = { ...profile, code };
     $("idEdit").hidden = true;
     renderMe();
-    say(`Your friend ID is now ${code}.`, true);
+    say(`Your username is now @${code.toLowerCase()}.`, true);
   } catch {
     $("idMsg").textContent = `${code} was just taken. Try another.`; $("idMsg").className = "bad";
   } finally { $("idSave").textContent = "Save"; }
@@ -943,10 +943,10 @@ async function ensureCalToken(user) {
 // ---------- actions ----------
 async function sendRequest() {
   const code = cleanId($("addInput").value);
-  if (!ID_RULE.test(code)) return say("Friend IDs are 3 to 15 letters, numbers or _.");
-  if (code === profile.code) return say("That's your own ID!");
+  if (!ID_RULE.test(code)) return say("Usernames are 3 to 15 letters, numbers or _.");
+  if (code === profile.code) return say("That's your own username!");
   const owner = await getDoc(doc(db, "codes", code));
-  if (!owner.exists()) return say("No one has that ID. Double-check it with your friend.");
+  if (!owner.exists()) return say("No one has that username. Double-check it with your friend.");
   const { uid, name } = owner.data();
   if (friendIds.includes(uid)) return say(`You're already friends with ${name}.`);
   if (outgoing.some(r => r.to === uid)) return say(`You already asked ${name}. Waiting for them to accept.`);

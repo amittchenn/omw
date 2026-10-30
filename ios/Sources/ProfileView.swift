@@ -11,6 +11,10 @@ struct ProfileView: View {
     @State private var posting = false
     @State private var removing = false
     @State private var card: Card?  // for people who aren't your friends: their public card
+    @State private var tab = Tab.posts
+    @State private var friendCount = 0
+
+    enum Tab: String, CaseIterable { case posts = "Posts", places = "Places", memories = "Memories" }
 
     private var mine: Bool { uid == session.uid }
     private var person: Person? { session.person(uid) }
@@ -34,15 +38,30 @@ struct ProfileView: View {
                 }
                 HStack(spacing: 28) {
                     stat(posts.count, posts.count == 1 ? "post" : "posts")
-                    if mine { stat(session.friends.count, session.friends.count == 1 ? "friend" : "friends") }
+                    if mine || session.isFriend(uid) {
+                        NavigationLink { FriendsListView(uid: uid) } label: {
+                            stat(mine ? session.friends.count : friendCount, (mine ? session.friends.count : friendCount) == 1 ? "friend" : "friends")
+                        }
+                        .buttonStyle(.plain)
+                    }
                     if hangoutCount > 0 { stat(hangoutCount, hangoutCount == 1 ? "hangout" : "hangouts") }
                 }
                 buttons
-                Divider()
-                grid
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
+            .padding(.bottom, 14)
+            if mine {
+                tabs
+                switch tab {
+                case .posts: grid.padding(.top, 1.5)  // edge to edge, like Instagram
+                case .places: PlacesList()
+                case .memories: MemoriesCalendar()
+                }
+            } else {
+                Divider()
+                grid.padding(.top, 1.5)
+            }
         }
         .scrollIndicators(.hidden)
         .navigationTitle(mine ? (person?.handle ?? "") : "")
@@ -57,7 +76,7 @@ struct ProfileView: View {
                 }
             }
         }
-        .sheet(isPresented: $settings) { SettingsView() }
+        .sheet(isPresented: $settings) { SettingsView().withOmw() }
         .newPostFlow($posting)
         .confirmationDialog("Remove \(name.split(separator: " ").first.map(String.init) ?? name)?", isPresented: $removing, titleVisibility: .visible) {
             Button("Remove", role: .destructive) { session.removeFriend(uid) }
@@ -66,7 +85,33 @@ struct ProfileView: View {
         }
         .task(id: uid) {
             if person == nil { session.cards([uid]) { card = $0[uid] } }
+            if !mine, session.isFriend(uid) {
+                session.db.collection("users").document(uid).collection("friends").getDocuments { snap, _ in
+                    MainActor.assumeIsolated { friendCount = snap?.documents.count ?? 0 }
+                }
+            }
         }
+    }
+
+    /// Posts | Places | Calendar, underlined like Instagram's
+    private var tabs: some View {
+        HStack(spacing: 0) {
+            ForEach(Tab.allCases, id: \.self) { t in
+                Button { withAnimation(.snappy(duration: 0.2)) { tab = t } } label: {
+                    Label(t.rawValue, systemImage: t == .posts ? "square.grid.3x3" : t == .places ? "star" : "photo.on.rectangle.angled")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(tab == t ? Color.primary : Color.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .overlay(alignment: .bottom) {
+                            Rectangle().fill(tab == t ? Color.primary : Color.clear).frame(height: 2)
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .overlay(alignment: .bottom) { Rectangle().fill(Color(.separator)).frame(height: 0.5) }
+        .sensoryFeedback(.selection, trigger: tab)
     }
 
     private func stat(_ n: Int, _ label: String) -> some View {
@@ -80,7 +125,7 @@ struct ProfileView: View {
         if mine {
             HStack(spacing: 8) {
                 NavigationLink { EditProfileView() } label: { pill("Edit profile") }
-                ShareLink(item: "Add me on omw! My friend ID is \(code)") { pill("Share profile") }
+                ShareLink(item: "Add me on omw! My username is @\(code.lowercased())") { pill("Share profile") }
             }
             .buttonStyle(.plain)
         } else if !session.isFriend(uid) {
@@ -117,11 +162,14 @@ struct ProfileView: View {
             }
             .padding(.top, 40)
         } else {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 3), spacing: 2) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1.5), count: 3), spacing: 1.5) {
                 ForEach(posts) { post in
                     NavigationLink(value: PostRoute(id: post.id)) {
-                        RemoteImage(source: post.allPhotos.first ?? "")
-                            .aspectRatio(1, contentMode: .fill)
+                        Color(.secondarySystemFill)
+                            .aspectRatio(3 / 4, contentMode: .fit)  // portrait tiles, like the web app
+                            .overlay { RemoteImage(source: post.allPhotos.first ?? "") }
+                            .clipped()
+                            .contentShape(Rectangle())
                             .overlay(alignment: .topTrailing) {
                                 if post.allPhotos.count > 1 {
                                     Image(systemName: "square.fill.on.square.fill").font(.caption).foregroundStyle(.white).padding(6).shadow(radius: 2)
@@ -130,7 +178,6 @@ struct ProfileView: View {
                     }
                 }
             }
-            .padding(.horizontal, -16)  // edge to edge, like Instagram
         }
     }
 }
@@ -144,6 +191,8 @@ struct SettingsView: View {
     @State private var appleStep = false
     @State private var deleting = false
     @State private var problem: String?
+
+    @State private var privacyAsk: Bool?  // true: asking to go private, false: to go public
 
     private var usesApple: Bool { session.user?.providerData.contains { $0.providerID == "apple.com" } ?? false }
 
@@ -161,49 +210,60 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Section {
-                    ForEach(ShareMode.allCases) { mode in
-                        Button { location.choose(mode) } label: {
-                            HStack(alignment: .firstTextBaseline) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(mode.title).foregroundStyle(.primary)
-                                    Text(mode.detail).font(.footnote).foregroundStyle(.secondary)
-                                }
+                Section("Privacy") {
+                    // the switch asks first, like Instagram ("Switch to private account?")
+                    Toggle(isOn: Binding(get: { !session.isPublic }, set: { privacyAsk = $0 })) {
+                        Label("Private account", systemImage: "lock")
+                    }
+                    .tint(.green)
+                    // where you are: chosen in the iPhone's Settings, like any Apple app
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    } label: {
+                        HStack {
+                            Label("Location", systemImage: "location")
+                            Spacer()
+                            Text(location.mode == .always ? "Always" : location.mode == .never ? "Never" : "While Using")
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "arrow.up.forward").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    if let blocked = session.me?.blocked, !blocked.isEmpty {
+                        NavigationLink { BlockedList() } label: {
+                            HStack {
+                                Label("Blocked", systemImage: "hand.raised")
                                 Spacer()
-                                if location.mode == mode { Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(Color.omwBlue) }
+                                Text("\(blocked.count)").foregroundStyle(.secondary)
                             }
                         }
                     }
-                    if location.needsSettings {
-                        Button("Allow in iPhone Settings") {
-                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                        }
-                    }
-                } header: {
-                    Text("Share my location")
-                } footer: {
-                    Text(location.needsSettings
-                         ? (location.mode == .always ? "iPhone Settings → omw! → Location → Always." : "iPhone Settings → omw! → Location → While Using the App.")
-                         : "Only your friends can see it.")
                 }
+                Section("About") {
+                    Link(destination: API.base.appending(path: "support")) { Label("Help", systemImage: "questionmark.circle") }
+                    Link(destination: API.base.appending(path: "privacy")) { Label("Privacy Policy", systemImage: "hand.raised.square") }
+                    Link(destination: API.base.appending(path: "terms")) { Label("Terms of Use", systemImage: "doc.text") }
+                }
+                .foregroundStyle(.primary)
                 Section {
                     Button("Sign out") { dismiss(); session.signOut() }
-                }
-                Section {
+                        .foregroundStyle(.primary)
                     Button(deleting ? "Deleting…" : "Delete account", role: .destructive) { confirmDelete = true }
                         .disabled(deleting)
-                } footer: {
-                    Text("Deletes your profile, friends, plans you made, photos and messages for good.")
-                }
-                Section {
-                    Link("Privacy Policy", destination: API.base.appending(path: "privacy"))
-                    Link("Terms of Use", destination: API.base.appending(path: "terms"))
-                    Link("Help", destination: API.base.appending(path: "support"))
                 }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .confirmationDialog(privacyAsk == true ? "Switch to a private account?" : "Switch to a public account?",
+                                isPresented: Binding(get: { privacyAsk != nil }, set: { if !$0 { privacyAsk = nil } }), titleVisibility: .visible) {
+                Button(privacyAsk == true ? "Switch to private" : "Switch to public") {
+                    if let p = privacyAsk { session.setPublic(!p) }
+                    privacyAsk = nil
+                }
+            } message: {
+                Text(privacyAsk == true ? "Only your friends will see your posts." : "Anyone on omw! will see your posts.")
+            }
             .confirmationDialog("Delete your omw! account?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete account", role: .destructive) {
                     if usesApple { appleStep = true } else { delete(appleCode: nil) }
@@ -252,5 +312,25 @@ struct SettingsView: View {
             }
             deleting = false
         }
+    }
+}
+
+/// people you blocked: tap to unblock
+struct BlockedList: View {
+    @Environment(Session.self) private var session
+    @State private var cards: [String: Card] = [:]
+
+    var body: some View {
+        List(session.me?.blocked ?? [], id: \.self) { id in
+            HStack(spacing: 12) {
+                Avatar(photo: cards[id]?.photo ?? "", name: cards[id]?.name ?? "?", size: 40)
+                Text(cards[id]?.name ?? "Someone").font(.subheadline.weight(.semibold))
+                Spacer()
+                Button("Unblock") { session.unblock(id) }.buttonStyle(.bordered)
+            }
+        }
+        .navigationTitle("Blocked")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { session.cards(session.me?.blocked ?? []) { cards = $0 } }
     }
 }

@@ -6,6 +6,7 @@
 import SwiftUI
 import PhotosUI
 import FirebaseFirestore
+import FirebaseAuth
 
 extension Session {
     static let idChars = Array("ABCDEFGHJKMNPQRSTUVWXYZ23456789")  // no 0/O or 1/I/L, easy to read out loud
@@ -27,7 +28,7 @@ extension Session {
         }
     }
 
-    /// keep your friend ID if it's yours; otherwise claim a random free one
+    /// keep your username if it's yours; otherwise claim a random free one
     private func ensureCode() async -> String? {
         guard let uid, let me else { return nil }
         if !me.code.isEmpty {
@@ -56,7 +57,7 @@ extension Session {
         }
     }
 
-    /// a new friend ID: 3 to 15 letters, numbers or _, and nobody else's
+    /// a new username: 3 to 15 letters, numbers or _, and nobody else's
     func changeCode(to code: String) async throws {
         guard let uid, let me else { return }
         let old = me.code
@@ -134,12 +135,18 @@ struct EditProfileView: View {
     @State private var codeOK = false
     @State private var saving = false
     @State private var problem: String?
+    @State private var home: PlaceHit?
 
     private struct Travel: Identifiable { let id: String, name: String, symbol: String }
     private static let modes = [Travel(id: "driving", name: "Drive", symbol: "car.fill"), Travel(id: "walking", name: "Walk", symbol: "figure.walk"),
                                 Travel(id: "cycling", name: "Bike", symbol: "bicycle"), Travel(id: "transit", name: "Transit", symbol: "tram.fill")]
 
     private var myCode: String { session.me?.code ?? "" }
+    private var homeLabel: String {
+        if let name = home?.name { return name }
+        guard let me = session.me, me.home != nil else { return "Set your home" }
+        return me.homeName.isEmpty ? "Home set" : me.homeName
+    }
     private var codeChanged: Bool { !code.isEmpty && code != myCode }
 
     var body: some View {
@@ -164,8 +171,9 @@ struct EditProfileView: View {
             Section {
                 HStack(spacing: 2) {
                     Text("@").foregroundStyle(.secondary)
-                    TextField("friend ID", text: $code)
-                        .textInputAutocapitalization(.characters)
+                    // usernames are stored in capitals (like the web app) and shown in lowercase
+                    TextField("username", text: Binding(get: { code.lowercased() }, set: { code = $0 }))
+                        .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onChange(of: code) {
                             let clean = String(code.uppercased().filter { $0.isLetter && $0.isASCII || $0.isNumber || $0 == "_" }.prefix(15))
@@ -173,10 +181,22 @@ struct EditProfileView: View {
                         }
                 }
             } header: {
-                Text("Friend ID")
+                Text("Username")
             } footer: {
-                Text(codeNote.isEmpty ? "Friends add you with this. Letters, numbers and _, 3 to 15." : codeNote)
+                Text(codeNote)
                     .foregroundStyle(codeChanged && !codeOK && !codeNote.isEmpty && codeNote != "Checking…" ? Color.red : Color.secondary)
+            }
+
+            Section {
+                NavigationLink { PlacePicker(selection: $home) } label: {
+                    HStack {
+                        Image(systemName: "house.fill").foregroundStyle(.secondary)
+                        Text(homeLabel)
+                            .foregroundStyle(home == nil && session.me?.home == nil ? Color.secondary : Color.primary)
+                    }
+                }
+            } header: {
+                Text("Home")
             }
 
             Section("How you get around") {
@@ -240,6 +260,7 @@ struct EditProfileView: View {
             do {
                 if codeChanged { try await session.changeCode(to: code) }
                 try await session.saveProfile(name: name, travelMode: mode, photo: newPhoto)
+                if let home, home.lat != nil { session.setHome(home) }
                 dismiss()
             } catch {
                 problem = codeChanged ? "@\(code.lowercased()) was just taken. Try another." : error.localizedDescription

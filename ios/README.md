@@ -10,7 +10,7 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 | Sign in (Google, Apple, email; forgot password) | Done |
 | Feed: friends row with statuses, posts with photo swipe, likes, double-tap to like, report/hide/delete | Done |
 | Comments sheet (hold a comment to delete or report) | Done |
-| New post: Apple's photo picker (up to 4), caption, location search, tag friends | Done |
+| New post: your camera roll in a grid like Instagram (asks once; Apple's picker if you say no), up to 4, caption, location, tags | Done |
 | Add friends: search usernames, requests, Quick Add (friends of friends), invite | Done |
 | Profiles: yours and anyone's, Add / Requested / Accept, Friends ▾ → Remove, posts grid | Done |
 | Map (Apple Maps): friends sharing their location, you, 3D buildings | Done |
@@ -18,12 +18,20 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 | Share my location: Never / While using the app / Always (auto check-in at the spot even with omw! closed) | Done |
 | Plans: coming up and past | Done |
 | Settings: location sharing, sign out, delete account (with Apple's confirm), privacy/terms/help | Done |
-| + planner: what, who, where, when, everyone's leave time, send invites | Done |
+| + planner: what, who, where, when (quick picks + wheel), the forecast there, everyone's leave time, send invites | Done |
 | Plan details: Going / Can't make it, leave-by time, directions, I'm here, who's arrived | Done |
 | Chats: DMs, group chats (name, add people, leave), every plan's group chat, unread badges, search | Done |
 | Edit profile: picture, name, friend ID (checks it's free), how you get around | Done |
 | New accounts: a friend ID, a public card and your Google/Apple picture, like the web app | Done |
-| Ranking places, notifications, Live Activity | Next (still in the current app) |
+| Places: rank spots like Beli (how was it, then which did you like more), your list with scores, Rate a place | Done |
+| Calendar on your profile: each month with your photos and plans on their days | Done |
+| Map: search any place, place card (Plan here, Save, Rate, Go), saved places | Done |
+| Planner: Muse (plan from one sentence), your own hangout types, how each person gets there, find a fair spot for everyone; Home in Edit profile | Done |
+| Feed: up next (your next plan), the on-time board (tap for all), ratings and who was late on posts, Rate and Block on posts | Done |
+| Settings: private account, blocked people; friends lists on profiles | Done |
+| Plans: the group photo once everyone's there (camera or upload, shared to the feed), friends on their way live on the map | Done |
+| Notifications (leave now, invites, chats; tapping opens them) | Done in code: add the FirebaseMessaging package + Push Notifications capability (paid account) |
+| Live Activity (Dynamic Island + lock screen): leave countdown, who's arrived | Done in code: add the widget target below |
 
 `Sources/`:
 - `OmwApp.swift`: app start; signed out → sign in, signed in → tabs
@@ -32,6 +40,15 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 - `Components.swift`: colors, pictures, avatars
 - `Session+Actions.swift`: adding friends and posting
 - `Account.swift`: setting up your account (friend ID, public card) and Edit profile
+- `AlbumPicker.swift`: picking photos from your camera roll
+- `Weather.swift`: the forecast in the planner
+- `Places.swift`: ranking places, your list, saved places
+- `Memories.swift`: the Calendar tab
+- `PlannerExtras.swift`: your hangout types, travel per person, fair spot
+- `Social.swift`: the on-time board, up next, blocking, private account, friends lists
+- `GroupPhoto.swift`: the group photo once everyone's arrived
+- `Push.swift`: notifications
+- `LiveActivity.swift`: starting and updating the Live Activity (the widget that draws it is in `ios/Widget`)
 - `Chats.swift`: the inbox, DMs, group chats and plan chats (same documents as web/dms.js and web/chat.js)
 - `API.swift`: the omw! server (place search, deleting accounts; the planner next)
 - `LocationService.swift`: sharing your location the way you chose, and checking you in when you arrive
@@ -64,6 +81,7 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
    - Same way, add `Privacy - Location Always and When In Use Usage Description` →
      `With "Always", omw! checks you in when you arrive at a hangout, even when it's closed.`
    - Same way, add `Privacy - Photo Library Usage Description` → `Pick photos to post.`
+   - Same way, add `Privacy - Camera Usage Description` → `Take the group photo when everyone's there.`
      (Apple's photo picker doesn't strictly need it, but App Review likes it there)
 6. Pick an iPhone simulator at the top and press **▶**.
 
@@ -71,3 +89,15 @@ Both apps use the bundle ID `com.amittchenn.omw`, so installing this one replace
 simulator. That's fine: the data lives in Firebase, not on the phone.
 
 If Xcode shows an error, copy the red message (and the file and line) and send it over.
+
+## Notifications and the Live Activity (once you have the paid Apple Developer account)
+
+1. **Notifications.** File → Add Package Dependencies… → the Firebase package is already there: target `omw` →
+   General → Frameworks → **+** → **FirebaseMessaging**. Then Signing & Capabilities → **+ Capability** → **Push
+   Notifications** and **Background Modes** (tick *Remote notifications*). The app asks for permission after you sign in.
+2. **Live Activity.** File → New → Target → **Widget Extension** → Product Name `OmwLive`, tick **Include Live
+   Activity** → Finish → *Don't Activate*. Delete the Swift files Xcode made in the new OmwLive folder, then drag in the
+   three files from `ios/Widget` (Reference files in place, target **OmwLive** only). OmwLive target → General →
+   Minimum Deployments → iOS 17.0.
+3. Target `omw` → Info → add `Supports Live Activities` = YES, and under URL Types add another one with URL Schemes
+   `omw` (tapping the Live Activity opens that plan).

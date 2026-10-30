@@ -6,13 +6,21 @@ struct FeedView: View {
     @Environment(Session.self) private var session
     @State private var commentsFor: Post?
     @State private var posting = false
+    @State private var chatsOpen = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    header
                     FriendsRow()
                         .padding(.vertical, 10)
+                    VStack(spacing: 10) {
+                        if let next = session.upNext { UpNextCard(hangout: next) }
+                        BoardCard()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
                     Divider()
                     if session.posts.isEmpty {
                         ContentUnavailableView("No posts yet", systemImage: "photo.on.rectangle.angled",
@@ -25,41 +33,70 @@ struct FeedView: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("omw\(Text("!").foregroundStyle(Color.sun))")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
+            .toolbar(.hidden, for: .navigationBar)  // our own header, like Instagram's (the bar's glass buttons squash the logo)
+            // swipe in from the right edge for Chats, from the left edge for a new post, like Instagram
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20).onEnded { v in
+                    let dx = v.translation.width, dy = v.translation.height, width = UIScreen.main.bounds.width
+                    guard abs(dx) > 70, abs(dx) > abs(dy) * 1.8 else { return }
+                    if dx < 0, v.startLocation.x > width - 44 { chatsOpen = true }
+                    else if dx > 0, v.startLocation.x < 44 { posting = true }
                 }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    NavigationLink { AddFriendsView() } label: {
-                        Image(systemName: "person.badge.plus")
-                            .overlay(alignment: .topTrailing) {
-                                if !session.incoming.isEmpty { Circle().fill(.red).frame(width: 9, height: 9).offset(x: 3, y: -2) }
-                            }
-                    }
-                    Button { posting = true } label: { Image(systemName: "plus.app") }
-                    NavigationLink { ChatsView() } label: {
-                        Image(systemName: "bubble.left")
-                            .overlay(alignment: .topTrailing) {
-                                if session.unreadChats > 0 {
-                                    Text("\(session.unreadChats)").font(.caption2.weight(.bold)).foregroundStyle(.white)
-                                        .padding(.horizontal, 5).frame(minWidth: 17, minHeight: 17)
-                                        .background(Color.red, in: Capsule()).offset(x: 9, y: -7)
-                                }
-                            }
-                    }
-                    .accessibilityLabel("Chats")
-                }
-            }
+            )
+            .navigationDestination(isPresented: $chatsOpen) { ChatsView() }
             .withProfileRoutes()
             .sheet(item: $commentsFor) { post in
-                CommentsSheet(post: post)
+                CommentsSheet(post: post).withOmw()
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
             .newPostFlow($posting)
         }
+    }
+}
+
+extension FeedView {
+    /// omw! on the left; add friends, post and chats on the right, as plain icons (the web app's feed header)
+    var header: some View {
+        HStack(spacing: 2) {
+            Text("omw\(Text("!").foregroundStyle(Color.sun))")
+                .font(.system(size: 30, weight: .black, design: .rounded))
+                .tracking(-1)
+            Spacer()
+            NavigationLink { AddFriendsView() } label: { HeaderIcon(symbol: "person.badge.plus", count: session.incoming.count, dot: true) }
+                .accessibilityLabel("Add friends")
+            Button { posting = true } label: { HeaderIcon(symbol: "plus.app") }
+                .accessibilityLabel("New post")
+            NavigationLink { ChatsView() } label: { HeaderIcon(symbol: "bubble.left", count: session.unreadChats) }
+                .accessibilityLabel("Chats")
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 16).padding(.trailing, 8).padding(.vertical, 2)
+    }
+}
+
+/// a header button: the icon, with a red dot or count when something's waiting
+struct HeaderIcon: View {
+    let symbol: String
+    var count = 0
+    var dot = false
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 22, weight: .regular))
+            .frame(width: 42, height: 42)
+            .contentShape(Rectangle())
+            .overlay(alignment: .topTrailing) {
+                if count > 0 {
+                    if dot {
+                        Circle().fill(.red).frame(width: 9, height: 9).offset(x: -6, y: 8)
+                    } else {
+                        Text("\(count)").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                            .padding(.horizontal, 5).frame(minWidth: 17, minHeight: 17)
+                            .background(Color.red, in: Capsule()).offset(x: -2, y: 4)
+                    }
+                }
+            }
     }
 }
 
@@ -97,13 +134,10 @@ struct FriendsRow: View {
         }
         .scrollIndicators(.hidden)
         .buttonStyle(.plain)
-        .confirmationDialog(freeTitle, isPresented: $askingFree, titleVisibility: .visible) {
-            Button("For an hour") { session.setFree(hours: 1) }
-            Button("Next 2 hours") { session.setFree(hours: 2) }
-            if Calendar.current.component(.hour, from: .now) < 21 { Button("Tonight") { session.setFree(tonight: true) } }
-            if session.me?.status == .free { Button("I'm not free anymore", role: .destructive) { session.setFree(hours: 0) } }
-        } message: {
-            Text(session.me?.status == .free ? "Change it, or turn it off." : "They'll see it over your picture, so they can ask you to hang out.")
+        .sheet(isPresented: $askingFree) {
+            FreeSheet().withOmw()
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -113,7 +147,7 @@ struct FriendsRow: View {
     }
 
     /// "till 9", "till 5:15" (it's always within the next few hours, so no am/pm)
-    static func till(_ date: Date) -> String {
+    nonisolated static func till(_ date: Date) -> String {
         let h = Calendar.current.component(.hour, from: date) % 12, m = Calendar.current.component(.minute, from: date)
         return "till \(h == 0 ? 12 : h)\(m == 0 ? "" : String(format: ":%02d", m))"
     }
@@ -149,8 +183,18 @@ struct PostCard: View {
     @Environment(Session.self) private var session
     @State private var page = 0
     @State private var bigHeart = false
+    @State private var rating = false
 
     private var liked: Bool { session.uid.map { post.likes.contains($0) } ?? false }
+
+    /// a group photo says who was late (the latest one), or that everyone was on time
+    private var lateBadge: (text: String, ok: Bool)? {
+        guard let worst = post.late.max(by: { $0.value < $1.value }) else { return nil }
+        if worst.value <= Session.lateAfterMinutes { return ("⚡ All on time", true) }
+        let who = worst.key == session.uid ? "You" : session.person(worst.key)?.firstName ?? post.names[worst.key]?.split(separator: " ").first.map(String.init) ?? "Someone"
+        let m = worst.value < 60 ? "\(Int(worst.value.rounded())) min" : "\(Int((worst.value / 60).rounded())) h"
+        return ("\(who) \(m) late", false)
+    }
     private var mine: Bool { post.by == session.uid }
 
     var body: some View {
@@ -159,9 +203,6 @@ struct PostCard: View {
             photos
             actions
             VStack(alignment: .leading, spacing: 6) {
-                if !post.likes.isEmpty {
-                    Text(post.likes.count == 1 ? "1 like" : "\(post.likes.count) likes").font(.subheadline.weight(.semibold))
-                }
                 if !post.caption.isEmpty {
                     Text(line(session.handle(post.by, in: post), post.caption)).font(.subheadline)
                 } else if post.isGroupPhoto, !post.title.isEmpty {
@@ -174,6 +215,10 @@ struct PostCard: View {
         }
         .padding(.vertical, 12)
         .onAppear { session.watchComments(post.id) }
+        .sheet(isPresented: $rating) {
+            RankSheet(place: RankedPlace(name: post.venueName, address: post.address, venue: post.venue), post: post.id)
+                .withOmw().presentationDetents([.height(380)]).presentationDragIndicator(.visible)
+        }
     }
 
     private var header: some View {
@@ -186,7 +231,15 @@ struct PostCard: View {
                     Text(session.handle(post.by, in: post)).font(.subheadline.weight(.semibold))
                 }
                 if !post.venueName.isEmpty {
-                    Text(post.venueName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(post.venueName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        if let s = post.averageRating {
+                            Text(String(format: "%.1f", s)).font(.caption2.weight(.bold))
+                                .padding(.horizontal, 6).padding(.vertical, 1)
+                                .background(Color.freeGreen.opacity(0.2), in: Capsule())
+                        }
+                        if let late = lateBadge { Text(late.text).font(.caption2.weight(.bold)).foregroundStyle(late.ok ? Color.freeGreen : Color.orange) }
+                    }
                 }
             }
             Spacer()
@@ -196,6 +249,10 @@ struct PostCard: View {
                 } else {
                     Button("Hide", systemImage: "eye.slash") { withAnimation(.snappy(duration: 0.25)) { session.hide(post) } }
                     Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) { session.report(post) }
+                    Button("Block \(session.handle(post.by, in: post))", systemImage: "hand.raised", role: .destructive) { session.block(post.by) }
+                }
+                if !post.venueName.isEmpty {
+                    Button("Rate \(post.venueName)", systemImage: "star") { rating = true }
                 }
             } label: {
                 Image(systemName: "ellipsis").frame(width: 36, height: 36)
@@ -231,17 +288,30 @@ struct PostCard: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 18) {
+        let comments = session.comments[post.id]?.count ?? 0
+        return HStack(spacing: 16) {
             Button { session.toggleLike(post) } label: {
-                Image(systemName: liked ? "heart.fill" : "heart")
-                    .foregroundStyle(liked ? Color.red : Color.primary)
-                    .contentTransition(.symbolEffect(.replace))
+                HStack(spacing: 5) {
+                    Image(systemName: liked ? "heart.fill" : "heart")
+                        .foregroundStyle(liked ? Color.red : Color.primary)
+                        .contentTransition(.symbolEffect(.replace))
+                    if !post.likes.isEmpty { Text("\(post.likes.count)").font(.subheadline.weight(.bold)) }
+                }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: liked)
-            Button(action: onComments) { Image(systemName: "bubble.right") }
+            Button(action: onComments) {
+                HStack(spacing: 5) {
+                    Image(systemName: "message")
+                    if comments > 0 { Text("\(comments)").font(.subheadline.weight(.bold)) }
+                }
+            }
             Spacer()
+            if !post.venueName.isEmpty {
+                Button { rating = true } label: { Image(systemName: "star") }
+                    .accessibilityLabel("Rate \(post.venueName)")
+            }
         }
-        .font(.system(size: 23))
+        .font(.system(size: 22, weight: .medium))
         .buttonStyle(.plain)
         .padding(.horizontal, 14)
     }
@@ -283,7 +353,7 @@ struct PostDetailView: View {
         .navigationTitle("Post")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $commentsFor) { post in
-            CommentsSheet(post: post).presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+            CommentsSheet(post: post).withOmw().presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
         }
     }
 }
@@ -297,5 +367,63 @@ struct ComingSoon: View {
         ContentUnavailableView(title, systemImage: symbol, description: Text("Coming to the new app soon. It works in the current omw! app for now."))
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// "I'm free": for how long, so friends can ask you to hang out (it shows over your picture)
+struct FreeSheet: View {
+    @Environment(Session.self) private var session
+    @Environment(\.dismiss) private var dismiss
+    @State private var picking = false
+    @State private var until = Date.now.addingTimeInterval(3 * 3600)
+
+    private var free: Bool { session.me?.status == .free }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(free ? "Free till \(session.me?.freeUntil?.formatted(date: .omitted, time: .shortened) ?? "")" : "I'm free")
+                .font(.system(size: 26, weight: .black, design: .rounded))
+                .padding(.top, 24)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                choice("30 min") { set(Date.now.addingTimeInterval(30 * 60)) }
+                choice("1 hour") { set(Date.now.addingTimeInterval(3600)) }
+                choice("2 hours") { set(Date.now.addingTimeInterval(2 * 3600)) }
+                choice("3 hours") { set(Date.now.addingTimeInterval(3 * 3600)) }
+                if Calendar.current.component(.hour, from: .now) < 22 {
+                    choice("Tonight") { set(Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: .now)) }
+                }
+                choice("Pick a time") { withAnimation(.snappy(duration: 0.2)) { picking.toggle() } }
+            }
+            if picking {
+                HStack {
+                    DatePicker("Free till", selection: $until, in: Date.now.addingTimeInterval(15 * 60)..., displayedComponents: [.hourAndMinute])
+                        .font(.subheadline.weight(.semibold))
+                    Button("Set") { set(until) }.buttonStyle(.borderedProminent).tint(Color.freeGreen)
+                }
+            }
+            if free {
+                Button("I'm not free anymore", role: .destructive) { set(nil) }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 4)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private func choice(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.headline)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(Color(.secondarySystemFill), in: .rect(cornerRadius: 16))
+        }
+        .buttonStyle(Pressable())
+        .foregroundStyle(.primary)
+    }
+
+    private func set(_ date: Date?) {
+        session.setFree(until: date)
+        dismiss()
     }
 }

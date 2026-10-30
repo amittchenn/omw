@@ -1,5 +1,5 @@
-// Posting, like Instagram: pick up to 4 photos from your library (Apple's own picker), then a caption, a place and
-// who's in it, and Share.
+// Posting, like Instagram: pick up to 4 photos from your camera roll (AlbumPicker.swift), then a caption, a place
+// and who's in it, and Share.
 import SwiftUI
 import PhotosUI
 import CoreLocation
@@ -7,23 +7,16 @@ import CoreLocation
 /// Put on a screen to give it a "new post" flow: set `picking` to true to start.
 struct NewPostFlow: ViewModifier {
     @Binding var picking: Bool
-    @State private var items: [PhotosPickerItem] = []
+    @State private var pending: Draft?
     @State private var draft: Draft?
 
     func body(content: Content) -> some View {
         content
-            .photosPicker(isPresented: $picking, selection: $items, maxSelectionCount: 4, selectionBehavior: .ordered, matching: .images)
-            .onChange(of: items) {
-                guard !items.isEmpty else { return }
-                let chosen = items
-                items = []
-                Task {
-                    var images: [UIImage] = []
-                    for item in chosen {
-                        if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { images.append(image) }
-                    }
-                    if !images.isEmpty { draft = Draft(images: images) }
-                }
+            // the camera roll first; the caption sheet opens once it's gone
+            .fullScreenCover(isPresented: $picking, onDismiss: {
+                if let pending { draft = pending; self.pending = nil }
+            }) {
+                AlbumPicker { images in pending = Draft(images: images) }
             }
             .sheet(item: $draft) { draft in
                 ComposeView(draft: draft)

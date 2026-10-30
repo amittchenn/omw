@@ -5,6 +5,7 @@ struct MainTabView: View {
     @Environment(Session.self) private var session
     @State private var tab: Tab = .feed
     @State private var planning = false
+    @State private var router = PushRouter.shared  // a tapped notification (Push.swift)
 
     enum Tab: Hashable { case feed, map, plan, plans, me }
 
@@ -40,6 +41,8 @@ struct MainTabView: View {
                 .presentationDragIndicator(.visible)
         }
         .sensoryFeedback(.selection, trigger: tab)
+        .sheet(item: Bindable(router).open) { PushDestinationView(destination: $0) }
+        .onAppear { session.setUpPush() }
     }
 }
 
@@ -49,5 +52,6 @@ extension View {
         navigationDestination(for: ProfileRoute.self) { ProfileView(uid: $0.uid) }
             .navigationDestination(for: PostRoute.self) { PostDetailView(id: $0.id) }
             .navigationDestination(for: ChatRef.self) { ConversationView(ref: $0) }
+            .navigationDestination(for: PlanRoute.self) { PlanDetailView(id: $0.id) }
     }
 }

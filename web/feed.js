@@ -784,7 +784,7 @@ async function inviteCard(code, name) {
 }
 async function invite() {
   const mine = (window.myFriends || []).find(p => p.isMe) || {}, code = mine.code || "";
-  const text = `Add me on omw! so we can plan hangouts and actually show up on time. My friend ID is ${code}.`;
+  const text = `Add me on omw! so we can plan hangouts and actually show up on time. My username is @${code.toLowerCase()}.`;
   let share = APP_LINK ? { title: "omw!", text, url: APP_LINK } : { title: "omw!", text };
   let card = null;
   try {
@@ -810,7 +810,7 @@ async function invite() {
   // no share sheet: copy it, and say so in a sheet (never a bare alert with the whole message in it)
   const copied = await navigator.clipboard?.writeText([text, APP_LINK].filter(Boolean).join(" ")).then(() => true, () => false);
   $("actionSheet").innerHTML = `<div class="as-card" role="dialog" aria-label="Invite">
-    <div class="as-group"><div class="as-title"><b>${copied ? "Invite copied" : "Your friend ID"}</b>
+    <div class="as-group"><div class="as-title"><b>${copied ? "Invite copied" : "Your username"}</b>
       ${copied ? "Paste it in Messages, Instagram or anywhere." : `Send your friends your ID: <b>@${esc(code.toLowerCase())}</b>`}</div></div>
     <button class="as-cancel" data-sheet-cancel>OK</button></div>`;
   $("actionSheet").hidden = false;

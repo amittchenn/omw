@@ -22,6 +22,9 @@ final class Session {
     var chats: [Chat] = []               // DMs and group chats you're in
     var planMessages: [String: [ChatMessage]] = [:]  // each live plan's group chat (Chats.swift)
     var planSeen: [String: Date] = [:]   // when you last opened each plan's chat (kept on this phone)
+    var ranks = Ranks()                  // your places, ranked (Places.swift)
+    var rankedPlaces: [String: RankedPlace] = [:]
+    var saved: [SavedPlace] = []         // places you saved from the map
 
     @ObservationIgnored let db = Firestore.firestore()
     @ObservationIgnored private var authHandle: AuthStateDidChangeListenerHandle?
@@ -30,6 +33,9 @@ final class Session {
     @ObservationIgnored private var friendsByID: [String: Person] = [:]
     @ObservationIgnored private var commentStops: [String: ListenerRegistration] = [:]
     @ObservationIgnored private var planChatStops: [String: ListenerRegistration] = [:]
+    @ObservationIgnored private var feedStop: ListenerRegistration?
+    @ObservationIgnored private var setUpFor: String?   // the account we've set up this time (Account.swift)
+    @ObservationIgnored var newAccount = false          // made just now: starts public, like the web app
 
     var uid: String? { user?.uid }
 
@@ -138,7 +144,9 @@ final class Session {
                 guard let self, let snap else { return }
                 if let data = snap.data() {
                     self.me = Person(id: uid, data: data)
+                    if self.setUpFor != uid, !snap.metadata.isFromCache { self.setUpFor = uid; self.setUpAccount() }
                 } else if !snap.metadata.isFromCache {
+                    self.newAccount = true
                     self.db.collection("users").document(uid).setData(["name": firstName, "travelMode": "driving", "shareLive": false], merge: true)
                 }
             }
@@ -159,14 +167,7 @@ final class Session {
         })
 
         // the feed: everything you're allowed to see, newest first
-        stops.append(db.collection("feed").whereField("viewers", arrayContains: uid)
-            .order(by: "at", descending: true).limit(to: 60)
-            .addSnapshotListener { [weak self] snap, _ in
-                MainActor.assumeIsolated {
-                    guard let self, let snap else { return }
-                    self.allPosts = snap.documents.map { Post(id: $0.documentID, data: $0.data()) }
-                }
-            })
+        listenToFeed(uid, sorted: true)
 
         // friend requests, both ways
         stops.append(db.collection("requests").whereField("to", isEqualTo: uid).addSnapshotListener { [weak self] snap, _ in
@@ -210,6 +211,14 @@ final class Session {
                 }
             })
 
+        // your private stuff: ranked places and saved places (only you can read it)
+        stops.append(db.collection("private").document(uid).addSnapshotListener { [weak self] snap, _ in
+            MainActor.assumeIsolated {
+                guard let self, let data = snap?.data() else { return }
+                self.readPrivate(data)
+            }
+        })
+
         // your chats: DMs and groups
         stops.append(db.collection("chats").whereField("members", arrayContains: uid)
             .addSnapshotListener { [weak self] snap, _ in
@@ -218,6 +227,25 @@ final class Session {
                     self.chats = snap.documents.map { Chat(id: $0.documentID, data: $0.data()) }
                 }
             })
+    }
+
+    /// The newest-first feed needs a Firestore index (DEPLOY.md). Until it's made, the same posts unsorted, sorted here
+    /// instead (like the web app), so the feed is never empty just because of a missing index.
+    private func listenToFeed(_ uid: String, sorted: Bool) {
+        var query: Query = db.collection("feed").whereField("viewers", arrayContains: uid)
+        query = sorted ? query.order(by: "at", descending: true).limit(to: 60) : query.limit(to: 120)
+        feedStop?.remove()
+        feedStop = query.addSnapshotListener { [weak self] snap, error in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if let error, sorted, (error as NSError).code == FirestoreErrorCode.Code.failedPrecondition.rawValue {
+                    self.listenToFeed(uid, sorted: false)
+                    return
+                }
+                guard let snap else { return }
+                self.allPosts = snap.documents.map { Post(id: $0.documentID, data: $0.data()) }.sorted { $0.at > $1.at }
+            }
+        }
     }
 
     /// every plan you're going to has a group chat until a day after it ends (like the web app's chat.js)
@@ -270,7 +298,10 @@ final class Session {
         friendStops.values.flatMap { $0 }.forEach { $0.remove() }; friendStops = [:]
         commentStops.values.forEach { $0.remove() }; commentStops = [:]
         planChatStops.values.forEach { $0.remove() }; planChatStops = [:]
+        feedStop?.remove(); feedStop = nil
         chats = []; planMessages = [:]; planSeen = [:]
+        setUpFor = nil; newAccount = false
+        ranks = Ranks(); rankedPlaces = [:]; saved = []
         friendsByID = [:]; friends = []; spots = [:]; allPosts = []; hangouts = []; comments = [:]; me = nil
         incoming = []; outgoing = []; invites = []
     }

@@ -17,6 +17,9 @@ struct Person: Identifiable, Equatable {
     var travelMode: String       // driving, walking, cycling or transit
     var home: CLLocationCoordinate2D?
     var habits: [Double]         // minutes after their alert they really left, from their check-ins (the model learns them)
+    var categories: [HangoutType] // hangout types they made (PlannerExtras.swift)
+    var checkins: [String: Double]  // hangout → minutes late they arrived (the on-time board, Social.swift)
+    var homeName: String
 
     init(id: String, data: [String: Any]) {
         self.id = id
@@ -33,13 +36,21 @@ struct Person: Identifiable, Equatable {
         if let h = data["home"] as? [String: Any], let lat = (h["lat"] as? NSNumber)?.doubleValue, let lng = (h["lng"] as? NSNumber)?.doubleValue {
             home = CLLocationCoordinate2D(latitude: lat, longitude: lng)
         }
+        categories = Person.parseCategories(data)
+        var seen: [String: Double] = [:]
+        for h in data["habits"] as? [[String: Any]] ?? [] {
+            if let id = h["id"] as? String, let late = (h["late"] as? NSNumber)?.doubleValue { seen[id] = late }
+        }
+        checkins = seen
+        homeName = data["homeName"] as? String ?? ""
         habits = Array((data["habits"] as? [[String: Any]] ?? []).compactMap { ($0["delay"] as? NSNumber)?.doubleValue }.suffix(30))
     }
 
     static func == (a: Person, b: Person) -> Bool {
         a.id == b.id && a.name == b.name && a.photo == b.photo && a.code == b.code && a.freeUntil == b.freeUntil
             && a.nowKind == b.nowKind && a.nowUntil == b.nowUntil && a.blocked == b.blocked && a.shareMode == b.shareMode
-            && a.travelMode == b.travelMode && a.habits == b.habits
+            && a.travelMode == b.travelMode && a.habits == b.habits && a.categories == b.categories && a.homeName == b.homeName && a.checkins == b.checkins
+            && a.home?.latitude == b.home?.latitude && a.home?.longitude == b.home?.longitude
     }
 
     var firstName: String { name.split(separator: " ").first.map(String.init) ?? name }
@@ -97,6 +108,8 @@ struct Post: Identifiable, Equatable {
     var tagged: [String]
     var isPublic: Bool
     var venue: [Double]   // [lat, lng] of the place, if there is one
+    var ratings: [String: Double]  // person → their score for the place (Places.swift)
+    var late: [String: Double]     // group photos: person → minutes late
 
     init(id: String, data: [String: Any]) {
         self.id = id
@@ -117,9 +130,12 @@ struct Post: Identifiable, Equatable {
         tagged = data["tagged"] as? [String] ?? []
         isPublic = data["public"] as? Bool ?? false
         venue = (data["venue"] as? [NSNumber] ?? []).map(\.doubleValue)
+        ratings = (data["ratings"] as? [String: Any] ?? [:]).compactMapValues { ($0 as? NSNumber)?.doubleValue }
+        late = (data["late"] as? [String: Any] ?? [:]).compactMapValues { ($0 as? NSNumber)?.doubleValue }
     }
 
     var isGroupPhoto: Bool { kind != "post" }
+    var averageRating: Double? { ratings.isEmpty ? nil : (ratings.values.reduce(0, +) / Double(ratings.count) * 10).rounded() / 10 }
     var allPhotos: [String] { photos.count > 1 ? photos : [photo].filter { !$0.isEmpty } }
 }
 

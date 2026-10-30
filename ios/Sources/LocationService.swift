@@ -13,11 +13,14 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     var authorization: CLAuthorizationStatus
     var last: CLLocation?
 
+    static var shared: LocationService!  // the one the app made (OmwApp), for withOmw()
+
     private let manager = CLLocationManager()
     private unowned let session: Session
     @ObservationIgnored private var inForeground = true
     @ObservationIgnored private var sent: (at: Date, spot: CLLocation)?
     @ObservationIgnored private var checkingIn: Set<String> = []
+    @ObservationIgnored private var sentWhere: [String: (at: Date, spot: CLLocation)] = [:]
 
     init(session: Session) {
         self.session = session
@@ -30,23 +33,21 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.activityType = .other
     }
 
-    var mode: ShareMode { session.me?.shareMode ?? .whileUsing }
-
-    /// what iOS lets omw! do falls short of what you picked (e.g. "Always" chosen, but iOS says "While Using")
-    var needsSettings: Bool {
-        switch mode {
-        case .never: false
-        case .whileUsing: authorization == .denied || authorization == .restricted
-        case .always: authorization != .authorizedAlways && authorization != .notDetermined
+    /// You choose in the iPhone's Settings → omw! → Location, like any Apple app: Never, While Using, or Always.
+    var mode: ShareMode {
+        switch authorization {
+        case .authorizedAlways: .always
+        case .denied, .restricted: .never
+        default: .whileUsing
         }
     }
 
-    func choose(_ mode: ShareMode) {
-        guard let uid = session.uid else { return }
+    /// keeps your profile in step with what you picked in Settings (the web app and friends' maps read it)
+    private func remember() {
+        guard let uid = session.uid, authorization != .notDetermined, session.me?.shareMode != mode else { return }
         session.db.collection("users").document(uid).setData(["shareMode": mode.rawValue, "shareLive": mode != .never], merge: true)
-        session.me?.shareMode = mode  // feels instant; the listener confirms it
+        session.me?.shareMode = mode
         if mode == .never { session.db.collection("locations").document(uid).delete(); sent = nil }
-        apply()
     }
 
     func foreground(_ active: Bool) {
@@ -57,6 +58,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// start or stop the right kind of updates for your choice, what iOS allows, and whether omw! is open
     func apply() {
         guard session.uid != nil else { stopAll(); return }
+        if authorization == .notDetermined { manager.requestWhenInUseAuthorization(); return }  // iOS asks once
+        remember()
         switch mode {
         case .never:
             stopAll()
@@ -111,6 +114,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         guard mode != .never, location.horizontalAccuracy >= 0, location.horizontalAccuracy < 500 else { return }
         last = location
         publish(location)
+        shareWithGroup(location)
         checkIn(at: location)
     }
 
@@ -123,6 +127,21 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         session.db.collection("locations").document(uid).setData([
             "lat": location.coordinate.latitude, "lng": location.coordinate.longitude, "at": When.string(.now),
         ]) { _ in UIApplication.shared.endBackgroundTask(task) }
+    }
+
+    /// on your way to a plan (from your leave time until you arrive): the people going see where you are, like the web
+    /// app's live.js. hangouts/{id}/where/{uid} = { lat, lng, at }, every 45 s or 30 m.
+    private func shareWithGroup(_ location: CLLocation) {
+        guard let uid = session.uid else { return }
+        for h in session.hangouts where h.arrivals[uid] == nil && h.end > .now {
+            let from = h.alerts[uid] ?? h.start.addingTimeInterval(-30 * 60)
+            guard Date.now >= from else { continue }
+            if let sent = sentWhere[h.id], Date.now.timeIntervalSince(sent.at) < 45, location.distance(from: sent.spot) < 30 { continue }
+            sentWhere[h.id] = (.now, location)
+            session.db.collection("hangouts").document(h.id).collection("where").document(uid).setData([
+                "lat": location.coordinate.latitude, "lng": location.coordinate.longitude, "at": When.string(.now),
+            ])
+        }
     }
 
     /// within 150 m of a hangout that's on: you're there

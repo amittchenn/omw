@@ -11,8 +11,15 @@ struct FeedView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    header
                     FriendsRow()
                         .padding(.vertical, 10)
+                    VStack(spacing: 10) {
+                        if let next = session.upNext { UpNextCard(hangout: next) }
+                        BoardCard()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
                     Divider()
                     if session.posts.isEmpty {
                         ContentUnavailableView("No posts yet", systemImage: "photo.on.rectangle.angled",
@@ -25,33 +32,7 @@ struct FeedView: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("omw\(Text("!").foregroundStyle(Color.sun))")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    NavigationLink { AddFriendsView() } label: {
-                        Image(systemName: "person.badge.plus")
-                            .overlay(alignment: .topTrailing) {
-                                if !session.incoming.isEmpty { Circle().fill(.red).frame(width: 9, height: 9).offset(x: 3, y: -2) }
-                            }
-                    }
-                    Button { posting = true } label: { Image(systemName: "plus.app") }
-                    NavigationLink { ChatsView() } label: {
-                        Image(systemName: "bubble.left")
-                            .overlay(alignment: .topTrailing) {
-                                if session.unreadChats > 0 {
-                                    Text("\(session.unreadChats)").font(.caption2.weight(.bold)).foregroundStyle(.white)
-                                        .padding(.horizontal, 5).frame(minWidth: 17, minHeight: 17)
-                                        .background(Color.red, in: Capsule()).offset(x: 9, y: -7)
-                                }
-                            }
-                    }
-                    .accessibilityLabel("Chats")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)  // our own header, like Instagram's (the bar's glass buttons squash the logo)
             .withProfileRoutes()
             .sheet(item: $commentsFor) { post in
                 CommentsSheet(post: post)
@@ -60,6 +41,51 @@ struct FeedView: View {
             }
             .newPostFlow($posting)
         }
+    }
+}
+
+extension FeedView {
+    /// omw! on the left; add friends, post and chats on the right, as plain icons (the web app's feed header)
+    var header: some View {
+        HStack(spacing: 2) {
+            Text("omw\(Text("!").foregroundStyle(Color.sun))")
+                .font(.system(size: 30, weight: .black, design: .rounded))
+                .tracking(-1)
+            Spacer()
+            NavigationLink { AddFriendsView() } label: { HeaderIcon(symbol: "person.badge.plus", count: session.incoming.count, dot: true) }
+                .accessibilityLabel("Add friends")
+            Button { posting = true } label: { HeaderIcon(symbol: "plus.app") }
+                .accessibilityLabel("New post")
+            NavigationLink { ChatsView() } label: { HeaderIcon(symbol: "bubble.left", count: session.unreadChats) }
+                .accessibilityLabel("Chats")
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 16).padding(.trailing, 8).padding(.vertical, 2)
+    }
+}
+
+/// a header button: the icon, with a red dot or count when something's waiting
+struct HeaderIcon: View {
+    let symbol: String
+    var count = 0
+    var dot = false
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 22, weight: .regular))
+            .frame(width: 42, height: 42)
+            .contentShape(Rectangle())
+            .overlay(alignment: .topTrailing) {
+                if count > 0 {
+                    if dot {
+                        Circle().fill(.red).frame(width: 9, height: 9).offset(x: -6, y: 8)
+                    } else {
+                        Text("\(count)").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                            .padding(.horizontal, 5).frame(minWidth: 17, minHeight: 17)
+                            .background(Color.red, in: Capsule()).offset(x: -2, y: 4)
+                    }
+                }
+            }
     }
 }
 
@@ -149,8 +175,18 @@ struct PostCard: View {
     @Environment(Session.self) private var session
     @State private var page = 0
     @State private var bigHeart = false
+    @State private var rating = false
 
     private var liked: Bool { session.uid.map { post.likes.contains($0) } ?? false }
+
+    /// a group photo says who was late (the latest one), or that everyone was on time
+    private var lateBadge: (text: String, ok: Bool)? {
+        guard let worst = post.late.max(by: { $0.value < $1.value }) else { return nil }
+        if worst.value <= Session.lateAfterMinutes { return ("⚡ All on time", true) }
+        let who = worst.key == session.uid ? "You" : session.person(worst.key)?.firstName ?? post.names[worst.key]?.split(separator: " ").first.map(String.init) ?? "Someone"
+        let m = worst.value < 60 ? "\(Int(worst.value.rounded())) min" : "\(Int((worst.value / 60).rounded())) h"
+        return ("\(who) \(m) late", false)
+    }
     private var mine: Bool { post.by == session.uid }
 
     var body: some View {
@@ -174,6 +210,10 @@ struct PostCard: View {
         }
         .padding(.vertical, 12)
         .onAppear { session.watchComments(post.id) }
+        .sheet(isPresented: $rating) {
+            RankSheet(place: RankedPlace(name: post.venueName, address: post.address, venue: post.venue), post: post.id)
+                .presentationDetents([.height(380)]).presentationDragIndicator(.visible)
+        }
     }
 
     private var header: some View {
@@ -186,7 +226,15 @@ struct PostCard: View {
                     Text(session.handle(post.by, in: post)).font(.subheadline.weight(.semibold))
                 }
                 if !post.venueName.isEmpty {
-                    Text(post.venueName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(post.venueName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        if let s = post.averageRating {
+                            Text(String(format: "%.1f", s)).font(.caption2.weight(.bold))
+                                .padding(.horizontal, 6).padding(.vertical, 1)
+                                .background(Color.freeGreen.opacity(0.2), in: Capsule())
+                        }
+                        if let late = lateBadge { Text(late.text).font(.caption2.weight(.bold)).foregroundStyle(late.ok ? Color.freeGreen : Color.orange) }
+                    }
                 }
             }
             Spacer()
@@ -196,6 +244,10 @@ struct PostCard: View {
                 } else {
                     Button("Hide", systemImage: "eye.slash") { withAnimation(.snappy(duration: 0.25)) { session.hide(post) } }
                     Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) { session.report(post) }
+                    Button("Block \(session.handle(post.by, in: post))", systemImage: "hand.raised", role: .destructive) { session.block(post.by) }
+                }
+                if !post.venueName.isEmpty {
+                    Button("Rate \(post.venueName)", systemImage: "star") { rating = true }
                 }
             } label: {
                 Image(systemName: "ellipsis").frame(width: 36, height: 36)

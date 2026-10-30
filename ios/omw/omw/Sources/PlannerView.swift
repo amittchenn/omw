@@ -63,14 +63,28 @@ struct PlanSheet: View {
     @State private var noSpot: [String] = []
     @State private var working = false
     @State private var problem: String?
+    @State private var modeFor: [String: String] = [:]  // how someone gets there for this plan (else their usual way)
+    @State private var naming = false
+    @State private var newType = ""
+
+    /// `start`: a place picked already (Plan here on the map)
+    init(start: PlaceHit? = nil) {
+        _place = State(initialValue: start)
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
+                    MuseBar(near: location.last?.coordinate, filled: fill)
+                } footer: {
+                    Text("Or fill it in yourself below.")
+                }
+
+                Section {
                     ScrollView(.horizontal) {
                         HStack(spacing: 8) {
-                            ForEach(HangoutType.all) { t in
+                            ForEach(HangoutType.all + (session.me?.categories ?? [])) { t in
                                 Button { type = t; results = nil } label: {
                                     Label(t.name, systemImage: t.symbol)
                                         .font(.subheadline.weight(.semibold))
@@ -79,7 +93,22 @@ struct PlanSheet: View {
                                         .foregroundStyle(type == t ? Color(.systemBackground) : Color.primary)
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    if t.id.hasPrefix("c_") {
+                                        Button("Delete", systemImage: "trash", role: .destructive) {
+                                            session.removeCategory(t.id)
+                                            if type == t { type = HangoutType.all[0] }
+                                        }
+                                    }
+                                }
                             }
+                            Button { naming = true } label: {
+                                Label("New", systemImage: "plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 14).frame(height: 38)
+                                    .overlay(Capsule().strokeBorder(Color(.separator), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                            }
+                            .buttonStyle(.plain)
                         }
                         .padding(.vertical, 4)
                     }
@@ -104,6 +133,30 @@ struct PlanSheet: View {
                     if session.friends.isEmpty { Text("Add friends to plan with them.") }
                 }
 
+                if !who.isEmpty {
+                    Section("Getting there") {
+                        ForEach([session.uid ?? ""] + who, id: \.self) { id in
+                            let mode = modeFor[id] ?? session.person(id)?.travelMode ?? "driving"
+                            HStack(spacing: 12) {
+                                Avatar(session.person(id), size: 32)
+                                Text(id == session.uid ? "You" : session.person(id)?.firstName ?? "Friend").font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Menu {
+                                    ForEach(Travel.modes, id: \.self) { m in
+                                        Button(Travel.name(m), systemImage: Travel.symbol(m)) { modeFor[id] = m; results = nil }
+                                    }
+                                } label: {
+                                    Label(Travel.name(mode), systemImage: Travel.symbol(mode))
+                                        .font(.subheadline.weight(.semibold))
+                                        .padding(.horizontal, 12).frame(height: 32)
+                                        .background(Color(.secondarySystemFill), in: Capsule())
+                                }
+                                .foregroundStyle(.primary)
+                            }
+                        }
+                    }
+                }
+
                 Section("Where") {
                     NavigationLink { PlacePicker(selection: $place) } label: {
                         HStack {
@@ -114,10 +167,35 @@ struct PlanSheet: View {
                             }
                         }
                     }
+                    FairSpotFinder(people: fairPeople, near: location.last?.coordinate) { place = $0 }
                 }
 
                 Section("When") {
+                    // quick picks, like the web app's time chips; the wheel below for anything else
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(PlanSheet.quickTimes()) { quick in
+                                let date = quick.date
+                                Button { when = date } label: {
+                                    Text(quick.label)
+                                        .font(.subheadline.weight(.semibold))
+                                        .padding(.horizontal, 14).frame(height: 36)
+                                        .background(when == date ? Color.primary : Color(.secondarySystemFill), in: Capsule())
+                                        .foregroundStyle(when == date ? Color(.systemBackground) : Color.primary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .scrollIndicators(.hidden)
+                    .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 6, trailing: 16))
                     DatePicker("Starts", selection: $when, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
+                }
+
+                Section("Weather") {
+                    WeatherPanel(spot: weatherSpot, when: when)
+                        .padding(.vertical, 4)
                 }
 
                 if let results {
@@ -155,6 +233,14 @@ struct PlanSheet: View {
             }
             .onChange(of: place) { results = nil }
             .onChange(of: when) { results = nil }
+            .alert("New type", isPresented: $naming) {
+                TextField("Name it, e.g. Bowling", text: $newType)
+                Button("Add") {
+                    if let t = session.addCategory(newType) { type = t; results = nil }
+                    newType = ""
+                }
+                Button("Cancel", role: .cancel) { newType = "" }
+            }
             .alert("Couldn't do that", isPresented: .constant(problem != nil)) {
                 Button("OK") { problem = nil }
             } message: { Text(problem ?? "") }
@@ -197,6 +283,72 @@ struct PlanSheet: View {
         switch mode { case "walking": "walk"; case "cycling": "bike"; case "transit": "by transit"; default: "drive" }
     }
 
+    /// Muse's answer, into the form: who, what, when, where. Returns what it did, to show under the box.
+    private func fill(_ a: MuseAnswer) -> String {
+        var done: [String] = []
+        let friends = a.who.filter { session.isFriend($0) }
+        if !friends.isEmpty {
+            who = friends
+            done.append("added " + friends.compactMap { session.person($0)?.firstName }.joined(separator: ", "))
+        }
+        if let id = a.type, let t = (HangoutType.all + (session.me?.categories ?? [])).first(where: { $0.id == id }) {
+            type = t
+            done.append(t.name.lowercased())
+        }
+        if let w = a.when, let date = When.local.date(from: w) {
+            when = date
+            done.append(date.formatted(.dateTime.weekday(.abbreviated).hour().minute()))
+        }
+        if let p = a.place, p.lat != nil {
+            place = p
+            done.append(p.name ?? "the spot")
+        } else if let q = a.place_query, !q.isEmpty {
+            done.append("couldn't find “\(q)”")
+        }
+        results = nil
+        let summary = a.summary.flatMap { $0.isEmpty ? nil : $0 } ?? "Done"
+        return done.isEmpty ? summary : "\(summary) (\(done.joined(separator: " · ")))"
+    }
+
+    /// everyone in the plan, for the fair-spot finder
+    private var fairPeople: [FairRequest.Who] {
+        ([session.uid ?? ""] + who).compactMap { id in
+            guard let p = session.person(id) else { return nil }
+            let from = startPoint(id)
+            return FairRequest.Who(id: id, name: id == session.uid ? "You" : p.firstName,
+                                   home: from.map { [$0.latitude, $0.longitude] }, mode: modeFor[id] ?? p.travelMode)
+        }
+    }
+
+    /// the weather's for the spot, or where you are until you pick one
+    private var weatherSpot: CLLocationCoordinate2D? {
+        if let lat = place?.lat, let lng = place?.lng { return CLLocationCoordinate2D(latitude: lat, longitude: lng) }
+        return location.last?.coordinate
+    }
+
+    struct QuickTime: Identifiable {
+        let label: String
+        let date: Date
+        var id: String { label }
+    }
+
+    /// the usual times people meet: tonight at 7 (if it's not too late), tomorrow lunch and dinner, the weekend afternoon
+    static func quickTimes() -> [QuickTime] {
+        let cal = Calendar.current, now = Date.now
+        func at(_ day: Date, _ hour: Int) -> Date? { cal.date(bySettingHour: hour, minute: 0, second: 0, of: day) }
+        var list: [QuickTime] = []
+        if let tonight = at(now, 19), tonight > now.addingTimeInterval(45 * 60) { list.append(QuickTime(label: "Tonight 7 PM", date: tonight)) }
+        if let tomorrow = cal.date(byAdding: .day, value: 1, to: now) {
+            if let lunch = at(tomorrow, 12) { list.append(QuickTime(label: "Tomorrow noon", date: lunch)) }
+            if let dinner = at(tomorrow, 19) { list.append(QuickTime(label: "Tomorrow 7 PM", date: dinner)) }
+        }
+        if let saturday = cal.nextDate(after: now.addingTimeInterval(36 * 3600), matching: DateComponents(weekday: 7), matchingPolicy: .nextTime),
+           let afternoon = at(saturday, 14) {
+            list.append(QuickTime(label: "Sat 2 PM", date: afternoon))
+        }
+        return list
+    }
+
     static func nextHalfHour() -> Date {
         let t = Date.now.addingTimeInterval(3600).timeIntervalSinceReferenceDate
         return Date(timeIntervalSinceReferenceDate: (t / 1800).rounded(.up) * 1800)
@@ -222,10 +374,10 @@ struct PlanSheet: View {
         let everyone = [uid] + who
         let guests: [PlanRequest.Guest] = everyone.compactMap { id in
             guard let p = session.person(id), let from = startPoint(id) else { return nil }
-            return .init(user_id: id, name: p.name, travel_mode: p.travelMode, home: [from.latitude, from.longitude], habits: p.habits)
+            return .init(user_id: id, name: p.name, travel_mode: modeFor[id] ?? p.travelMode, home: [from.latitude, from.longitude], habits: p.habits)
         }
         noSpot = everyone.filter { id in !guests.contains { $0.user_id == id } }
-        guard !guests.isEmpty else { problem = "Set your home in the current app (Settings → Home) so omw! knows where you leave from."; return }
+        guard !guests.isEmpty else { problem = "Turn on location, or set your home in Edit profile, so omw! knows where you leave from."; return }
         let request = PlanRequest(user_ids: guests.map(\.user_id), start_time: When.local.string(from: when), venue: [lat, lng],
                                   hangout_type: type.id, guests: guests, utc_offset_min: TimeZone.current.secondsFromGMT(for: when) / 60,
                                   group_size: everyone.count)
@@ -245,7 +397,7 @@ struct PlanSheet: View {
         let everyone = [uid] + who
         let planned = results ?? []
         var names: [String: String] = [:], modes: [String: String] = [:]
-        for id in everyone { if let p = session.person(id) { names[id] = p.name; modes[id] = p.travelMode } }
+        for id in everyone { if let p = session.person(id) { names[id] = p.name; modes[id] = modeFor[id] ?? p.travelMode } }
         var alerts: [String: String] = [:], travel: [String: Double] = [:]
         for r in planned {
             if let leave = r.leaveAt { alerts[r.user_id] = When.string(leave) }

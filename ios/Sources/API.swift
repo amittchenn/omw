@@ -1,6 +1,7 @@
 // The omw! server (the same one the web app uses): place search now, the planner next.
 // It wants your sign-in on most calls, so every request carries your Firebase ID token.
 import Foundation
+import MapKit
 import FirebaseAuth
 
 enum API {
@@ -79,9 +80,28 @@ struct PlaceHit: Decodable, Hashable {
 
 extension API {
     /// places matching what you typed, closest to `near` first (no suggestions for plain searches)
+    /// If the server can't be reached (or finds nothing), Apple's own place search answers instead, so searching always works.
     static func suggestPlaces(_ text: String, near: (lat: Double, lng: Double)) async -> [PlaceHit] {
         let hits = (try? await get("/places/suggest", ["q": text, "lat": "\(near.lat)", "lng": "\(near.lng)"], as: [PlaceHit].self)) ?? []
-        return hits.filter { $0.kind != "query" && $0.name != nil }
+        let places = hits.filter { $0.kind != "query" && $0.name != nil }
+        return places.isEmpty ? await appleSearch(text, near: near) : places
+    }
+
+    /// Apple Maps' search, near you
+    static func appleSearch(_ text: String, near: (lat: Double, lng: Double)) async -> [PlaceHit] {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = text
+        request.resultTypes = [.pointOfInterest, .address]
+        request.region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: near.lat, longitude: near.lng),
+                                            latitudinalMeters: 30_000, longitudinalMeters: 30_000)
+        guard let response = try? await MKLocalSearch(request: request).start() else { return [] }
+        return response.mapItems.prefix(10).map { item in
+            let p = item.placemark
+            let address = [p.subThoroughfare.map { "\($0) \(p.thoroughfare ?? "")" } ?? p.thoroughfare, p.locality, p.administrativeArea]
+                .compactMap { $0?.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: ", ")
+            return PlaceHit(kind: "place", id: nil, name: item.name ?? address, address: address,
+                            lat: p.coordinate.latitude, lng: p.coordinate.longitude)
+        }
     }
 
     /// a suggestion's exact spot (suggestions from Google come without one)

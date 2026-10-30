@@ -247,7 +247,7 @@ struct EmailSignIn: View {
 
 enum SignIn {
     /// Firebase's messages in plain words ("The supplied auth credential is malformed or has expired" means a wrong password)
-    static func friendly(_ error: Error) -> String {
+    nonisolated static func friendly(_ error: Error) -> String {
         switch AuthErrorCode(rawValue: (error as NSError).code) {
         case .wrongPassword, .invalidCredential, .userNotFound:
             "Wrong email or password. If you signed up with Google or Apple, use that button instead."

@@ -11,10 +11,40 @@
 		F10871EA30944B010027A2DD /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = F10871E930944B010027A2DD /* FirebaseFirestore */; };
 		F10871EF3094518B0027A2DD /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = F10871EE3094518B0027A2DD /* GoogleSignIn */; };
 		F10871F13094518B0027A2DD /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = F10871F03094518B0027A2DD /* GoogleSignInSwift */; };
+		F10873AF30951DDB0027A2DD /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10873AE30951DDA0027A2DD /* WidgetKit.framework */; };
+		F10873B130951DDB0027A2DD /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10873B030951DDB0027A2DD /* SwiftUI.framework */; };
+		F10873BE30951DDD0027A2DD /* OmwLiveExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F10873AC30951DDA0027A2DD /* OmwLiveExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F10873BC30951DDD0027A2DD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F10871A93094496C0027A2DD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F10873AB30951DDA0027A2DD;
+			remoteInfo = OmwLiveExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F10873C330951DDD0027A2DD /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				F10873BE30951DDD0027A2DD /* OmwLiveExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		F10871B13094496C0027A2DD /* omw.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = omw.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F10873AC30951DDA0027A2DD /* OmwLiveExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OmwLiveExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F10873AE30951DDA0027A2DD /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		F10873B030951DDB0027A2DD /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -25,6 +55,13 @@
 			);
 			target = F10871B03094496C0027A2DD /* omw */;
 		};
+		F10873C230951DDD0027A2DD /* Exceptions for "OmwLive" folder in "OmwLiveExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F10873AB30951DDA0027A2DD /* OmwLiveExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +71,14 @@
 				F10871F3309451AC0027A2DD /* Exceptions for "omw" folder in "omw" target */,
 			);
 			path = omw;
+			sourceTree = "<group>";
+		};
+		F10873B230951DDB0027A2DD /* OmwLive */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F10873C230951DDD0027A2DD /* Exceptions for "OmwLive" folder in "OmwLiveExtension" target */,
+			);
+			path = OmwLive;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -50,6 +95,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F10873A930951DDA0027A2DD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F10873B130951DDB0027A2DD /* SwiftUI.framework in Frameworks */,
+				F10873AF30951DDB0027A2DD /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -57,6 +111,8 @@
 			isa = PBXGroup;
 			children = (
 				F10871B33094496C0027A2DD /* omw */,
+				F10873B230951DDB0027A2DD /* OmwLive */,
+				F10873AD30951DDA0027A2DD /* Frameworks */,
 				F10871B23094496C0027A2DD /* Products */,
 			);
 			sourceTree = "<group>";
@@ -65,8 +121,18 @@
 			isa = PBXGroup;
 			children = (
 				F10871B13094496C0027A2DD /* omw.app */,
+				F10873AC30951DDA0027A2DD /* OmwLiveExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F10873AD30951DDA0027A2DD /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F10873AE30951DDA0027A2DD /* WidgetKit.framework */,
+				F10873B030951DDB0027A2DD /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -79,10 +145,12 @@
 				F10871AD3094496C0027A2DD /* Sources */,
 				F10871AE3094496C0027A2DD /* Frameworks */,
 				F10871AF3094496C0027A2DD /* Resources */,
+				F10873C330951DDD0027A2DD /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				F10873BD30951DDD0027A2DD /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				F10871B33094496C0027A2DD /* omw */,
@@ -98,6 +166,28 @@
 			productReference = F10871B13094496C0027A2DD /* omw.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F10873AB30951DDA0027A2DD /* OmwLiveExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10873BF30951DDD0027A2DD /* Build configuration list for PBXNativeTarget "OmwLiveExtension" */;
+			buildPhases = (
+				F10873A830951DDA0027A2DD /* Sources */,
+				F10873A930951DDA0027A2DD /* Frameworks */,
+				F10873AA30951DDA0027A2DD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F10873B230951DDB0027A2DD /* OmwLive */,
+			);
+			name = OmwLiveExtension;
+			packageProductDependencies = (
+			);
+			productName = OmwLiveExtension;
+			productReference = F10873AC30951DDA0027A2DD /* OmwLiveExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -109,6 +199,9 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					F10871B03094496C0027A2DD = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					F10873AB30951DDA0027A2DD = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -132,12 +225,20 @@
 			projectRoot = "";
 			targets = (
 				F10871B03094496C0027A2DD /* omw */,
+				F10873AB30951DDA0027A2DD /* OmwLiveExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F10871AF3094496C0027A2DD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F10873AA30951DDA0027A2DD /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -154,7 +255,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F10873A830951DDA0027A2DD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F10873BD30951DDD0027A2DD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F10873AB30951DDA0027A2DD /* OmwLiveExtension */;
+			targetProxy = F10873BC30951DDD0027A2DD /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F10871BA3094496E0027A2DD /* Debug */ = {
@@ -289,9 +405,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = omw/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take the group photo when everyone's there.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "With \"Always\", omw! checks you in when you arrive at a hangout, even when it's closed.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "omw! shows you on the map with your friends.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Pick photos to post.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -326,9 +444,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = omw/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take the group photo when everyone's there.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "With \"Always\", omw! checks you in when you arrive at a hangout, even when it's closed.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "omw! shows you on the map with your friends.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Pick photos to post.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -345,6 +465,68 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F10873C030951DDD0027A2DD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Q9454HZSDT;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OmwLive/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OmwLive;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.amittchenn.omw.OmwLive;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F10873C130951DDD0027A2DD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Q9454HZSDT;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OmwLive/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OmwLive;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.amittchenn.omw.OmwLive;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -369,6 +551,15 @@
 			buildConfigurations = (
 				F10871BD3094496E0027A2DD /* Debug */,
 				F10871BE3094496E0027A2DD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10873BF30951DDD0027A2DD /* Build configuration list for PBXNativeTarget "OmwLiveExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10873C030951DDD0027A2DD /* Debug */,
+				F10873C130951DDD0027A2DD /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

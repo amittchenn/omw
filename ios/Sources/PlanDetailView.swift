@@ -2,6 +2,7 @@
 // An invitation shows Going / Can't make it.
 import SwiftUI
 import MapKit
+import FirebaseFirestore
 
 struct PlanDetailView: View {
     let id: String
@@ -11,6 +12,8 @@ struct PlanDetailView: View {
     @State private var working = false
     @State private var note: String?
     @State private var leaving = false
+    @State private var live: [String: (CLLocationCoordinate2D, Date)] = [:]  // hangouts/{id}/where: people on their way
+    @State private var liveStop: ListenerRegistration?
 
     private var h: Hangout? { session.hangout(id) }
 
@@ -19,6 +22,31 @@ struct PlanDetailView: View {
             if let h { content(h) } else { ContentUnavailableView("This plan is gone", systemImage: "calendar.badge.exclamationmark") }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            liveStop = session.db.collection("hangouts").document(id).collection("where").addSnapshotListener { snap, _ in
+                MainActor.assumeIsolated {
+                    var next: [String: (CLLocationCoordinate2D, Date)] = [:]
+                    for d in snap?.documents ?? [] {
+                        let x = d.data()
+                        if let lat = (x["lat"] as? NSNumber)?.doubleValue, let lng = (x["lng"] as? NSNumber)?.doubleValue, let at = When.parse(x["at"]) {
+                            next[d.documentID] = (CLLocationCoordinate2D(latitude: lat, longitude: lng), at)
+                        }
+                    }
+                    live = next
+                }
+            }
+        }
+        .onDisappear { liveStop?.remove(); liveStop = nil }
+    }
+
+    /// the others still coming, where they were in the last 10 minutes
+    private var onTheWay: [LiveDot] {
+        guard let h, !h.isOver else { return [] }
+        var dots: [LiveDot] = []
+        for (who, v) in live where who != session.uid && h.arrivals[who] == nil && Date.now.timeIntervalSince(v.1) < 600 {
+            dots.append(LiveDot(id: who, spot: v.0))
+        }
+        return dots
     }
 
     @ViewBuilder private func content(_ h: Hangout) -> some View {
@@ -37,17 +65,28 @@ struct PlanDetailView: View {
                 }
                 .padding(.vertical, 4)
                 if let venue = h.venue {
-                    Map(initialPosition: .region(MKCoordinateRegion(center: venue, latitudinalMeters: 900, longitudinalMeters: 900)), interactionModes: []) {
+                    Map(initialPosition: onTheWay.isEmpty ? .region(MKCoordinateRegion(center: venue, latitudinalMeters: 900, longitudinalMeters: 900)) : .automatic,
+                        interactionModes: onTheWay.isEmpty ? [] : [.pan, .zoom]) {
                         Marker(h.venueName, systemImage: "mappin", coordinate: venue).tint(.red)
                         UserAnnotation()
+                        // the others on their way, live (only while they're coming)
+                        ForEach(onTheWay) { dot in
+                            Annotation(session.person(dot.id)?.firstName ?? h.names[dot.id] ?? "", coordinate: dot.spot) {
+                                Avatar(session.person(dot.id), fallback: h.names[dot.id] ?? "", size: 30)
+                                    .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                                    .shadow(radius: 3)
+                            }
+                        }
                     }
-                    .frame(height: 170)
+                    .frame(height: onTheWay.isEmpty ? 170 : 260)
                     .clipShape(.rect(cornerRadius: 12))
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
                 }
             }
 
             if going, !h.isOver { yourTrip(h, uid: uid) }
+
+            if going { GroupPhotoSection(hangout: h) }
 
             if !going, h.rsvp[uid] == nil, !h.isOver {
                 Section {
@@ -60,8 +99,8 @@ struct PlanDetailView: View {
                     .disabled(working)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
-                } footer: {
-                    Text("\(h.names[h.createdBy].map { $0.split(separator: " ").first.map(String.init) ?? $0 } ?? "A friend") invited you. Say yes and omw! works out when you should leave.")
+                } header: {
+                    Text("\(h.names[h.createdBy].map { $0.split(separator: " ").first.map(String.init) ?? $0 } ?? "A friend") invited you")
                 }
             }
 
@@ -120,10 +159,6 @@ struct PlanDetailView: View {
                 if h.checkInOpen {
                     Button { imHere(h) } label: { Label("I'm here", systemImage: "mappin.and.ellipse") }
                 }
-            }
-        } footer: {
-            if h.arrivals[uid] == nil, location.mode == .always {
-                Text("You'll be checked in automatically when you get there.")
             }
         }
     }
@@ -199,4 +234,10 @@ struct PlanDetailView: View {
             working = false
         }
     }
+}
+
+/// someone on their way, on the plan's map
+struct LiveDot: Identifiable {
+    let id: String
+    let spot: CLLocationCoordinate2D
 }

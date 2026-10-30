@@ -259,7 +259,7 @@ struct ChatsView: View {
                     .accessibilityLabel("New chat")
             }
         }
-        .sheet(isPresented: $starting) { NewChatSheet { opened = $0 } }
+        .sheet(isPresented: $starting) { NewChatSheet { opened = $0 }.withOmw() }
         .navigationDestination(item: $opened) { ConversationView(ref: $0) }
     }
 
