@@ -26,18 +26,31 @@ struct Ticki: View {
     private static let coralLight = Color(red: 1.0, green: 0.60, blue: 0.47)
     private static let ink = Color(red: 0.12, green: 0.12, blue: 0.16)
     private static let blush = Color(red: 1.0, green: 0.60, blue: 0.56)
+    /// how much bigger than its square Ticki may draw (spins, jumps, raised arms)
+    private static let room = 1.8
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            let b = boing(timeline.date)
-            Canvas { ctx, size in
-                let k = min(size.width, size.height) / 200
-                ctx.scaleBy(x: k, y: k)
-                draw(&ctx, t, boing: b)
+        // Ticki takes up a square, but draws in a bigger one around it (no clipping), so arms, bells and jumps that
+        // swing outside the square while it spins or hops never get cut off at an invisible edge
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                GeometryReader { g in
+                    let side = min(g.size.width, g.size.height)
+                    TimelineView(.animation) { timeline in
+                        let t = timeline.date.timeIntervalSinceReferenceDate
+                        let b = boing(timeline.date)
+                        Canvas { ctx, size in
+                            ctx.translateBy(x: (size.width - side) / 2, y: (size.height - side) / 2)
+                            ctx.scaleBy(x: side / 200, y: side / 200)
+                            draw(&ctx, t, boing: b)
+                        }
+                    }
+                    .frame(width: side * Self.room, height: side * Self.room)
+                    .position(x: g.size.width / 2, y: g.size.height / 2)
+                    .allowsHitTesting(false)
+                }
             }
-        }
-        .aspectRatio(1, contentMode: .fit)
         .contentShape(Circle())
         // tap Ticki and it boings, spins, and says something (and doesn't open whatever it's sitting on)
         .onTapGesture { poke() }

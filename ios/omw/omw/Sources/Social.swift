@@ -93,8 +93,9 @@ struct UpNextCard: View {
     var body: some View {
         let uid = session.uid ?? ""
         let others = hangout.attendees.filter { $0 != uid }
-        // Ticki sits beside the link, not inside it: tapping Ticki is Ticki's, tapping the rest opens the plan
-        HStack(alignment: .center, spacing: 8) {
+        // Ticki stands on top of the card, popping out over its top edge, not boxed inside it. It's separate from the
+        // link: tapping Ticki is Ticki's, tapping the card opens the plan.
+        VStack(spacing: 0) {
           NavigationLink(value: PlanRoute(id: hangout.id)) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("\(dayName) · \(hangout.start.formatted(date: .omitted, time: .shortened))")
@@ -128,14 +129,20 @@ struct UpNextCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, 64)  // room under Ticki
+            .padding(16)
+            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
             .contentShape(.rect)
           }
           .buttonStyle(.plain)
-          // running once it's nearly time to go, cheering once you're there
-          Ticki(mood: tickiMood, lines: tickiLines).frame(width: 72, height: 72)
         }
-        .padding(16)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+        .overlay(alignment: .topTrailing) {
+            // running once it's nearly time to go, cheering once you're there
+            Ticki(mood: tickiMood, lines: tickiLines)
+                .frame(width: 88, height: 88)
+                .offset(x: -8, y: -34)
+        }
+        .padding(.top, 34)
     }
 
     private var tooFar: Bool { (hangout.travel[session.uid ?? ""] ?? 0) > 12 * 60 }
