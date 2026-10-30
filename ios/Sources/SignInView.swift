@@ -25,7 +25,7 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
             VStack(spacing: 6) {
-                Ticki(mood: .wave)
+                Ticki(mood: .wave, lines: ["Hi! I'm Ticki", "I make sure nobody's late", "Sign in and let's go!"])
                     .frame(width: 190, height: 190)
                     .rotationEffect(.degrees(shown ? 0 : -14))
                     .scaleEffect(shown ? 1 : 0.7)

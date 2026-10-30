@@ -22,7 +22,7 @@ extension Session {
                 try? await put(db.collection("users").document(uid), ["photo": url])
             }
             let code = await ensureCode() ?? me.code
-            var card: [String: Any] = ["name": String(me.name.prefix(60)), "photo": photo.count < 300_000 ? photo : "", "code": code]
+            var card: [String: Any] = ["name": String(me.name.prefix(60)), "nameKey": String(me.name.prefix(60)).lowercased(), "photo": photo.count < 300_000 ? photo : "", "code": code]
             if fresh { card["public"] = true }  // a new account starts public, like the web app; Settings can make it private
             try? await put(db.collection("publicProfiles").document(uid), card)
         }
@@ -38,8 +38,11 @@ extension Session {
         for _ in 0..<5 {
             let code = String((0..<6).map { _ in Self.idChars.randomElement() ?? "X" })
             do {
-                try await put(db.collection("codes").document(code), ["uid": uid, "name": String(me.name.prefix(60))], merge: false)
-                try await put(db.collection("users").document(uid), ["code": code])
+                // the claim and your profile together: the database only lets a username exist as the one on your profile
+                let batch = db.batch()
+                batch.setData(["uid": uid, "name": String(me.name.prefix(60))], forDocument: db.collection("codes").document(code))
+                batch.setData(["code": code], forDocument: db.collection("users").document(uid), merge: true)
+                try await commit(batch)
                 self.me?.code = code
                 return code
             } catch { continue }  // taken: try another
@@ -57,7 +60,16 @@ extension Session {
         }
     }
 
-    /// a new username: 3 to 15 letters, numbers or _, and nobody else's
+    static let codeWait: TimeInterval = 30 * 86_400
+
+    /// when you can change your username again (nil: now)
+    var nextCodeChange: Date? {
+        guard let last = me?.codeChangedAt else { return nil }
+        let next = last.addingTimeInterval(Self.codeWait)
+        return next > .now ? next : nil
+    }
+
+    /// a new username: 3 to 15 letters, numbers or _, and nobody else's. One each, a change every 30 days.
     func changeCode(to code: String) async throws {
         guard let uid, let me else { return }
         let old = me.code
@@ -65,11 +77,14 @@ extension Session {
         if !old.isEmpty, let owner = try? await codeOwner(old) { oldMine = owner == uid }
         let batch = db.batch()
         batch.setData(["uid": uid, "name": String(me.name.prefix(60))], forDocument: db.collection("codes").document(code))
-        batch.setData(["code": code], forDocument: db.collection("users").document(uid), merge: true)
+        var mine: [String: Any] = ["code": code]
+        if oldMine { mine["codeChangedAt"] = FieldValue.serverTimestamp() }  // a first one (or one you'd lost) doesn't start the wait
+        batch.setData(mine, forDocument: db.collection("users").document(uid), merge: true)
         batch.setData(["code": code], forDocument: db.collection("publicProfiles").document(uid), merge: true)
         if oldMine { batch.deleteDocument(db.collection("codes").document(old)) }
         try await commit(batch)  // all or nothing: if someone grabbed it a moment ago, nothing changes
         self.me?.code = code
+        if oldMine { self.me?.codeChangedAt = .now }
     }
 
     func saveProfile(name: String, travelMode: String, photo: String?) async throws {
@@ -77,7 +92,7 @@ extension Session {
         let name = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
         var mine: [String: Any] = ["travelMode": travelMode]
         var card: [String: Any] = [:]
-        if !name.isEmpty { mine["name"] = name; card["name"] = name }
+        if !name.isEmpty { mine["name"] = name; card["name"] = name; card["nameKey"] = name.lowercased() }
         if let photo { mine["photo"] = photo; card["photo"] = photo }
         let batch = db.batch()
         batch.setData(mine, forDocument: db.collection("users").document(uid), merge: true)
@@ -136,6 +151,8 @@ struct EditProfileView: View {
     @State private var saving = false
     @State private var problem: String?
     @State private var home: PlaceHit?
+    @State private var confirming = false
+    @State private var leaving = false
 
     private struct Travel: Identifiable { let id: String, name: String, symbol: String }
     private static let modes = [Travel(id: "driving", name: "Drive", symbol: "car.fill"), Travel(id: "walking", name: "Walk", symbol: "figure.walk"),
@@ -148,6 +165,9 @@ struct EditProfileView: View {
         return me.homeName.isEmpty ? "Home set" : me.homeName
     }
     private var codeChanged: Bool { !code.isEmpty && code != myCode }
+    private var dirty: Bool {
+        name != (session.me?.name ?? "") || codeChanged || mode != (session.me?.travelMode ?? "driving") || newPhoto != nil || home != nil
+    }
 
     var body: some View {
         Form {
@@ -169,22 +189,39 @@ struct EditProfileView: View {
             }
 
             Section {
-                HStack(spacing: 2) {
-                    Text("@").foregroundStyle(.secondary)
-                    // usernames are stored in capitals (like the web app) and shown in lowercase
-                    TextField("username", text: Binding(get: { code.lowercased() }, set: { code = $0 }))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onChange(of: code) {
-                            let clean = String(code.uppercased().filter { $0.isLetter && $0.isASCII || $0.isNumber || $0 == "_" }.prefix(15))
-                            if clean != code { code = clean }
-                        }
+                if let next = session.nextCodeChange {
+                    // changed in the last 30 days: locked till then
+                    HStack(spacing: 2) {
+                        Text("@").foregroundStyle(.secondary)
+                        Text(myCode.lowercased())
+                        Spacer()
+                        Image(systemName: "lock.fill").font(.footnote).foregroundStyle(.tertiary)
+                    }
+                    .accessibilityHint("You can change it again on \(next.formatted(date: .abbreviated, time: .omitted))")
+                } else {
+                    HStack(spacing: 2) {
+                        Text("@").foregroundStyle(.secondary)
+                        // usernames are stored in capitals (like the web app) and shown in lowercase
+                        TextField("username", text: Binding(get: { code.lowercased() }, set: { code = $0 }))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .onChange(of: code) {
+                                let clean = String(code.uppercased().filter { $0.isLetter && $0.isASCII || $0.isNumber || $0 == "_" }.prefix(15))
+                                if clean != code { code = clean }
+                            }
+                    }
                 }
             } header: {
                 Text("Username")
             } footer: {
-                Text(codeNote)
-                    .foregroundStyle(codeChanged && !codeOK && !codeNote.isEmpty && codeNote != "Checking…" ? Color.red : Color.secondary)
+                if let next = session.nextCodeChange {
+                    Text("You can change it again on \(next.formatted(date: .abbreviated, time: .omitted)).")
+                } else if codeNote.isEmpty {
+                    Text("You can change your username once every 30 days.")
+                } else {
+                    Text(codeNote)
+                        .foregroundStyle(codeChanged && !codeOK && codeNote != "Checking…" ? Color.red : Color.secondary)
+                }
             }
 
             Section {
@@ -210,11 +247,29 @@ struct EditProfileView: View {
         .navigationTitle("Edit profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button(saving ? "Saving…" : "Done", action: save)
-                    .fontWeight(.semibold)
-                    .disabled(saving || name.trimmingCharacters(in: .whitespaces).isEmpty || codeChanged && !codeOK)
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { if dirty { leaving = true } else { dismiss() } }
             }
+            ToolbarItem(placement: .confirmationAction) {
+                Button(saving ? "Saving…" : "Save") { confirming = true }
+                    .fontWeight(.semibold)
+                    .disabled(saving || !dirty || name.trimmingCharacters(in: .whitespaces).isEmpty || codeChanged && !codeOK)
+            }
+        }
+        .navigationBarBackButtonHidden()
+        .interactiveDismissDisabled(dirty)
+        // saving asks first; a new username says what it costs
+        .alert(codeChanged ? "Change your username?" : "Save changes?", isPresented: $confirming) {
+            Button("Cancel", role: .cancel) {}
+            Button(codeChanged ? "Change to @\(code.lowercased())" : "Save", action: save)
+        } message: {
+            if codeChanged {
+                Text("@\(myCode.lowercased()) will be free for anyone to take, and you won't be able to change it again for 30 days.")
+            }
+        }
+        .confirmationDialog("Discard your changes?", isPresented: $leaving, titleVisibility: .visible) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
         }
         .onAppear {
             name = session.me?.name ?? ""

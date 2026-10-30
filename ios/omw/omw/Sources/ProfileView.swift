@@ -39,16 +39,19 @@ struct ProfileView: View {
                             Text("@\(code.lowercased())").foregroundStyle(.secondary)
                         }
                         Text(punctuality.title)
-                            .font(.footnote.weight(.bold))
-                            .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(punctuality.color.opacity(0.18), in: Capsule())
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(punctuality.color)
-                            .padding(.top, 2)
                     }
                 }
                 HStack(spacing: 0) {
-                    stat(hangoutCount, hangoutCount == 1 ? "hangout" : "hangouts")
-                    stat(onTime, "on time", suffix: "%")
+                    NavigationLink { PastHangoutsView(uid: uid, name: firstName) } label: {
+                        stat(hangoutCount, hangoutCount == 1 ? "hangout" : "hangouts")
+                    }
+                    .buttonStyle(.plain)
+                    NavigationLink { BoardView().navigationTitle("On time") } label: {
+                        stat(onTime, "on time", suffix: "%")
+                    }
+                    .buttonStyle(.plain)
                     if mine || session.isFriend(uid) {
                         NavigationLink { FriendsListView(uid: uid) } label: {
                             stat(mine ? session.friends.count : friendCount, (mine ? session.friends.count : friendCount) == 1 ? "friend" : "friends")
@@ -140,15 +143,17 @@ struct ProfileView: View {
     private var onTime: Int? { standing.flatMap { $0.hangouts > 0 ? $0.percent : nil } }
 
     /// a title from how on time they are, like a badge
+    private var firstName: String { name.split(separator: " ").first.map(String.init) ?? name }
+
+    /// a title from how on time they are
     private var punctuality: (title: String, color: Color) {
-        guard let s = standing, s.hangouts > 0 else { return ("🆕 New here", .secondary) }
-        let p = "\(s.percent)% on time"
+        guard let s = standing, s.hangouts > 0 else { return ("New here", .secondary) }
         switch s.percent {
-        case 90...: return ("⏱️ Clockwork · \(p)", .freeGreen)
-        case 70..<90: return ("⚡ Early bird · \(p)", .freeGreen)
-        case 50..<70: return ("🙂 Mostly there · \(p)", .orange)
-        case 25..<50: return ("🐢 Fashionably late · \(p)", .orange)
-        default: return ("🌀 Chaos agent · \(p)", .red)
+        case 90...: return ("Clockwork", .freeGreen)
+        case 70..<90: return ("Usually early", .freeGreen)
+        case 50..<70: return ("Mostly on time", .orange)
+        case 25..<50: return ("Fashionably late", .orange)
+        default: return ("Always running late", .red)
         }
     }
 
@@ -384,5 +389,34 @@ struct OnTimeRing<Content: View>: View {
                         .rotationEffect(.degrees(-90))
                 }
             }
+    }
+}
+
+/// the hangouts you've been to with them (or all of yours, on your own profile)
+struct PastHangoutsView: View {
+    let uid: String
+    let name: String
+    @Environment(Session.self) private var session
+
+    var body: some View {
+        let list = session.past.filter { $0.attendees.contains(uid) }
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                ForEach(list) { h in
+                    NavigationLink(value: PlanRoute(id: h.id)) { PlanRow(hangout: h) }.buttonStyle(.plain)
+                }
+            }
+            .padding(16)
+        }
+        .overlay {
+            if list.isEmpty {
+                VStack(spacing: 8) {
+                    Ticki(mood: .sleepy).frame(width: 110, height: 110)
+                    Text("No hangouts yet").font(.headline)
+                }
+            }
+        }
+        .navigationTitle(uid == session.uid ? "Hangouts" : "With \(name)")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

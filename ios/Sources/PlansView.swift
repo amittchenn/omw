@@ -24,7 +24,7 @@ struct PlansView: View {
 
                     if session.upcoming.isEmpty && session.invites.isEmpty {
                         VStack(spacing: 8) {
-                            Ticki(mood: .sleepy).frame(width: 120, height: 120)
+                            Ticki(mood: .sleepy, lines: ["Zzz…", "Wake me when there's a plan", "Tap the ＋ to make one"]).frame(width: 120, height: 120)
                             Text("Nothing planned").font(.headline)
                             Button("Make a plan") { PlanLauncher.shared.open = true }
                                 .font(.subheadline.weight(.bold))

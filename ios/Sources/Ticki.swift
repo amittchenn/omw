@@ -8,6 +8,13 @@ import SwiftUI
 struct Ticki: View {
     enum Mood { case idle, wave, run, cheer, sleepy, worried }
     var mood: Mood = .idle
+    /// what Ticki says when you tap it, one line per tap, in turn
+    var lines: [String] = []
+
+    @State private var pokedAt: Date?
+    @State private var said: String?
+    @State private var turn = 0
+    @State private var pokes = 0
 
     private static let coral = Color(red: 0.95, green: 0.41, blue: 0.29)
     private static let coralDark = Color(red: 0.80, green: 0.30, blue: 0.22)
@@ -20,14 +27,54 @@ struct Ticki: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
+            let b = boing(timeline.date)
             Canvas { ctx, size in
                 let k = min(size.width, size.height) / 200
                 ctx.scaleBy(x: k, y: k)
-                draw(&ctx, t)
+                draw(&ctx, t, boing: b)
             }
         }
         .aspectRatio(1, contentMode: .fit)
+        .contentShape(Circle())
+        // tap Ticki and it boings, spins, and says something (and doesn't open whatever it's sitting on)
+        .highPriorityGesture(TapGesture().onEnded { poke() })
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.8), trigger: pokes)
+        .overlay(alignment: .top) {
+            if let said {
+                Text(said)
+                    .font(.footnote.weight(.bold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize()
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+                    .alignmentGuide(.top) { $0[.bottom] + 2 }
+                    .transition(.scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
+                    .id(said)
+            }
+        }
         .accessibilityLabel("Ticki")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func poke() {
+        pokedAt = .now
+        pokes += 1
+        guard !lines.isEmpty else { return }
+        let line = lines[turn % lines.count]
+        turn += 1
+        withAnimation(.spring(duration: 0.35, bounce: 0.4)) { said = line }
+        Task {
+            try? await Task.sleep(for: .seconds(2.4))
+            if said == line { withAnimation(.easeOut(duration: 0.2)) { said = nil } }
+        }
+    }
+
+    /// 0…1 through the boing after a tap (nil: not boinging)
+    private func boing(_ t: Date) -> Double? {
+        guard let at = pokedAt else { return nil }
+        let x = t.timeIntervalSince(at) / 0.75
+        return x < 1 ? x : nil
     }
 
     // ---------- motion ----------
@@ -121,8 +168,24 @@ struct Ticki: View {
     }
 
     // everything in a 200×200 box
-    private func draw(_ ctx: inout GraphicsContext, _ t: Double) {
-        let p = pose(t)
+    private func draw(_ ctx: inout GraphicsContext, _ t: Double, boing: Double?) {
+        var p = pose(t)
+        if let b = boing {
+            // squash, hop with a full spin, land with a wobble
+            let squash = 1 - Self.ease(b / 0.15)
+            let air = b > 0.15 && b < 0.7 ? (b - 0.15) / 0.55 : -1
+            if air >= 0 {
+                p.lift = 30 * 4 * air * (1 - air)
+                p.tilt = 360 * Self.ease(air)
+                p.sy = 1.05; p.sx = 0.96
+            } else if b <= 0.15 {
+                p.sy = 1 - 0.12 * (1 - squash); p.sx = 1 + 0.1 * (1 - squash)
+            } else {
+                let w = (b - 0.7) / 0.3
+                p.sy = 1 - 0.08 * sin(w * .pi) * (1 - w); p.sx = 1 + 0.06 * sin(w * .pi) * (1 - w)
+            }
+            p.leftArm = 140; p.rightArm = -140
+        }
 
         // a soft shadow on the ground, smaller and lighter while up in the air
         let up = min(p.lift / 26, 1)
@@ -157,10 +220,10 @@ struct Ticki: View {
             fig.fill(Path(roundedRect: CGRect(x: x, y: y, width: w, height: h), cornerRadius: 3), with: .color(Self.ink.opacity(0.85)))
         }
 
-        drawFace(&fig, t, open: eyesOpen(t), look: p.look)
+        drawFace(&fig, t, open: boing == nil ? eyesOpen(t) : 0, look: boing == nil ? p.look : 0, happy: boing != nil)
     }
 
-    private func drawFace(_ ctx: inout GraphicsContext, _ t: Double, open: Double, look: Double) {
+    private func drawFace(_ ctx: inout GraphicsContext, _ t: Double, open: Double, look: Double, happy: Bool = false) {
         let ink = GraphicsContext.Shading.color(Self.ink)
         func eye(_ x: Double) {
             let x = x + look
@@ -168,7 +231,7 @@ struct Ticki: View {
                 // shut: a soft curve (smiling when happy, sleepy otherwise)
                 var p = Path()
                 p.move(to: CGPoint(x: x - 7, y: 91))
-                p.addQuadCurve(to: CGPoint(x: x + 7, y: 91), control: CGPoint(x: x, y: mood == .sleepy ? 97 : 85))
+                p.addQuadCurve(to: CGPoint(x: x + 7, y: 91), control: CGPoint(x: x, y: mood == .sleepy && !happy ? 97 : 85))
                 ctx.stroke(p, with: ink, style: StrokeStyle(lineWidth: 4, lineCap: .round))
             } else {
                 let tall = (mood == .worried ? 18.0 : 16.0) * open
@@ -185,7 +248,7 @@ struct Ticki: View {
         ctx.fill(Path(ellipseIn: CGRect(x: 62, y: 104, width: 16, height: 9)), with: .color(Self.blush.opacity(0.6)))
         ctx.fill(Path(ellipseIn: CGRect(x: 122, y: 104, width: 16, height: 9)), with: .color(Self.blush.opacity(0.6)))
 
-        switch mood {
+        switch happy ? Mood.cheer : mood {
         case .worried:
             // a wobbly little mouth, and a drop of sweat that slides down and fades
             var m = Path()

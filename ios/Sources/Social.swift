@@ -115,18 +115,20 @@ struct UpNextCard: View {
                 }
                 if hangout.arrivals[uid] != nil {
                     Label("You're there", systemImage: "checkmark.circle.fill").font(.subheadline.weight(.semibold)).foregroundStyle(Color.freeGreen)
+                } else if tooFar {
+                    // a trip over 12 hours means you're nowhere near (traveling, or a simulator somewhere else)
+                    Label("You're far from here right now", systemImage: "location.slash")
+                        .font(.subheadline).foregroundStyle(.secondary)
                 } else if let leave = hangout.alerts[uid] {
                     Label {
-                        Text("Leave by \(Text(leave.formatted(date: .omitted, time: .shortened)).bold())\(hangout.travel[uid].map { " · \(Int($0.rounded())) min trip" } ?? "")")
+                        Text("Leave by \(Text(leave.formatted(date: .omitted, time: .shortened)).bold())\(hangout.travel[uid].map { " · \(Self.trip($0)) trip" } ?? "")")
                     } icon: { Image(systemName: "clock.fill") }
                     .font(.subheadline).foregroundStyle(.primary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             // Ticki beside the plan: running once it's nearly time to go, cheering once you're there
-            if let mood = tickiMood {
-                Ticki(mood: mood).frame(width: 72, height: 72)
-            }
+            Ticki(mood: tickiMood, lines: tickiLines).frame(width: 72, height: 72)
           }
           .padding(16)
           .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
@@ -134,11 +136,36 @@ struct UpNextCard: View {
         .buttonStyle(.plain)
     }
 
-    private var tickiMood: Ticki.Mood? {
+    private var tooFar: Bool { (hangout.travel[session.uid ?? ""] ?? 0) > 12 * 60 }
+
+    static func trip(_ minutes: Double) -> String {
+        let m = Int(minutes.rounded())
+        return m < 60 ? "\(m) min" : m % 60 == 0 ? "\(m / 60) hr" : "\(m / 60) hr \(m % 60) min"
+    }
+
+    private var tickiMood: Ticki.Mood {
         let uid = session.uid ?? ""
         if hangout.arrivals[uid] != nil { return .cheer }
+        if tooFar { return .worried }
         if let leave = hangout.alerts[uid], leave.timeIntervalSinceNow < 30 * 60 { return leave < .now ? .worried : .run }
-        return nil
+        return .idle
+    }
+
+    /// what Ticki says when you tap it, about this plan
+    private var tickiLines: [String] {
+        let uid = session.uid ?? ""
+        let start = hangout.start.formatted(date: .omitted, time: .shortened)
+        if hangout.arrivals[uid] != nil {
+            let here = hangout.attendees.filter { hangout.arrivals[$0] != nil }.count
+            return [here == hangout.attendees.count ? "Everyone made it!" : "\(here) of \(hangout.attendees.count) here", "On time looks good on you", "Snap the group photo!"]
+        }
+        if tooFar { return ["That's a long way…", "Are you even in town?"] }
+        guard let leave = hangout.alerts[uid] else { return ["See you at \(start)", "Tap me later, I'll know when to leave"] }
+        let mins = Int(leave.timeIntervalSinceNow / 60)
+        if mins < 0 { return ["You were meant to leave \(-mins) min ago!", "Go go go!", "Tell them you're on the way"] }
+        if mins < 30 { return ["Leave in \(mins) min!", "Grab your keys", "Shoes on?"] }
+        let when = mins < 60 * 12 ? "in \(mins / 60 > 0 ? "\(mins / 60) hr \(mins % 60) min" : "\(mins) min")" : "at \(leave.formatted(date: .omitted, time: .shortened))"
+        return ["Leave \(when)", "I'll buzz you when it's time", "Don't be the late one"]
     }
 
     private var dayName: String {
@@ -217,6 +244,7 @@ struct BoardView: View {
                             }
                         }
                     }
+                    .opensProfile(s.id)
                     .opacity(s.hangouts == 0 ? 0.55 : 1)
                 }
             } footer: {

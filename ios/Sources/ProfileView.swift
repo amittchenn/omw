@@ -30,7 +30,7 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 18) {
                 // omw!'s profile: how on time you are is the headline, not your post count
                 HStack(spacing: 20) {
-                    OnTimeRing(percent: onTime) {
+                    OnTimeRing(percent: close ? onTime : nil) {
                         Avatar(photo: person?.photo ?? card?.photo ?? "", name: name, size: 84)
                     }
                     VStack(alignment: .leading, spacing: 4) {
@@ -38,9 +38,12 @@ struct ProfileView: View {
                         if !code.isEmpty {
                             Text("@\(code.lowercased())").foregroundStyle(.secondary)
                         }
-                        Text(punctuality.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(punctuality.color)
+                        // how on time someone is: only for their friends
+                        if close {
+                            Text(punctuality.title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(punctuality.color)
+                        }
                     }
                 }
                 HStack(spacing: 0) {
@@ -48,10 +51,12 @@ struct ProfileView: View {
                         stat(hangoutCount, hangoutCount == 1 ? "hangout" : "hangouts")
                     }
                     .buttonStyle(.plain)
-                    NavigationLink { BoardView().navigationTitle("On time") } label: {
-                        stat(onTime, "on time", suffix: "%")
+                    if close {
+                        NavigationLink { BoardView().navigationTitle("On time") } label: {
+                            stat(onTime, "on time", suffix: "%")
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     if mine || session.isFriend(uid) {
                         NavigationLink { FriendsListView(uid: uid) } label: {
                             stat(mine ? session.friends.count : friendCount, (mine ? session.friends.count : friendCount) == 1 ? "friend" : "friends")
@@ -143,6 +148,9 @@ struct ProfileView: View {
     private var onTime: Int? { standing.flatMap { $0.hangouts > 0 ? $0.percent : nil } }
 
     /// a title from how on time they are, like a badge
+    /// you, or a friend: who gets to see your on-time status
+    private var close: Bool { mine || session.isFriend(uid) }
+
     private var firstName: String { name.split(separator: " ").first.map(String.init) ?? name }
 
     /// a title from how on time they are

@@ -24,7 +24,7 @@ struct FeedView: View {
                     Divider()
                     if session.posts.isEmpty {
                         VStack(spacing: 8) {
-                            Ticki(mood: .wave).frame(width: 130, height: 130)
+                            Ticki(mood: .wave, lines: ["Hi, I'm Ticki!", "Add friends to fill this up", "Then make a plan with the ＋"]).frame(width: 130, height: 130)
                             Text("Nothing here yet").font(.headline)
                             Text("Hang out and share the photo.").font(.subheadline).foregroundStyle(.secondary)
                         }
@@ -236,7 +236,7 @@ struct PostCard: View {
                     HStack(spacing: 6) {
                         Text(post.venueName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         if let s = post.averageRating {
-                            Text(String(format: "%.1f", s)).font(.caption2.weight(.bold))
+                            Label(String(format: "%.1f", s / 2), systemImage: "star.fill").font(.caption2.weight(.bold)).labelStyle(.titleAndIcon)
                                 .padding(.horizontal, 6).padding(.vertical, 1)
                                 .background(Color.freeGreen.opacity(0.2), in: Capsule())
                         }

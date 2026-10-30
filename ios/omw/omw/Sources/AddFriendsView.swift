@@ -13,13 +13,12 @@ struct AddFriendsView: View {
         List {
             if !query.trimmingCharacters(in: .whitespaces).isEmpty {
                 Section {
-                    if query.lowercased().replacingOccurrences(of: "@", with: "").trimmingCharacters(in: .whitespaces) == session.me?.code.lowercased() {
-                        Text("That's you!").foregroundStyle(.secondary)
-                    } else if results.isEmpty && !searching {
-                        Text("No one called @\(query.lowercased().replacingOccurrences(of: "@", with: "")) yet.").foregroundStyle(.secondary)
+                    if results.isEmpty {
+                        if searching { ForEach(0..<2, id: \.self) { _ in PlaceholderRow() } }
+                        else { Text("No one found").foregroundStyle(.secondary) }
                     }
                     ForEach(results) { card in
-                        PersonRow(card: card, detail: card.name)
+                        PersonRow(card: card, detail: card.id == session.uid ? "\(card.name) · You" : card.name)
                     }
                 }
             } else {
@@ -61,7 +60,7 @@ struct AddFriendsView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search usernames")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search names or usernames")
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .task(id: query) {
@@ -71,7 +70,7 @@ struct AddFriendsView: View {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             session.searchUsers(text) { found in
-                if query.trimmingCharacters(in: .whitespaces) == text { results = found.filter { $0.id != session.uid }; searching = false }
+                if query.trimmingCharacters(in: .whitespaces) == text { results = found; searching = false }
             }
         }
         .task { session.quickAdd { quick = $0 } }
@@ -99,7 +98,7 @@ struct PersonRow: View {
             }
             .buttonStyle(.plain)
             Spacer()
-            FriendButton(uid: card.id, card: card)
+            if card.id != session.uid { FriendButton(uid: card.id, card: card) }
         }
     }
 }

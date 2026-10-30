@@ -65,6 +65,7 @@ struct PlanSheet: View {
     @State private var results: [PlanResult]?
     @State private var noSpot: [String] = []
     @State private var working = false
+    @State private var sent = false
     @State private var problem: String?
     @State private var modeFor: [String: String] = [:]  // how someone gets there for this plan (else their usual way)
     @State private var naming = false
@@ -241,6 +242,18 @@ struct PlanSheet: View {
                 .padding(.horizontal, 16).padding(.bottom, 8)
                 .background(.bar)
             }
+            .overlay {
+                if sent {
+                    VStack(spacing: 6) {
+                        Ticki(mood: .cheer).frame(width: 150, height: 150)
+                        Text(who.isEmpty ? "Plan saved!" : "Invites sent!").font(.system(size: 26, weight: .heavy, design: .rounded))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.ultraThinMaterial)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+            }
+            .sensoryFeedback(.success, trigger: sent)
             .onChange(of: place) { results = nil }
             .onChange(of: when) { results = nil }
             .alert("New type", isPresented: $naming) {
@@ -292,7 +305,7 @@ struct PlanSheet: View {
 
     private func resultRow(_ r: PlanResult) -> some View {
         HStack(spacing: 12) {
-            Avatar(session.person(r.user_id), size: 40)
+            Avatar(session.person(r.user_id), size: 40).opensProfile(r.user_id)
             VStack(alignment: .leading, spacing: 2) {
                 Text(r.user_id == session.uid ? "You" : session.person(r.user_id)?.firstName ?? "Friend").font(.subheadline.weight(.semibold))
                 Text("\(Int(r.travel_minutes.rounded())) min \(Self.modeName(r.travel_mode))\(r.label.map { " · \($0)" } ?? "")")
@@ -442,7 +455,10 @@ struct PlanSheet: View {
         session.db.collection("hangouts").addDocument(data: doc) { error in
             MainActor.assumeIsolated {
                 working = false
-                if let error { problem = error.localizedDescription } else { dismiss() }
+                if let error { problem = error.localizedDescription; return }
+                // Ticki cheers it off, then the sheet goes
+                withAnimation(.spring(duration: 0.4, bounce: 0.3)) { sent = true }
+                Task { try? await Task.sleep(for: .seconds(1.4)); dismiss() }
             }
         }
     }

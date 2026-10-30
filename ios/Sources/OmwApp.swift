@@ -79,5 +79,6 @@ extension View {
     /// everything that's presented, and a screen without it would crash)
     func withOmw() -> some View {
         environment(Session.shared).environment(LocationService.shared)
+            .environment(\.pushesProfiles, false)  // a sheet starts outside any navigation stack
     }
 }

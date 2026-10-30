@@ -543,7 +543,7 @@ struct ConversationView: View {
                 if !mine && group {
                     // their face on the last message of a run, like Instagram
                     Group {
-                        if lastOfRun { Avatar(session.person(m.from), fallback: m.name, size: 28) } else { Color.clear }
+                        if lastOfRun { Avatar(session.person(m.from), fallback: m.name, size: 28).opensProfile(m.from) } else { Color.clear }
                     }
                     .frame(width: 28, height: 28)
                 }

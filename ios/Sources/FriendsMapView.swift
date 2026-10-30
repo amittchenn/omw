@@ -381,6 +381,7 @@ struct PlaceCard: View {
     @Environment(Session.self) private var session
     @State private var planning = false
     @State private var rating = false
+    @State private var going: DirectionsTarget?
     @State private var info: PlaceInfo?
     @State private var lookAround: MKLookAroundScene?
 
@@ -404,15 +405,14 @@ struct PlaceCard: View {
                 }
                 action("star", "Rate") { rating = true }
                 action("arrow.triangle.turn.up.right.diamond", "Go") {
-                    let item = MKMapItem(placemark: MKPlacemark(coordinate: place.coordinate))
-                    item.name = place.name
-                    item.openInMaps()
+                    going = DirectionsTarget(name: place.name, coordinate: place.coordinate, mode: session.me?.travelMode ?? "driving")
                 }
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 18).padding(.top, 22)
         .sensoryFeedback(.selection, trigger: session.saved.count)
+        .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
             info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
             if info?.photos?.isEmpty != false {
@@ -451,7 +451,7 @@ struct PlaceCard: View {
 
     /// ★ 4.5 (1,203) · $$ · Café · Open now
     @ViewBuilder private var facts: some View {
-        let mine = session.score(of: Session.placeKey(place.name, place.address))
+        let mine = session.existingKey(for: RankedPlace(name: place.name, address: place.address, venue: [place.lat, place.lng])).flatMap { session.score(of: $0) }
         let parts: [String] = [
             info?.rating.map { r in String(format: "★ %.1f", r) + (info?.reviews.map { " (\($0.formatted()))" } ?? "") },
             info?.price, info?.type,
@@ -459,7 +459,7 @@ struct PlaceCard: View {
         if mine != nil || !parts.isEmpty || info?.open != nil {
             HStack(spacing: 6) {
                 if let mine {
-                    Text(String(format: "%.1f", mine)).font(.caption.weight(.bold))
+                    Label("\(Int(mine))", systemImage: "star.fill").font(.caption.weight(.bold))
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Color.freeGreen.opacity(0.2), in: Capsule())
                 }
@@ -553,7 +553,9 @@ struct FriendCard: View {
                     .foregroundStyle(person.status.color ?? .secondary).font(.subheadline.weight(.semibold))
             }
             Spacer()
+            Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)
         }
+        .opensProfile(person.id)
         .padding(20)
     }
 }

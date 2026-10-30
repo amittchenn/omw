@@ -161,3 +161,35 @@ extension View {
 struct ProfileRoute: Hashable { let uid: String }
 struct PostRoute: Hashable { let id: String }
 struct PlanRoute: Hashable { let id: String }
+
+// ---------- tap anyone to see their profile ----------
+extension EnvironmentValues {
+    /// inside a navigation stack that knows ProfileRoute (withProfileRoutes): push profiles; otherwise show them in a sheet
+    @Entry var pushesProfiles = false
+}
+
+extension View {
+    /// tapping this (a face, a name, a row) opens that person's profile, wherever it is in the app
+    func opensProfile(_ uid: String?) -> some View { modifier(OpensProfile(uid: uid ?? "")) }
+}
+
+struct OpensProfile: ViewModifier {
+    let uid: String
+    @Environment(\.pushesProfiles) private var pushes
+    @State private var open = false
+
+    func body(content: Content) -> some View {
+        if uid.isEmpty {
+            content
+        } else if pushes {
+            NavigationLink(value: ProfileRoute(uid: uid)) { content.contentShape(.rect) }.buttonStyle(.plain)
+        } else {
+            Button { open = true } label: { content.contentShape(.rect) }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $open) {
+                    NavigationStack { ProfileView(uid: uid).withProfileRoutes() }.withOmw()
+                        .presentationDragIndicator(.visible)
+                }
+        }
+    }
+}
