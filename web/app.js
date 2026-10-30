@@ -59,8 +59,11 @@ const Locate = L.Control.extend({ options: { position: "bottomright" }, onAdd() 
   const b = L.DomUtil.create("button", "locate");
   b.title = "Show where I am"; b.setAttribute("aria-label", "Show where I am"); b.innerHTML = icon("navigation");
   L.DomEvent.disableClickPropagation(b);
-  b.onclick = () => myLocation ? map.flyTo(myLocation, Math.max(map.getZoom(), 16))
-                               : alert("Allow location for this site to see where you are.");
+  const fly = at => map.flyTo(at, Math.max(map.getZoom(), 16));
+  // not found yet: ask again (iOS asks the first time); turned off: say how to turn it on (feed.js)
+  b.onclick = () => myLocation ? fly(myLocation)
+    : navigator.geolocation?.getCurrentPosition(p => fly([p.coords.latitude, p.coords.longitude]),
+                                                err => window.locationOff?.(err.code === 1), { enableHighAccuracy: true, timeout: 8000 });
   return b;
 } });
 new Locate().addTo(map);
@@ -151,6 +154,9 @@ const venueIcon = () => L.divIcon({ className: "", iconSize: [70, 70], iconAncho
   html: `<div class="venue-pin"><div class="glow"></div><div class="bubble">${typeEmoji()}</div></div>` });
 
 function setVenue(latlng, name, address = "") {
+  if (!Array.isArray(latlng) || !latlng.every(Number.isFinite)) return;  // nowhere to put it
+  name = String(name || address.split(",")[0] || "Dropped pin");  // never "Meeting at undefined"
+  address = address || "";
   closeHangout();  // a different spot: stop showing the hangout from My plans
   venue = latlng; venueName = name; venueAddress = address;
   venueMarker?.remove();
@@ -228,10 +234,17 @@ async function pickPlace(p) {
   $("placeInput").blur();
   if (p.kind === "query") return runSearch(p.text);
   if (p.lat == null && p.id) {  // a Google suggestion: look up where it is
-    try { p = { ...p, ...(await (await fetch(`${API}/places/details?id=${encodeURIComponent(p.id)}${session ? `&session=${session}` : ""}`)).json()) }; }
-    catch { return; }
+    const name = p.name;
+    $("placeInput").value = name || "";
+    try {
+      const res = await fetch(`${API}/places/details?id=${encodeURIComponent(p.id)}${session ? `&session=${session}` : ""}`);
+      if (res.ok) p = { ...p, ...(await res.json()) };
+    } catch { /* below */ }
     session = null;  // a typing session ends when you pick something
+    // the lookup didn't work: search for it by name instead, so tapping a suggestion always gets you somewhere
+    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return name ? runSearch(name) : undefined;
   }
+  if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return;
   resultPins.clearLayers(); $("searchArea").hidden = true;
   remember(p);
   setVenue([p.lat, p.lng], p.name, p.address);
@@ -282,8 +295,9 @@ async function runSearch(q) {
   setTimeout(() => ($("searchArea").hidden = true), 800);  // fitBounds moves the map; only offer it after *you* move it
 }
 
-$("suggest").onmousedown = e => {
-  e.preventDefault();  // keep the box focused
+$("suggest").onmousedown = e => e.preventDefault();  // keep the box focused (and the list up) while you tap
+// a tap is a click (mousedown alone gets lost on iPhone when the keyboard is up)
+$("suggest").onclick = e => {
   const cat = e.target.closest("[data-cat]"), opt = e.target.closest(".opt");
   if (cat) runSearch(cat.dataset.cat);
   else if (opt) pickPlace(found[+opt.dataset.i]);
@@ -495,7 +509,7 @@ const MODE_LABEL = { driving: "Drives", walking: "Walks", cycling: "Bikes", tran
 const pickedIds = () => myFriends().filter(p => p.isMe || picked.has(p.user_id)).map(p => p.user_id);
 window.omwMap = map;  // the Map tab (maptab.js) draws friends and saved places on it
 window.openPlanner = () => { toggleSheet(false); window.invalidateMap?.(); };  // the + tab
-window.pickPlace = (ll, name, address) => setVenue(ll, name, address);  // a saved place or a friend's spot on the Map tab
+window.pickSpot = (ll, name, address) => setVenue(ll, name, address);  // a saved place or a friend's spot on the Map tab (not "pickPlace": that name is the search box's, above)
 // the feed: tap a friend who's free, or "Plan this" on a post
 window.planWith = ids => { picked.clear(); ids.forEach(id => picked.add(id)); showFriends(); toggleSheet(false); };
 window.planAt = (ll, name, address) => { setVenue(ll, name, address); map.setView(ll, 15); toggleSheet(false); };
@@ -971,16 +985,14 @@ const fairPins = L.layerGroup().addTo(map);
 function closeFair() {  // Cancel, or after the invites go out: put the options away
   $("fair").hidden = true; $("fairList").innerHTML = ""; $("fairConfirm").hidden = true; fairPins.clearLayers();
 }
-$("fairBtn").onclick = () => {
-  if (!$("fair").hidden) return closeFair();
-  $("fair").hidden = false; $("fairDone").hidden = true;
-  if (!$("fairText").value) $("fairText").value = allTypes().find(t => t[0] === selectedType())?.[2] || "";
-  if (!$("fair").hidden) $("fairText").focus();
-};
+// the send arrow shows once there's something to search for
+$("fairText").oninput = () => { $("fairGo").hidden = !$("fairText").value.trim(); if (!$("fairText").value) closeFair(); };
 $("fairForm").onsubmit = async e => {
   e.preventDefault();
   const query = $("fairText").value.trim(), ids = pickedIds();
   if (!query) return;
+  $("fairText").blur();
+  $("fair").hidden = false; $("fairDone").hidden = true;
   if (ids.length < 2) return $("fairList").innerHTML = `<div class="note">Pick at least one friend under Who first.</div>`;
   const people = myFriends().filter(p => ids.includes(p.user_id))
     .map(p => ({ id: p.user_id, name: p.isMe ? "You" : p.name, home: startPoint(p).at, mode: modeFor[p.user_id] || p.travel_mode }));

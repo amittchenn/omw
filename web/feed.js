@@ -398,6 +398,19 @@ function friendMenu(uid, sure = false) {
   $("actionSheet").hidden = false;
 }
 
+// location is off (or not found yet): an iPhone-style sheet that says how to fix it, with a way straight to Settings
+window.locationOff = denied => {
+  const native = document.documentElement.classList.contains("native");
+  $("actionSheet").innerHTML = `<div class="as-card" role="dialog" aria-label="Location">
+    <div class="as-group"><div class="as-title"><b>${denied ? "Location is off for omw!" : "Can't find you yet"}</b>
+      ${denied ? (native ? "Turn on Location in Settings so omw! can show where you are and when to leave."
+                         : "Allow location for omw! in your browser's settings, then try again.")
+               : "Check that Location Services is on and try again in a moment."}</div>
+      ${denied && native ? `<button data-open-settings>Open Settings</button>` : ""}</div>
+    <button class="as-cancel" data-sheet-cancel>${denied && native ? "Not now" : "OK"}</button></div>`;
+  $("actionSheet").hidden = false;
+};
+
 // ---------- profiles ----------
 
 function openProfile(uid) {
@@ -773,15 +786,34 @@ async function invite() {
   const mine = (window.myFriends || []).find(p => p.isMe) || {}, code = mine.code || "";
   const text = `Add me on omw! so we can plan hangouts and actually show up on time. My friend ID is ${code}.`;
   let share = APP_LINK ? { title: "omw!", text, url: APP_LINK } : { title: "omw!", text };
+  let card = null;
   try {
-    const card = await inviteCard(code, mine.realName || "");
+    card = await inviteCard(code, mine.realName || "");
     if (navigator.canShare?.({ files: [card] })) share = { ...share, files: [card] };
   } catch { /* just the text */ }
+  // the iPhone app: iOS's own share sheet, with the invite card as a picture
+  const Share = native && (window.Capacitor.Plugins?.Share || window.Capacitor.registerPlugin("Share"));
+  if (Share) {
+    try {
+      let files;
+      if (card) {
+        const fs = window.Capacitor.Plugins?.Filesystem || window.Capacitor.registerPlugin("Filesystem");
+        const data = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = no; r.readAsDataURL(card); });
+        files = [(await fs.writeFile({ path: "omw-invite.png", data, directory: "CACHE" })).uri];
+      }
+      return await Share.share({ title: "omw!", text, ...(APP_LINK ? { url: APP_LINK } : {}), ...(files ? { files } : {}), dialogTitle: "Invite friends" });
+    } catch (e) { if (/cancel/i.test(e?.message || "")) return; }
+  }
   try {
     if (navigator.share) return await navigator.share(share);
-    await navigator.clipboard.writeText([text, APP_LINK].filter(Boolean).join(" "));
-    alert("Invite copied. Paste it to your friends.");
-  } catch (e) { if (e.name !== "AbortError") alert(text); }
+  } catch (e) { if (e.name === "AbortError") return; }
+  // no share sheet: copy it, and say so in a sheet (never a bare alert with the whole message in it)
+  const copied = await navigator.clipboard?.writeText([text, APP_LINK].filter(Boolean).join(" ")).then(() => true, () => false);
+  $("actionSheet").innerHTML = `<div class="as-card" role="dialog" aria-label="Invite">
+    <div class="as-group"><div class="as-title"><b>${copied ? "Invite copied" : "Your friend ID"}</b>
+      ${copied ? "Paste it in Messages, Instagram or anywhere." : `Send your friends your ID: <b>@${esc(code.toLowerCase())}</b>`}</div></div>
+    <button class="as-cancel" data-sheet-cancel>OK</button></div>`;
+  $("actionSheet").hidden = false;
 }
 
 // ---------- making a post ----------
@@ -1100,7 +1132,7 @@ document.addEventListener("click", async e => {
     [data-del-comment], [data-report-comment], [data-new-post], [data-pc-cancel], [data-pc-share], [data-pc-place], [data-pc-unplace], [data-pc-near], [data-pc-tag], [data-pc-who], [data-post-tags], #feedChats,
     [data-profile], [data-open-board], [data-close-profile], [data-close-post], [data-view-post], [data-edit-profile], [data-message],
     [data-add-friend], [data-my-calendar], [data-invite], [data-add-friends], [data-sheet-cancel], [data-pf-tab], [data-privacy-yes],
-    [data-album], [data-album-next], [data-friend-menu], [data-unfriend], [data-unfriend-yes], [data-add-page], [data-accept-req], [data-decline-req], [data-rate-place], [data-rate-pick], [data-rerank]`);
+    [data-album], [data-album-next], [data-friend-menu], [data-unfriend], [data-unfriend-yes], [data-add-page], [data-accept-req], [data-decline-req], [data-rate-place], [data-rate-pick], [data-rerank], [data-open-settings]`);
   if (e.target.id === "actionSheet") return closeSheet();  // tapped outside the sheet
   if (!t || !t.closest("#feed, #tabs, #postCompose, #profile, #postView, #memories, #actionSheet")) return;
   const ds = t.dataset;
@@ -1109,6 +1141,7 @@ document.addEventListener("click", async e => {
   tick();
   if (ds.tab || ds.tabGo) return go(ds.tab || ds.tabGo);
   if (t.id === "feedChats") return $("inboxBtn").click();
+  if (t.hasAttribute("data-open-settings")) return (location.href = "app-settings:");  // omw!'s page in iPhone Settings (the app hands it to iOS)
   if (ds.profile) return openProfile(ds.profile);
   if (t.hasAttribute("data-open-board")) return $("boardBtn").click();
   if (t.hasAttribute("data-close-profile")) { profileStop?.(); profileStop = null; profile = null; $("profile").hidden = true; return; }

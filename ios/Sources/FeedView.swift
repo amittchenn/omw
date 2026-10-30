@@ -39,9 +39,17 @@ struct FeedView: View {
                             }
                     }
                     Button { posting = true } label: { Image(systemName: "plus.app") }
-                    NavigationLink { ComingSoon(title: "Chats", symbol: "bubble.left.and.bubble.right") } label: {
-                        Image(systemName: "paperplane")
+                    NavigationLink { ChatsView() } label: {
+                        Image(systemName: "bubble.left")
+                            .overlay(alignment: .topTrailing) {
+                                if session.unreadChats > 0 {
+                                    Text("\(session.unreadChats)").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                                        .padding(.horizontal, 5).frame(minWidth: 17, minHeight: 17)
+                                        .background(Color.red, in: Capsule()).offset(x: 9, y: -7)
+                                }
+                            }
                     }
+                    .accessibilityLabel("Chats")
                 }
             }
             .withProfileRoutes()

@@ -91,7 +91,7 @@ struct ProfileView: View {
                     Button("Remove friend", systemImage: "person.badge.minus", role: .destructive) { removing = true }
                 } label: { pill("Friends", systemImage: "chevron.down") }
                 .buttonStyle(.plain)
-                NavigationLink { ComingSoon(title: "Chats", symbol: "bubble.left.and.bubble.right") } label: { pill("Message") }
+                NavigationLink { DirectChat(uid: uid) } label: { pill("Message") }
                     .buttonStyle(.plain)
             }
         }

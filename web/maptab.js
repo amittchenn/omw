@@ -57,7 +57,7 @@ function draw() {
       .on("click", () => window.planAt ? pick(s) : null).addTo(layers.saved);
   }
 }
-const pick = s => { map().setView([s.lat, s.lng], Math.max(map().getZoom(), 15)); window.pickPlace?.([s.lat, s.lng], s.name, s.address || ""); };
+const pick = s => { map().setView([s.lat, s.lng], Math.max(map().getZoom(), 15)); window.pickSpot?.([s.lat, s.lng], s.name, s.address || ""); };
 
 // ---------- the card at the bottom ----------
 function card(html) {

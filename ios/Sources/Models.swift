@@ -231,6 +231,65 @@ struct Hangout: Identifiable, Equatable {
 
     var end: Date { start.addingTimeInterval(TimeInterval(durationMin * 60)) }
     var isOver: Bool { end < .now }
+    /// the plan's group chat lasts until a day after it ends, then it's gone for everyone
+    var chatExpires: Date { end.addingTimeInterval(24 * 3600) }
+    var chatOpen: Bool { chatExpires > .now }
+}
+
+/// chats/{id}: a DM (id "dm_<uid>_<uid>", sorted) or a group chat. See web/dms.js.
+struct Chat: Identifiable, Equatable {
+    let id: String
+    var members: [String]
+    var group: Bool
+    var title: String
+    var names: [String: String]
+    var photos: [String: String]
+    var last: ChatMessage?
+    var read: [String: Date]     // when each person last looked
+    var createdAt: Date
+
+    init(id: String, data: [String: Any]) {
+        self.id = id
+        members = data["members"] as? [String] ?? []
+        group = data["group"] as? Bool ?? false
+        title = data["title"] as? String ?? ""
+        names = data["names"] as? [String: String] ?? [:]
+        photos = (data["photos"] as? [String: String] ?? [:]).mapValues(Person.safePhoto)
+        last = (data["last"] as? [String: Any]).map { ChatMessage(id: "last", data: $0) }
+        read = (data["read"] as? [String: Any] ?? [:]).compactMapValues { When.parse($0) }
+        createdAt = When.parse(data["createdAt"]) ?? .distantPast
+    }
+
+    var lastAt: Date { last?.at ?? createdAt }
+
+    func others(_ me: String) -> [String] { members.filter { $0 != me } }
+
+    func unread(for me: String) -> Bool {
+        guard let last, last.from != me else { return false }
+        return read[me].map { last.at > $0 } ?? true
+    }
+}
+
+/// one message: chats/{id}/messages or hangouts/{id}/messages. kind: "text" (or none), "system" ("Priya created
+/// the group"), and in plan chats "arrived", "late", "left", "added" (omw! posts those itself)
+struct ChatMessage: Identifiable, Equatable {
+    let id: String
+    var from: String
+    var name: String
+    var text: String
+    var at: Date
+    var kind: String
+
+    init(id: String, data: [String: Any]) {
+        self.id = id
+        from = data["from"] as? String ?? ""
+        name = data["name"] as? String ?? ""
+        text = data["text"] as? String ?? ""
+        at = When.parse(data["at"]) ?? .distantPast
+        kind = data["kind"] as? String ?? "text"
+    }
+
+    var isText: Bool { kind == "text" }
 }
 
 /// locations/{uid}: where a friend was last seen (they choose to share it).

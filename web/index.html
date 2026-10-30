@@ -41,7 +41,6 @@
         --shadow: 0 12px 32px rgba(0, 0, 0, .5); --shadow-sm: 0 2px 12px rgba(0, 0, 0, .4);
       }
       html .apple-btn, html .apple-btn:hover { background: #fff; border-color: #fff; color: #000; }  /* Apple's rule: white in dark mode */
-      .mapboxgl-ctrl-attrib-button, .maplibregl-ctrl-attrib-button { filter: invert(1); }
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; overscroll-behavior: none; }
@@ -66,8 +65,13 @@
     .mapboxgl-ctrl-bottom-left, .maplibregl-ctrl-bottom-left { display: flex; align-items: center; flex-direction: row-reverse; gap: 6px; padding: 0 0 8px 10px; }
     .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl, .maplibregl-ctrl-bottom-left .maplibregl-ctrl { margin: 0 !important; float: none; }
     a.mapboxgl-ctrl-logo { width: 20px !important; height: 20px !important; background-size: auto 20px; opacity: .45; }
-    .mapboxgl-ctrl-attrib.mapboxgl-compact, .maplibregl-ctrl-attrib.maplibregl-compact { min-height: 18px; padding: 0 0 0 18px !important; background: transparent; color: var(--muted); }
-    .mapboxgl-ctrl-attrib-button, .maplibregl-ctrl-attrib-button { width: 18px !important; height: 18px !important; background-color: transparent !important; background-size: 18px; opacity: .45; }
+    .mapboxgl-ctrl-attrib.mapboxgl-compact, .maplibregl-ctrl-attrib.maplibregl-compact { min-height: 18px; padding: 0 0 0 18px !important; margin: 0 !important;
+      background: transparent !important; box-shadow: none !important; border-radius: 0; color: var(--muted); }
+    /* our own little "i" (theirs is a solid disc in dark mode): a thin ring the same quiet grey as the logo */
+    .mapboxgl-ctrl-attrib-button, .maplibregl-ctrl-attrib-button { width: 18px !important; height: 18px !important; top: 0 !important; left: 0 !important;
+      background: none !important; border: 1.5px solid currentColor !important; border-radius: 50%; color: var(--muted); opacity: .6;
+      display: grid !important; place-items: center; }
+    .mapboxgl-ctrl-attrib-button::before, .maplibregl-ctrl-attrib-button::before { content: "i"; font: 700 11px/1 Georgia, serif; }
     .mapboxgl-compact-show, .maplibregl-compact-show { padding: 2px 8px 2px 22px !important; background: var(--card) !important; border-radius: 10px; font-size: 11px; }
     .mapboxgl-ctrl-attrib a, .maplibregl-ctrl-attrib a { color: var(--muted); }
     html.has-tabs .mapboxgl-ctrl-bottom-left, html.has-tabs .maplibregl-ctrl-bottom-left,
@@ -193,8 +197,18 @@
     .mc-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
     .fair { margin-top: 8px; }
     .fair[hidden] { display: none; }
-    .fair-form { display: flex; gap: 6px; }
-    .fair-form input { flex: 1; min-width: 0; height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--soft); font: inherit; font-size: 14px; font-weight: 400; outline: none; }
+    .fair-form { position: relative; display: flex; align-items: center; margin-top: 6px; }
+    .fair-form > .ic { position: absolute; left: 14px; width: 17px; height: 17px; color: var(--muted); pointer-events: none; }
+    .fair-form input { flex: 1; min-width: 0; height: 44px; padding: 0 48px 0 40px; border: 0; border-radius: 999px; background: var(--soft);
+                       font: inherit; font-size: 16px; font-weight: 400; color: var(--ink); outline: none; -webkit-appearance: none; appearance: none; }
+    .fair-form input::-webkit-search-cancel-button { display: none; }
+    .fair-form input:focus { box-shadow: inset 0 0 0 1.5px var(--soft-2); }
+    .fair-form button { position: absolute; right: 5px; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%;
+                        background: var(--ink); color: var(--page); display: grid; place-items: center; cursor: pointer; }
+    .fair-form button[hidden] { display: none; }
+    .fair-form button .ic { width: 17px; height: 17px; margin: 0; }
+    .fair-hint { display: flex; align-items: center; gap: 6px; margin: 7px 0 0 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+    .fair-hint .ic { width: 14px; height: 14px; }
     .cal-confirm { padding: 12px 14px; border-radius: 16px; background: var(--soft); }
     .cal-confirm b { display: block; font-size: 15px; font-weight: 600; }
     .cal-confirm small { display: block; margin-top: 3px; font-size: 12px; font-weight: 400; color: var(--muted); }
@@ -545,26 +559,28 @@
     .pick-search input { flex: 1; min-width: 0; height: 42px; padding: 0 12px 0 38px; border: 0; border-radius: 999px; background: var(--soft);
                          font-weight: 500; outline: none; }
     .pick-search input:focus { box-shadow: inset 0 0 0 1.5px var(--soft-2); }
-    .pick-all { flex: none; height: 42px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--soft); font-weight: 600; cursor: pointer; }
+    .pick-all { flex: none; height: 42px; padding: 0 4px 0 6px; border: 0; background: none; font-weight: 600; color: #1e88ff; cursor: pointer; }
     .pick-all:empty { display: none; }
     .pick-list { display: flex; flex-direction: column; gap: 4px; max-height: 216px; overflow-y: auto; margin-top: 8px; }
     .pick-list:empty { display: none; }
     /* the same rows as "My friends" in your profile */
-    .pick-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 18px; background: var(--soft); cursor: pointer; user-select: none; }
-    .pick-row:hover { background: var(--soft); }
+    /* flat rows, like picking people in Messages: no cards, just a face, a name and a ring that fills in */
+    .pick-row { display: flex; align-items: center; gap: 12px; padding: 7px 4px; border-radius: 12px; background: none; cursor: pointer; user-select: none;
+                -webkit-tap-highlight-color: transparent; }
+    .pick-row:active { background: var(--soft); }
     .pick-row .avatar { width: 42px; height: 42px; }
-    .pick-list { gap: 6px !important; }
+    .pick-list { gap: 0 !important; }
     .who-pick[hidden] { display: none; }
     .friend.add-tile { display: grid; justify-items: center; border: 0; background: none; padding: 0; font: inherit; color: var(--ink); }
-    .add-tile i { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--soft); background: var(--card); }
-    .add-tile.on i { border-style: solid; border-color: var(--ink); background: var(--ink); color: var(--on-ink); }
+    .add-tile i { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; border: 1.5px dashed var(--soft-2); background: none; color: var(--muted); }
+    .add-tile.on i { border: 0; background: var(--soft); color: var(--ink); }  /* Done: quiet, not a big white disc */
     .add-tile svg { width: 22px; height: 22px; }
     .pick-row .who { flex: 1; min-width: 0; }
     .pick-row b { display: block; font-weight: 600; }
     .pick-row small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
-    .pick-row .tick { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center;
-                      font-size: 13px; font-weight: 600; color: #fff; }
-    .pick-row.on .tick { background: var(--green); border-color: var(--green); }
+    .pick-row .tick { width: 24px; height: 24px; flex: none; border-radius: 50%; border: 1.5px solid var(--soft-2); display: grid; place-items: center;
+                      font-size: 13px; font-weight: 600; color: #fff; transition: background .12s, border-color .12s; }
+    .pick-row.on .tick { background: #1e88ff; border-color: #1e88ff; }
     .pick-empty { padding: 10px; font-size: 13px; font-weight: 400; color: var(--muted); text-align: center; }
 
     .avatar { position: relative; width: 36px; height: 36px; flex: none; border-radius: 50%; overflow: hidden;
@@ -1133,6 +1149,11 @@
     .feed-head { position: sticky; top: calc(-1 * env(safe-area-inset-top)); z-index: 2; display: flex; align-items: center; gap: 8px;
                  padding: calc(10px + env(safe-area-inset-top)) 16px 10px; margin-top: calc(-1 * env(safe-area-inset-top)); background: var(--page); }
     .feed-logo { flex: 1; font-size: 28px; font-weight: 800; letter-spacing: -1px; color: var(--ink); }
+    /* the buttons up top: plain icons in a row, like Instagram's, not three grey discs */
+    .feed-head { gap: 2px; }
+    .feed-head .feed-round { width: 42px; height: 42px; background: none; }
+    .feed-head .feed-round .ic { width: 25px; height: 25px; stroke-width: 1.9; }
+    .feed-head .feed-round:active { opacity: .5; }
     .feed-logo b { color: var(--sun-deep); }
     .feed-round { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--soft); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
     .feed-round .ic { width: 22px; height: 22px; }
@@ -1471,6 +1492,9 @@
                       background: none; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
     .pf-tabs button.on { color: var(--ink); border-bottom-color: var(--ink); } .pf-tabs .ic { width: 18px; height: 18px; }
     .pf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin: 2px -18px 0; }
+    /* in the app, the tabs and the grid both run the full width of the screen, like Instagram (whatever the page's padding) */
+    html.has-tabs .pf-tabs, html.has-tabs .pf-grid { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
+    html.has-tabs .pf-grid { margin-top: -15px; gap: 1.5px; }  /* right under the tabs (the page's 16px gap is for the sections above) */
     .pf-grid button { aspect-ratio: 3 / 4; padding: 0; border: 0; border-radius: 0; background: var(--soft) center/cover; cursor: pointer; }  /* portrait tiles, edge to edge */
     .pf-empty { flex: 1; display: grid; align-content: center; justify-items: center; gap: 8px; padding: 32px 24px 64px; text-align: center; color: var(--muted); font-size: 14px; }
     .pf-empty .ic { width: 34px; height: 34px; color: var(--ink); } .pf-empty b { color: var(--ink); font-size: 17px; }
@@ -1779,10 +1803,14 @@
 
   <div class="section">
     <div class="label">Where</div>
-    <button class="find" id="fairBtn"><i data-ic="scale"></i> Find a spot that's fair for everyone</button>
+    <!-- one field: say what kind of place, and omw! finds spots that are about the same trip for everyone -->
+    <form class="fair-form" id="fairForm" role="search">
+      <i data-ic="search"></i>
+      <input id="fairText" type="search" enterkeyhint="search" placeholder="Tacos, coffee, open late…" autocomplete="off" maxlength="100">
+      <button id="fairGo" aria-label="Find spots" hidden><i data-ic="arrow-up"></i></button>
+    </form>
+    <p class="fair-hint"><i data-ic="scale"></i> Finds spots that are a fair trip for everyone</p>
     <div class="fair" id="fair" hidden>
-      <form class="fair-form" id="fairForm"><input id="fairText" placeholder="What kind of place? e.g. cheap tacos, open late" autocomplete="off" maxlength="100">
-        <button class="mini dark">Find</button></form>
       <div id="fairList"></div>
       <div class="muse-confirm" id="fairConfirm" hidden></div>
     </div>

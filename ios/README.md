@@ -18,7 +18,10 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 | Share my location: Never / While using the app / Always (auto check-in at the spot even with omw! closed) | Done |
 | Plans: coming up and past | Done |
 | Settings: location sharing, sign out, delete account (with Apple's confirm), privacy/terms/help | Done |
-| + planner, chats, edit profile, ranking places, notifications, Live Activity | Next (still in the current app) |
+| + planner: what, who, where, when, everyone's leave time, send invites | Done |
+| Plan details: Going / Can't make it, leave-by time, directions, I'm here, who's arrived | Done |
+| Chats: DMs, group chats (name, add people, leave), every plan's group chat, unread badges, search | Done |
+| Edit profile, ranking places, notifications, Live Activity | Next (still in the current app) |
 
 `Sources/`:
 - `OmwApp.swift`: app start; signed out → sign in, signed in → tabs
@@ -26,6 +29,7 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 - `Models.swift`: the Firestore documents
 - `Components.swift`: colors, pictures, avatars
 - `Session+Actions.swift`: adding friends and posting
+- `Chats.swift`: the inbox, DMs, group chats and plan chats (same documents as web/dms.js and web/chat.js)
 - `API.swift`: the omw! server (place search, deleting accounts; the planner next)
 - `LocationService.swift`: sharing your location the way you chose, and checking you in when you arrive
 - the screens: `SignInView`, `MainTabView`, `FeedView`, `CommentsSheet`, `NewPostView`, `AddFriendsView`, `ProfileView`,

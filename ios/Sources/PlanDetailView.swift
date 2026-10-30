@@ -71,6 +71,18 @@ struct PlanDetailView: View {
         }
         .listStyle(.insetGrouped)
         .toolbar {
+            if going, h.chatOpen {
+                ToolbarItem(placement: .topBarTrailing) {
+                    // the plan's group chat (the people going), like the web app
+                    NavigationLink(value: ChatRef.plan(h.id)) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .overlay(alignment: .topTrailing) {
+                                if session.planUnread(h.id) > 0 { Circle().fill(.red).frame(width: 9, height: 9).offset(x: 4, y: -3) }
+                            }
+                    }
+                    .accessibilityLabel("Group chat")
+                }
+            }
             if going, !h.isOver {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {

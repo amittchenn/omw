@@ -48,5 +48,6 @@ extension View {
     func withProfileRoutes() -> some View {
         navigationDestination(for: ProfileRoute.self) { ProfileView(uid: $0.uid) }
             .navigationDestination(for: PostRoute.self) { PostDetailView(id: $0.id) }
+            .navigationDestination(for: ChatRef.self) { ConversationView(ref: $0) }
     }
 }

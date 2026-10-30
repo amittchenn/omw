@@ -125,7 +125,7 @@ extension Session {
         try await write(ref, ["attendees": FieldValue.arrayRemove([uid]), "rsvp.\(uid)": "declined"])
     }
 
-    private func write(_ ref: DocumentReference, _ update: [String: Any]) async throws {
+    func write(_ ref: DocumentReference, _ update: [String: Any]) async throws {
         try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
             ref.updateData(update) { error in if let error { done.resume(throwing: error) } else { done.resume() } }
         }

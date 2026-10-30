@@ -19,6 +19,9 @@ final class Session {
     var incoming: [FriendRequest] = []   // people who want to be your friend
     var outgoing: [String] = []          // people you asked
     var isPublic = true                  // your account: public (anyone sees your posts) or private (friends only)
+    var chats: [Chat] = []               // DMs and group chats you're in
+    var planMessages: [String: [ChatMessage]] = [:]  // each live plan's group chat (Chats.swift)
+    var planSeen: [String: Date] = [:]   // when you last opened each plan's chat (kept on this phone)
 
     @ObservationIgnored let db = Firestore.firestore()
     @ObservationIgnored private var authHandle: AuthStateDidChangeListenerHandle?
@@ -26,6 +29,7 @@ final class Session {
     @ObservationIgnored private var friendStops: [String: [ListenerRegistration]] = [:]
     @ObservationIgnored private var friendsByID: [String: Person] = [:]
     @ObservationIgnored private var commentStops: [String: ListenerRegistration] = [:]
+    @ObservationIgnored private var planChatStops: [String: ListenerRegistration] = [:]
 
     var uid: String? { user?.uid }
 
@@ -123,6 +127,8 @@ final class Session {
         self.user = user
         listeningFor = user?.uid
         guard let uid = user?.uid else { return }
+        planSeen = (UserDefaults.standard.dictionary(forKey: "planSeen.\(uid)") as? [String: Double] ?? [:])
+            .mapValues { Date(timeIntervalSince1970: $0) }
 
         // your profile (made the first time you sign in, like the web app does)
         let meRef = db.collection("users").document(uid)
@@ -200,8 +206,33 @@ final class Session {
                 MainActor.assumeIsolated {
                     guard let self, let snap else { return }
                     self.hangouts = snap.documents.map { Hangout(id: $0.documentID, data: $0.data()) }
+                    self.listenToPlanChats()
                 }
             })
+
+        // your chats: DMs and groups
+        stops.append(db.collection("chats").whereField("members", arrayContains: uid)
+            .addSnapshotListener { [weak self] snap, _ in
+                MainActor.assumeIsolated {
+                    guard let self, let snap else { return }
+                    self.chats = snap.documents.map { Chat(id: $0.documentID, data: $0.data()) }
+                }
+            })
+    }
+
+    /// every plan you're going to has a group chat until a day after it ends (like the web app's chat.js)
+    private func listenToPlanChats() {
+        let live = Set(hangouts.filter(\.chatOpen).map(\.id))
+        for (id, stop) in planChatStops where !live.contains(id) { stop.remove(); planChatStops[id] = nil; planMessages[id] = nil }
+        for id in live where planChatStops[id] == nil {
+            planChatStops[id] = db.collection("hangouts").document(id).collection("messages")
+                .addSnapshotListener { [weak self] snap, _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let snap else { return }
+                        self.planMessages[id] = snap.documents.map { ChatMessage(id: $0.documentID, data: $0.data()) }.sorted { $0.at < $1.at }
+                    }
+                }
+        }
     }
 
     private func listenToFriend(_ id: String) {
@@ -238,6 +269,8 @@ final class Session {
         stops.forEach { $0.remove() }; stops = []
         friendStops.values.flatMap { $0 }.forEach { $0.remove() }; friendStops = [:]
         commentStops.values.forEach { $0.remove() }; commentStops = [:]
+        planChatStops.values.forEach { $0.remove() }; planChatStops = [:]
+        chats = []; planMessages = [:]; planSeen = [:]
         friendsByID = [:]; friends = []; spots = [:]; allPosts = []; hangouts = []; comments = [:]; me = nil
         incoming = []; outgoing = []; invites = []
     }
