@@ -118,7 +118,19 @@ struct FriendsMapView: View {
             .safeAreaInset(edge: .top) { searchBar }
             // the friend bar floats over the map with room underneath, so Apple's "Maps · Legal" mark (which has to stay
             // visible) sits tucked along the bottom edge instead of hovering above the bar
-            .overlay(alignment: .bottom) { friendBar.padding(.bottom, 24) }
+            .overlay(alignment: .bottom) {
+                // a tapped place: our own card floating over the bottom of the map (always the same size and margins),
+                // in place of the friend bar. Swipe it down or tap ✕ to close.
+                if let p = place {
+                    PlaceCard(place: p) { withAnimation(.snappy(duration: 0.3)) { place = nil } }
+                        .id(p.id)
+                        .padding(.horizontal, 10).padding(.bottom, 8)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    friendBar.padding(.bottom, 24)
+                }
+            }
+            .animation(.snappy(duration: 0.3), value: place?.id)
             .task(id: query) {
                 let q = query.trimmingCharacters(in: .whitespaces)
                 guard !q.isEmpty else { hits = []; return }
@@ -126,11 +138,6 @@ struct FriendsMapView: View {
                 if Task.isCancelled { return }
                 let near = location.last?.coordinate ?? session.me?.home ?? CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
                 hits = await API.suggestPlaces(q, near: (near.latitude, near.longitude))
-            }
-            .sheet(item: $place) { p in
-                PlaceCard(place: p).withOmw()  // it sets its own sheet size, the same every time
-                    .presentationDragIndicator(.visible)
-                    .presentationBackgroundInteraction(.enabled)
             }
             .onAppear {
                 location.apply()
@@ -379,6 +386,8 @@ struct PlaceInfo: Decodable {
 /// The place card, like Google Maps': photos, rating and hours, then Plan here, Save, Rate, Go
 struct PlaceCard: View {
     let place: MapPlace
+    var close: () -> Void = {}
+    @State private var drag: CGFloat = 0
     @Environment(Session.self) private var session
     @State private var planning = false
     @State private var rating = false
@@ -411,12 +420,29 @@ struct PlaceCard: View {
                 }
             }
         }
-        .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 12)
-        // every place card the same: same width as the sheet, same height (room for a two-line name)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .presentationDetents([.height(372)])
-        .presentationBackground(Color(.systemBackground))  // a solid card, not glass over a busy map
-        .presentationCornerRadius(28)
+        .padding(14)
+        // every place card the same: as wide as the screen allows, just as tall as it needs, solid (not glass over a
+        // busy map), with a ✕ and a swipe down to close
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(Color(.systemBackground), in: .rect(cornerRadius: 26))
+        .overlay(alignment: .topTrailing) {
+            Button(action: close) {
+                Image(systemName: "xmark").font(.footnote.weight(.bold))
+                    .frame(width: 30, height: 30)
+                    .background(.regularMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(20)
+            .accessibilityLabel("Close")
+        }
+        .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
+        .offset(y: max(0, drag))
+        .gesture(DragGesture(minimumDistance: 8)
+            .onChanged { drag = $0.translation.height }
+            .onEnded { v in
+                if v.translation.height > 90 || v.predictedEndTranslation.height > 220 { close() }
+                withAnimation(.snappy) { drag = 0 }
+            })
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
