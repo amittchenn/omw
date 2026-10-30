@@ -6,3 +6,7 @@ node_modules/
 models/traffic.json
 data/traffic_weather.csv
 data/real_checkins.csv
+# Xcode (the SwiftUI app in ios/)
+xcuserdata/
+*.xcuserstate
+DerivedData/
