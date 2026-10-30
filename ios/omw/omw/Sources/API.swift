@@ -3,6 +3,10 @@
 import Foundation
 import MapKit
 import FirebaseAuth
+import CoreLocation
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 enum API {
     /// Change this if the server moves (it's the same address the current app uses as OMW_SERVER)
@@ -30,6 +34,16 @@ enum API {
 }
 
 extension API {
+    /// The free server sleeps when nobody's used it for a while, and the first request then waits ~30 s while it wakes.
+    /// So the app wakes it as soon as it opens (and when you start a plan): by the time you ask, it's up.
+    static func wake() {
+        Task.detached(priority: .utility) {
+            var request = URLRequest(url: base.appending(path: "health"))
+            request.timeoutInterval = 60
+            _ = try? await URLSession.shared.data(for: request)
+        }
+    }
+
     /// POST with your sign-in; fails with the server's own message
     static func post(_ path: String) async throws {
         var request = URLRequest(url: base.appending(path: path))

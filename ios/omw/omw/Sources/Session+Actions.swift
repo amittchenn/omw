@@ -2,6 +2,9 @@
 import UIKit
 import CoreLocation
 import FirebaseFirestore
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 extension Session {
     // ---------- friends ----------

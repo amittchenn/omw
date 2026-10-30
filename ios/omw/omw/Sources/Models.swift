@@ -2,6 +2,9 @@
 import Foundation
 import CoreLocation
 import FirebaseFirestore
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 /// users/{uid}: a person's profile. Friends can read it; their live location is in locations/{uid}.
 struct Person: Identifiable, Equatable {

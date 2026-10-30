@@ -8,6 +8,9 @@
 import SwiftUI
 import CoreLocation
 import FirebaseFirestore
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 struct RankedPlace: Equatable {
     var name: String
@@ -157,6 +160,7 @@ struct RankSheet: View {
     @State private var hi = 0
     @State private var asked = 0
     @State private var others: [String] = []  // that part of your list, without this place
+    @State private var stars = 0
 
     private var key: String { Session.placeKey(place.name, place.address) }
 
@@ -181,22 +185,29 @@ struct RankSheet: View {
                     Text("How was \(place.name)?").font(.title3.weight(.bold)).multilineTextAlignment(.center)
                     if !place.address.isEmpty { Text(place.address).font(.footnote).foregroundStyle(.secondary).lineLimit(1) }
                 }
+                // stars: 4–5 liked it, 3 fine, 1–2 didn't (the same three groups as the web app's list)
                 VStack(spacing: 10) {
-                    ForEach(RankBucket.allCases) { b in
-                        Button { feel(b) } label: {
-                            Label(b.label, systemImage: b.symbol)
-                                .font(.headline)
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                                .background(b.color.opacity(0.15), in: .rect(cornerRadius: 14))
-                                .foregroundStyle(b.color)
+                    HStack(spacing: 10) {
+                        ForEach(1...5, id: \.self) { n in
+                            Button { rate(n) } label: {
+                                Image(systemName: n <= stars ? "star.fill" : "star")
+                                    .font(.system(size: 38, weight: .semibold))
+                                    .foregroundStyle(n <= stars ? Color.sun : Color(.tertiaryLabel))
+                                    .scaleEffect(n == stars ? 1.15 : 1)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(n) star\(n == 1 ? "" : "s")")
                         }
-                        .buttonStyle(Pressable())
                     }
+                    Text(["Tap to rate", "Not for me", "Meh", "It was fine", "Good", "Loved it"][stars])
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                 }
+                .padding(.top, 6)
             }
         }
         .padding(22)
         .sensoryFeedback(.selection, trigger: asked)
+        .sensoryFeedback(.selection, trigger: stars)
         .animation(.snappy(duration: 0.2), value: asked)
         .animation(.snappy(duration: 0.2), value: bucket)
     }
@@ -213,6 +224,15 @@ struct RankSheet: View {
         }
         .buttonStyle(Pressable())
         .foregroundStyle(.primary)
+    }
+
+    /// a quick beat so you see the stars fill, then on to "which did you like more?"
+    private func rate(_ n: Int) {
+        withAnimation(.snappy(duration: 0.15)) { stars = n }
+        Task {
+            try? await Task.sleep(for: .milliseconds(220))
+            feel(n >= 4 ? .liked : n == 3 ? .fine : .disliked)
+        }
     }
 
     private func feel(_ b: RankBucket) {

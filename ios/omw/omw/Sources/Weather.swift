@@ -2,6 +2,9 @@
 // around it. Straight from Open-Meteo (free, no key), °F in the US and °C everywhere else.
 import SwiftUI
 import CoreLocation
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 struct Forecast: Equatable {
     struct Hour: Equatable, Identifiable {
@@ -115,7 +118,16 @@ struct WeatherPanel: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             } else {
-                ProgressView().frame(maxWidth: .infinity)
+                // the shape of the forecast while it comes in
+                HStack(spacing: 12) {
+                    Circle().fill(Color(.secondarySystemFill)).frame(width: 34, height: 34)
+                    VStack(alignment: .leading, spacing: 7) {
+                        Capsule().fill(Color(.secondarySystemFill)).frame(width: 90, height: 12)
+                        Capsule().fill(Color(.tertiarySystemFill)).frame(width: 140, height: 9)
+                    }
+                }
+                .shimmer()
+                .accessibilityHidden(true)
             }
         }
         .task(id: "\(spot?.latitude ?? 0),\(spot?.longitude ?? 0),\(when.timeIntervalSince1970)") {

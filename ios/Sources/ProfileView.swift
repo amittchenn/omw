@@ -28,25 +28,36 @@ struct ProfileView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 22) {
-                    Avatar(photo: person?.photo ?? card?.photo ?? "", name: name, size: 88)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(name).font(.title2.weight(.bold))
+                // omw!'s profile: how on time you are is the headline, not your post count
+                HStack(spacing: 20) {
+                    OnTimeRing(percent: onTime) {
+                        Avatar(photo: person?.photo ?? card?.photo ?? "", name: name, size: 84)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(name).font(.system(size: 24, weight: .heavy, design: .rounded))
                         if !code.isEmpty {
                             Text("@\(code.lowercased())").foregroundStyle(.secondary)
                         }
+                        Text(punctuality.title)
+                            .font(.footnote.weight(.bold))
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(punctuality.color.opacity(0.18), in: Capsule())
+                            .foregroundStyle(punctuality.color)
+                            .padding(.top, 2)
                     }
                 }
-                HStack(spacing: 28) {
-                    stat(posts.count, posts.count == 1 ? "post" : "posts")
+                HStack(spacing: 0) {
+                    stat(hangoutCount, hangoutCount == 1 ? "hangout" : "hangouts")
+                    stat(onTime, "on time", suffix: "%")
                     if mine || session.isFriend(uid) {
                         NavigationLink { FriendsListView(uid: uid) } label: {
                             stat(mine ? session.friends.count : friendCount, (mine ? session.friends.count : friendCount) == 1 ? "friend" : "friends")
                         }
                         .buttonStyle(.plain)
                     }
-                    if hangoutCount > 0 { stat(hangoutCount, hangoutCount == 1 ? "hangout" : "hangouts") }
                 }
+                .padding(.vertical, 12)
+                .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
                 buttons
             }
             .padding(.horizontal, 16)
@@ -115,10 +126,29 @@ struct ProfileView: View {
         .sensoryFeedback(.selection, trigger: tab)
     }
 
-    private func stat(_ n: Int, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("\(n)").font(.headline)
-            Text(label).font(.footnote).foregroundStyle(.secondary)
+    private func stat(_ n: Int?, _ label: String, suffix: String = "") -> some View {
+        VStack(spacing: 1) {
+            Text(n.map { "\($0)\(suffix)" } ?? "–").font(.system(size: 20, weight: .heavy, design: .rounded))
+            Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// their spot on the on-time board (you and friends)
+    private var standing: Standing? { session.standings.first { $0.id == uid } }
+    /// how often they're on time, once they've checked in somewhere
+    private var onTime: Int? { standing.flatMap { $0.hangouts > 0 ? $0.percent : nil } }
+
+    /// a title from how on time they are, like a badge
+    private var punctuality: (title: String, color: Color) {
+        guard let s = standing, s.hangouts > 0 else { return ("🆕 New here", .secondary) }
+        let p = "\(s.percent)% on time"
+        switch s.percent {
+        case 90...: return ("⏱️ Clockwork · \(p)", .freeGreen)
+        case 70..<90: return ("⚡ Early bird · \(p)", .freeGreen)
+        case 50..<70: return ("🙂 Mostly there · \(p)", .orange)
+        case 25..<50: return ("🐢 Fashionably late · \(p)", .orange)
+        default: return ("🌀 Chaos agent · \(p)", .red)
         }
     }
 
@@ -333,5 +363,26 @@ struct BlockedList: View {
         .navigationTitle("Blocked")
         .navigationBarTitleDisplayMode(.inline)
         .task { session.cards(session.me?.blocked ?? []) { cards = $0 } }
+    }
+}
+
+/// a ring around someone's picture that fills with how often they're on time (green), like an activity ring
+struct OnTimeRing<Content: View>: View {
+    let percent: Int?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(7)
+            .overlay {
+                Circle().stroke(Color(.tertiarySystemFill), lineWidth: 5)
+                if let percent {
+                    Circle()
+                        .trim(from: 0, to: CGFloat(percent) / 100)
+                        .stroke(percent >= 70 ? Color.freeGreen : percent >= 40 ? Color.orange : Color.red,
+                                style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+            }
     }
 }

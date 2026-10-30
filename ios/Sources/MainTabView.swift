@@ -1,4 +1,5 @@
-// The four tabs: Feed, Map, Plans, Me. Planning opens over whatever you're on (PlanLauncher), from the ＋ buttons.
+// The tabs: Feed, Map, ＋, Plans, Me. The ＋ in the middle is a yellow button, not a page: it opens the planner over
+// whatever you're on (PlanLauncher), and you stay there when it closes.
 import SwiftUI
 
 struct MainTabView: View {
@@ -7,7 +8,7 @@ struct MainTabView: View {
     @State private var planner = PlanLauncher.shared
     @State private var router = PushRouter.shared  // a tapped notification (Push.swift)
 
-    enum Tab: Hashable { case feed, map, plans, me }
+    enum Tab: Hashable { case feed, map, plan, plans, me }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -17,6 +18,10 @@ struct MainTabView: View {
             FriendsMapView()
                 .tabItem { Label("Map", systemImage: "map") }
                 .tag(Tab.map)
+            // the middle slot, under the yellow ＋ (tapping the slot itself plans too)
+            Color.clear
+                .tabItem { Text(" ") }
+                .tag(Tab.plan)
             PlansView()
                 .tabItem { Label("Plans", systemImage: "calendar") }
                 .badge(session.invites.count)
@@ -24,10 +29,16 @@ struct MainTabView: View {
             NavigationStack {
                 ProfileView(uid: session.uid ?? "")
                     .withProfileRoutes()
-                    .planButton()
             }
             .tabItem { Label("Me", systemImage: "person.crop.circle") }
             .tag(Tab.me)
+        }
+        .onChange(of: tab) { old, new in
+            if new == .plan { tab = old; planner.open = true }
+        }
+        .overlay(alignment: .bottom) {
+            PlanFab().padding(.bottom, 4)  // sits in the middle of the tab bar
+                .ignoresSafeArea(.keyboard)  // stays put when typing
         }
         .sheet(isPresented: Bindable(planner).open) {
             PlanSheet().withOmw()
@@ -57,7 +68,7 @@ final class PlanLauncher {
     var open = false
 }
 
-/// the yellow ＋: plan a hangout, from any tab (bottom right, above the tab bar)
+/// the yellow ＋ in the middle of the tab bar: plan a hangout
 struct PlanFab: View {
     var body: some View {
         Button { PlanLauncher.shared.open = true } label: {
@@ -73,8 +84,3 @@ struct PlanFab: View {
     }
 }
 
-extension View {
-    func planButton() -> some View {
-        overlay(alignment: .bottomTrailing) { PlanFab().padding(.trailing, 16).padding(.bottom, 12) }
-    }
-}

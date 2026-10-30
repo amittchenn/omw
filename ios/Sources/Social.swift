@@ -124,6 +124,14 @@ struct UpNextCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
             .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+            .overlay(alignment: .topTrailing) {
+                // Ticki: running once it's nearly time to go, cheering once you're there
+                if hangout.arrivals[uid] != nil {
+                    Ticki(mood: .cheer).frame(width: 64, height: 64).padding(8)
+                } else if let leave = hangout.alerts[uid], leave.timeIntervalSinceNow < 30 * 60 {
+                    Ticki(mood: leave < .now ? .worried : .run).frame(width: 64, height: 64).padding(8)
+                }
+            }
         }
         .buttonStyle(.plain)
     }

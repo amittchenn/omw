@@ -7,6 +7,9 @@ import Foundation
 import CoreLocation
 import UIKit
 import FirebaseFirestore
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 @MainActor @Observable
 final class LocationService: NSObject, CLLocationManagerDelegate {

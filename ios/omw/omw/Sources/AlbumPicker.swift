@@ -54,7 +54,7 @@ struct AlbumPicker: View {
                 if album.allowed {
                     library
                 } else if album.status == .notDetermined {
-                    ProgressView()
+                    Color.clear
                 } else {
                     noAccess
                 }

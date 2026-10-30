@@ -3,6 +3,9 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 struct FriendsMapView: View {
     @Environment(Session.self) private var session
@@ -161,19 +164,32 @@ extension FriendsMapView {
     var searchBar: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search places", text: $query)
-                    .focused($searching)
-                    .submitLabel(.search)
-                    .onSubmit { if let first = hits.first { open(first) } }  // Search: go to the best match
-                    .autocorrectionDisabled()
-                if !query.isEmpty {
-                    Button { query = ""; searching = false } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Search places", text: $query)
+                        .focused($searching)
+                        .submitLabel(.search)
+                        .onSubmit { if let first = hits.first { open(first) } }  // Search: go to the best match
+                        .autocorrectionDisabled()
+                    if !query.isEmpty {
+                        Button { query = ""; searching = false } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    }
                 }
+                .padding(.horizontal, 14).frame(height: 46)
+                .background(.regularMaterial, in: Capsule())
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                .frame(maxWidth: .infinity)
+                // your saved places (favourites), next to search like Google Maps' Saved
+                Button { showSaved = true } label: {
+                    Image(systemName: "bookmark.fill").font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Color.omwBlue)
+                        .frame(width: 46, height: 46)
+                        .background(.regularMaterial, in: Circle())
+                        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                }
+                .buttonStyle(Pressable())
+                .accessibilityLabel("Saved places")
             }
-            .padding(.horizontal, 14).frame(height: 46)
-            .background(.regularMaterial, in: Capsule())
-            .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
 
             if !query.trimmingCharacters(in: .whitespaces).isEmpty && !hits.isEmpty && place == nil {
                 VStack(spacing: 0) {
@@ -224,10 +240,6 @@ extension FriendsMapView {
                 bubble(label: "Me", lit: true, tap: { if let here = location.last?.coordinate { fly(to: here) } }) {
                     Avatar(session.me, size: 46)
                 }
-                bubble(label: "Saved", lit: false, tap: { showSaved = true }) {
-                    Image(systemName: "bookmark.fill").font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 46, height: 46).background(Color.omwBlue, in: Circle())
-                }
                 ForEach(session.friends.sorted { (session.spots[$0.id]?.isFresh == true ? 0 : 1) < (session.spots[$1.id]?.isFresh == true ? 0 : 1) }) { f in
                     let spot = session.spots[f.id]
                     bubble(label: f.firstName, lit: spot?.isFresh == true, tap: {
@@ -241,7 +253,11 @@ extension FriendsMapView {
         }
         .scrollIndicators(.hidden)
         .background(.regularMaterial, in: .rect(cornerRadius: 26))
-        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity)
+        // the yellow ＋ beside it, like on every tab
+        .padding(.leading, 10)
+        .padding(.trailing, 84)
+        .overlay(alignment: .trailing) { PlanFab().padding(.trailing, 14) }
         .padding(.bottom, 6)
     }
 

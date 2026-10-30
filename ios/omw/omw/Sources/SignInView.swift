@@ -92,7 +92,6 @@ struct SignInView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.sun.ignoresSafeArea())
-        .overlay { if busy { ProgressView().tint(.black).controlSize(.large) } }
         .environment(\.colorScheme, .light)  // the sign-in screen is always the yellow one
         .animation(.snappy(duration: 0.2), value: message)
         .onAppear { withAnimation(.spring(response: 0.5, dampingFraction: 0.62)) { shown = true } }

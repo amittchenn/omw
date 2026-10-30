@@ -24,7 +24,7 @@ struct PlansView: View {
 
                     if session.upcoming.isEmpty && session.invites.isEmpty {
                         VStack(spacing: 8) {
-                            Image(systemName: "calendar.badge.plus").font(.system(size: 40)).foregroundStyle(.secondary)
+                            Ticki(mood: .sleepy).frame(width: 120, height: 120)
                             Text("Nothing planned").font(.headline)
                             Button("Make a plan") { PlanLauncher.shared.open = true }
                                 .font(.subheadline.weight(.bold))
@@ -53,7 +53,6 @@ struct PlansView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
-            .planButton()
             .toolbar(.hidden, for: .navigationBar)
             .withProfileRoutes()
         }

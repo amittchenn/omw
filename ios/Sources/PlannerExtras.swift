@@ -120,7 +120,7 @@ struct FairSpotFinder: View {
             .softField()
             if working {  // the shape of the answers while the trips are worked out, and the clock hurrying
                 HStack(spacing: 8) {
-                    OmwMark().frame(width: 28, height: 28).modifier(Wiggle())
+                    Ticki(mood: .run).frame(width: 40, height: 40)
                     Text("Checking everyone's trip…").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                 }
                 ForEach(0..<2, id: \.self) { _ in
@@ -316,16 +316,5 @@ struct MuseBar: View {
             when = When.local.string(from: start)
         }
         return MuseAnswer(who: who, type: type, when: when, place: nil, place_options: nil, place_query: nil, summary: "Got it", note: nil)
-    }
-}
-
-/// the omw! clock rocking side to side, like it's running late
-struct Wiggle: ViewModifier {
-    @State private var on = false
-
-    func body(content: Content) -> some View {
-        content
-            .rotationEffect(.degrees(on ? 12 : -12))
-            .onAppear { withAnimation(.easeInOut(duration: 0.18).repeatForever(autoreverses: true)) { on = true } }
     }
 }

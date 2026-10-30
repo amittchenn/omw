@@ -269,7 +269,13 @@ struct FriendsListView: View {
             .padding(.top, 4)
         }
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
-        .overlay { if !mine && !loaded { ProgressView() } else if shown.isEmpty && query.isEmpty { ContentUnavailableView("No friends yet", systemImage: "person.2") } }
+        .overlay(alignment: .top) {
+            if !mine && !loaded {
+                VStack(spacing: 16) { ForEach(0..<4, id: \.self) { _ in PlaceholderRow(size: 50) } }.padding(16)
+            } else if shown.isEmpty && query.isEmpty {
+                ContentUnavailableView("No friends yet", systemImage: "person.2")
+            }
+        }
         .navigationTitle("Friends")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: uid) {

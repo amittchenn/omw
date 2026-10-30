@@ -4,6 +4,9 @@
 import SwiftUI
 import CoreLocation
 import FirebaseFirestore
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 extension Person {
     /// the hangout types you made yourself, after the built-in ones
@@ -107,12 +110,30 @@ struct FairSpotFinder: View {
                 TextField(people.count > 1 ? "Fair for everyone: tacos, coffee…" : "Find a spot: tacos, coffee…", text: $query)
                     .submitLabel(.search)
                     .onSubmit(find)
-                if working { ProgressView() } else if !query.isEmpty {
+                if !query.isEmpty || working {
                     Button(action: find) { Image(systemName: "arrow.up.circle.fill").font(.title2).foregroundStyle(Color.primary) }
                         .buttonStyle(.plain)
+                        .opacity(working ? 0.3 : 1)
+                        .disabled(working)
                 }
             }
             .softField()
+            if working {  // the shape of the answers while the trips are worked out, and the clock hurrying
+                HStack(spacing: 8) {
+                    OmwMark().frame(width: 28, height: 28).modifier(Wiggle())
+                    Text("Checking everyone's trip…").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                }
+                ForEach(0..<2, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Capsule().fill(Color(.secondarySystemFill)).frame(width: 150, height: 12)
+                        Capsule().fill(Color(.tertiarySystemFill)).frame(width: 220, height: 9)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color(.tertiarySystemFill).opacity(0.5), in: .rect(cornerRadius: 14))
+                    .shimmer()
+                }
+            }
             if let problem { Text(problem).font(.footnote).foregroundStyle(.secondary) }
             if let answer {
                 if let why = answer.why, !answer.candidates.isEmpty {
@@ -295,5 +316,16 @@ struct MuseBar: View {
             when = When.local.string(from: start)
         }
         return MuseAnswer(who: who, type: type, when: when, place: nil, place_options: nil, place_query: nil, summary: "Got it", note: nil)
+    }
+}
+
+/// the omw! clock rocking side to side, like it's running late
+struct Wiggle: ViewModifier {
+    @State private var on = false
+
+    func body(content: Content) -> some View {
+        content
+            .rotationEffect(.degrees(on ? 12 : -12))
+            .onAppear { withAnimation(.easeInOut(duration: 0.18).repeatForever(autoreverses: true)) { on = true } }
     }
 }

@@ -420,7 +420,7 @@ struct DirectChat: View {
         Group {
             if let id { ConversationView(ref: .chat(id)) }
             else if let problem { ContentUnavailableView("Couldn't open the chat", systemImage: "exclamationmark.bubble", description: Text(problem)) }
-            else { ProgressView() }
+            else { Color.clear }  // a moment while the chat's found (or made)
         }
         .task {
             do { id = try await session.openDM(with: uid) } catch { problem = error.localizedDescription }

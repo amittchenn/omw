@@ -33,6 +33,7 @@ struct FeedView: View {
                 }
             }
             .scrollIndicators(.hidden)
+            .planButton()
             .toolbar(.hidden, for: .navigationBar)  // our own header, like Instagram's (the bar's glass buttons squash the logo)
             // swipe in from the right edge for Chats, from the left edge for a new post, like Instagram
             .simultaneousGesture(
@@ -65,11 +66,8 @@ extension FeedView {
             Spacer()
             NavigationLink { AddFriendsView() } label: { HeaderIcon(symbol: "person.badge.plus", count: session.incoming.count, dot: true) }
                 .accessibilityLabel("Add friends")
-            Menu {
-                Button("New plan", systemImage: "calendar.badge.plus") { PlanLauncher.shared.open = true }
-                Button("New post", systemImage: "camera") { posting = true }
-            } label: { HeaderIcon(symbol: "plus.app") }
-            .accessibilityLabel("New plan or post")
+            Button { posting = true } label: { HeaderIcon(symbol: "plus.app") }
+                .accessibilityLabel("New post")
             NavigationLink { ChatsView() } label: { HeaderIcon(symbol: "bubble.left", count: session.unreadChats) }
                 .accessibilityLabel("Chats")
         }
@@ -139,7 +137,6 @@ struct FriendsRow: View {
         .buttonStyle(.plain)
         .sheet(isPresented: $askingFree) {
             FreeSheet().withOmw()
-                .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -413,6 +410,7 @@ struct FreeSheet: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 20)
+        .presentationDetents([.height(picking || free ? 400 : 320)])  // just as tall as what's in it
     }
 
     private func choice(_ title: String, action: @escaping () -> Void) -> some View {

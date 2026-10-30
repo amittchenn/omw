@@ -50,7 +50,7 @@ struct AddFriendsView: View {
                             PersonRow(card: q.card, detail: "\(q.card.name) · \(q.mutual) mutual \(q.mutual == 1 ? "friend" : "friends")")
                         }
                     } else {
-                        HStack { Spacer(); ProgressView(); Spacer() }
+                        ForEach(0..<3, id: \.self) { _ in PlaceholderRow() }
                     }
                 }
                 Section {

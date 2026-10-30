@@ -3,6 +3,9 @@
 import SwiftUI
 import PhotosUI
 import CoreLocation
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 /// Put on a screen to give it a "new post" flow: set `picking` to true to start.
 struct NewPostFlow: ViewModifier {
@@ -150,7 +153,6 @@ struct PlacePicker: View {
             }
         }
         .listStyle(.plain)
-        .overlay { if picking { ProgressView() } }
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search places")
         .task(id: query) {
             let text = query.trimmingCharacters(in: .whitespaces)

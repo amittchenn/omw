@@ -24,6 +24,7 @@ struct MainTabView: View {
             NavigationStack {
                 ProfileView(uid: session.uid ?? "")
                     .withProfileRoutes()
+                    .planButton()
             }
             .tabItem { Label("Me", systemImage: "person.crop.circle") }
             .tag(Tab.me)
@@ -54,4 +55,26 @@ extension View {
 final class PlanLauncher {
     static let shared = PlanLauncher()
     var open = false
+}
+
+/// the yellow ＋: plan a hangout, from any tab (bottom right, above the tab bar)
+struct PlanFab: View {
+    var body: some View {
+        Button { PlanLauncher.shared.open = true } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.black)
+                .frame(width: 58, height: 58)
+                .background(Color.sun, in: Circle())
+                .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+        }
+        .buttonStyle(Pressable())
+        .accessibilityLabel("Plan a hangout")
+    }
+}
+
+extension View {
+    func planButton() -> some View {
+        overlay(alignment: .bottomTrailing) { PlanFab().padding(.trailing, 16).padding(.bottom, 12) }
+    }
 }

@@ -107,7 +107,48 @@ extension Avatar {
     }
 }
 
+/// While something loads: the shape of what's coming (a picture and two lines), never a spinner
+struct PlaceholderRow: View {
+    var size: CGFloat = 44
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle().fill(Color(.secondarySystemFill)).frame(width: size, height: size)
+            VStack(alignment: .leading, spacing: 7) {
+                Capsule().fill(Color(.secondarySystemFill)).frame(width: 120, height: 11)
+                Capsule().fill(Color(.tertiarySystemFill)).frame(width: 76, height: 9)
+            }
+            Spacer(minLength: 0)
+        }
+        .shimmer()
+        .accessibilityHidden(true)
+    }
+}
+
+/// a soft light sweeping across, over and over, so a placeholder looks alive (and the wait feels short)
+struct Shimmer: ViewModifier {
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                GeometryReader { g in
+                    LinearGradient(colors: [.clear, .white.opacity(0.28), .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: max(g.size.width * 0.5, 80))
+                        .offset(x: phase * (g.size.width + 80))
+                }
+                .mask { content }
+                .allowsHitTesting(false)
+            }
+            .onAppear {
+                withAnimation(.linear(duration: 1.0).repeatForever(autoreverses: false)) { phase = 1 }
+            }
+    }
+}
+
 extension View {
+    func shimmer() -> some View { modifier(Shimmer()) }
+
     /// a soft rounded box, like the web app's search fields and rows
     func softField() -> some View {
         padding(.horizontal, 14)

@@ -3,6 +3,10 @@
 import SwiftUI
 import MapKit
 import FirebaseFirestore
+import CoreLocation
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 struct PlanDetailView: View {
     let id: String
