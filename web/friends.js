@@ -880,8 +880,12 @@ async function ensureId(user) {
   for (let tries = 0; tries < 5; tries++) {
     const code = randomId();
     try {
-      await setDoc(doc(db, "codes", code), { uid: user.uid, name: profile.name });  // refused if someone owns it
-      await saveProfile({ code });
+      // the claim and your profile in one go: the database only allows a username that's the one on your profile
+      const batch = writeBatch(db);
+      batch.set(doc(db, "codes", code), { uid: user.uid, name: profile.name || "" });  // refused if someone owns it
+      batch.set(doc(db, "users", user.uid), { code }, { merge: true });
+      await batch.commit();
+      profile = { ...profile, code };
       return;
     } catch { /* taken: try another */ }
   }
@@ -890,8 +894,15 @@ async function ensureId(user) {
 // pick your own ID: it's yours only if nobody has it (the database refuses to hand out one that's taken),
 // and your old one is freed. Friends and requests are linked to your account, not your ID, so nothing else changes.
 let idCheck = 0;
+const ID_WAIT = 30 * 864e5;  // a username change every 30 days
+function nextIdChange() {
+  const last = profile.codeChangedAt?.toMillis?.() ?? 0;
+  return last && Date.now() < last + ID_WAIT ? new Date(last + ID_WAIT) : null;
+}
 async function idStatus(code) {
   if (code === profile.code) return ["same", "That's your username now."];
+  const next = nextIdChange();
+  if (next) return ["bad", `You can change it again on ${next.toLocaleDateString(undefined, { month: "short", day: "numeric" })}.`];
   if (code.length < 3) return ["bad", "At least 3 characters."];
   if (!ID_RULE.test(code)) return ["bad", "Only letters, numbers and _ (up to 15)."];
   const owner = await getDoc(doc(db, "codes", code));
@@ -913,13 +924,16 @@ async function changeId() {
   const code = cleanId($("idInput").value), old = profile.code;
   const [state, text] = await idStatus(code);
   if (state !== "ok") { $("idMsg").textContent = text; $("idMsg").className = "bad"; return; }
+  if (old && !confirm(`Change to @${code.toLowerCase()}? @${old.toLowerCase()} will be free for anyone, and you can't change it again for 30 days.`)) return;
   $("idSave").disabled = true; $("idSave").textContent = "Saving…";
   try {
     const mine = old ? await getDoc(doc(db, "codes", old)) : null;
     const batch = writeBatch(db);
     batch.set(doc(db, "codes", code), { uid: me.uid, name: profile.name || "" });
-    batch.set(doc(db, "users", me.uid), { code }, { merge: true });
-    if (old && mine?.exists() && mine.data().uid === me.uid) batch.delete(doc(db, "codes", old));
+    const ownedOld = old && mine?.exists() && mine.data().uid === me.uid;
+    // a first username (or one you'd lost) doesn't start the 30 days
+    batch.set(doc(db, "users", me.uid), ownedOld ? { code, codeChangedAt: serverTimestamp() } : { code }, { merge: true });
+    if (ownedOld) batch.delete(doc(db, "codes", old));
     await batch.commit();  // all or nothing: if someone grabbed it a moment ago, nothing changes
     profile = { ...profile, code };
     $("idEdit").hidden = true;

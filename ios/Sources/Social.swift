@@ -94,6 +94,7 @@ struct UpNextCard: View {
         let uid = session.uid ?? ""
         let others = hangout.attendees.filter { $0 != uid }
         NavigationLink(value: PlanRoute(id: hangout.id)) {
+          HStack(alignment: .center, spacing: 8) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("\(dayName) · \(hangout.start.formatted(date: .omitted, time: .shortened))")
                     .font(.caption.weight(.bold)).foregroundStyle(.red).textCase(.uppercase)
@@ -122,18 +123,22 @@ struct UpNextCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
-            .overlay(alignment: .topTrailing) {
-                // Ticki: running once it's nearly time to go, cheering once you're there
-                if hangout.arrivals[uid] != nil {
-                    Ticki(mood: .cheer).frame(width: 64, height: 64).padding(8)
-                } else if let leave = hangout.alerts[uid], leave.timeIntervalSinceNow < 30 * 60 {
-                    Ticki(mood: leave < .now ? .worried : .run).frame(width: 64, height: 64).padding(8)
-                }
+            // Ticki beside the plan: running once it's nearly time to go, cheering once you're there
+            if let mood = tickiMood {
+                Ticki(mood: mood).frame(width: 72, height: 72)
             }
+          }
+          .padding(16)
+          .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
         }
         .buttonStyle(.plain)
+    }
+
+    private var tickiMood: Ticki.Mood? {
+        let uid = session.uid ?? ""
+        if hangout.arrivals[uid] != nil { return .cheer }
+        if let leave = hangout.alerts[uid], leave.timeIntervalSinceNow < 30 * 60 { return leave < .now ? .worried : .run }
+        return nil
     }
 
     private var dayName: String {

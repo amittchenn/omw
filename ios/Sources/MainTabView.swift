@@ -1,6 +1,7 @@
 // The tabs: Feed, Map, ＋, Plans, Me. The ＋ in the middle is a yellow button, not a page: it opens the planner over
 // whatever you're on (PlanLauncher), and you stay there when it closes.
 import SwiftUI
+import UIKit
 
 struct MainTabView: View {
     @Environment(Session.self) private var session
@@ -18,9 +19,9 @@ struct MainTabView: View {
             FriendsMapView()
                 .tabItem { Label("Map", systemImage: "map") }
                 .tag(Tab.map)
-            // the middle slot, under the yellow ＋ (tapping the slot itself plans too)
+            // the middle slot is the yellow ＋ itself: drawn as the tab's own icon, so it sits exactly in the bar
             Color.clear
-                .tabItem { Text(" ") }
+                .tabItem { Image(uiImage: PlanFab.icon).renderingMode(.original).accessibilityLabel("Plan a hangout") }
                 .tag(Tab.plan)
             PlansView()
                 .tabItem { Label("Plans", systemImage: "calendar") }
@@ -35,10 +36,6 @@ struct MainTabView: View {
         }
         .onChange(of: tab) { old, new in
             if new == .plan { tab = old; planner.open = true }
-        }
-        .overlay(alignment: .bottom) {
-            PlanFab().padding(.bottom, 4)  // sits in the middle of the tab bar
-                .ignoresSafeArea(.keyboard)  // stays put when typing
         }
         .sheet(isPresented: Bindable(planner).open) {
             PlanSheet().withOmw()
@@ -69,18 +66,16 @@ final class PlanLauncher {
 }
 
 /// the yellow ＋ in the middle of the tab bar: plan a hangout
-struct PlanFab: View {
-    var body: some View {
-        Button { PlanLauncher.shared.open = true } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.black)
-                .frame(width: 58, height: 58)
-                .background(Color.sun, in: Circle())
-                .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
-        }
-        .buttonStyle(Pressable())
-        .accessibilityLabel("Plan a hangout")
-    }
+enum PlanFab {
+    /// a yellow circle with a black ＋, as a full-color tab icon
+    static let icon: UIImage = {
+        let side: CGFloat = 40
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { _ in
+            UIColor(Color.sun).setFill()
+            UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: side, height: side)).fill()
+            let plus = UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .bold))?
+                .withTintColor(.black, renderingMode: .alwaysOriginal)
+            if let plus { plus.draw(in: CGRect(x: (side - plus.size.width) / 2, y: (side - plus.size.height) / 2, width: plus.size.width, height: plus.size.height)) }
+        }.withRenderingMode(.alwaysOriginal)
+    }()
 }
-

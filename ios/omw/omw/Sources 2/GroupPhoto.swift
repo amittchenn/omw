@@ -78,7 +78,10 @@ struct GroupPhotoSection: View {
             } else if checked, hangout.everyoneHere {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("You all made it!", systemImage: "party.popper.fill").font(.headline)
+                        HStack(spacing: 8) {
+                            Ticki(mood: .cheer).frame(width: 44, height: 44)
+                            Text("You all made it!").font(.headline)
+                        }
                         Text(minutesLeft > 0 ? "Snap the group · \(minutesLeft) min left to post on time" : "Add a group photo to your memories")
                             .font(.subheadline).foregroundStyle(.secondary)
                         HStack(spacing: 10) {
@@ -94,7 +97,7 @@ struct GroupPhotoSection: View {
                         .disabled(posting)
                         if posting {
                             HStack(spacing: 8) {
-                                OmwMark().frame(width: 24, height: 24).modifier(Wiggle())
+                                Ticki(mood: .run).frame(width: 34, height: 34)
                                 Text("Posting…").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                             }
                         }

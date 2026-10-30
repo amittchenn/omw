@@ -8,18 +8,53 @@ import LocationEssentials  // where iOS 26 keeps coordinates and distances
 
 extension Session {
     // ---------- friends ----------
-    /// people whose username starts with what you typed (usernames are friend IDs, stored in capitals)
+    /// people search, like Instagram's: usernames *and* names, close matches too, best first (yourself included)
     func searchUsers(_ text: String, done: @escaping @MainActor ([Card]) -> Void) {
-        let q = text.uppercased().replacingOccurrences(of: "@", with: "").filter { $0.isLetter || $0.isNumber || $0 == "_" }
-        guard !q.isEmpty else { done([]); return }
-        db.collection("publicProfiles").whereField("code", isGreaterThanOrEqualTo: q).whereField("code", isLessThanOrEqualTo: q + "\u{f8ff}")
-            .limit(to: 15)
-            .getDocuments { [weak self] snap, _ in
+        let typed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "@", with: "")
+        let code = typed.uppercased().filter { $0.isLetter || $0.isNumber || $0 == "_" }
+        let lower = typed.lowercased()
+        guard !lower.isEmpty else { done([]); return }
+        let people = db.collection("publicProfiles")
+        func prefix(_ field: String, _ q: String) -> Query {
+            people.whereField(field, isGreaterThanOrEqualTo: q).whereField(field, isLessThanOrEqualTo: q + "\u{f8ff}").limit(to: 15)
+        }
+        // usernames are stored in capitals; names are matched on nameKey (lowercase), and on the name as typed or
+        // capitalized for older cards that don't have nameKey yet
+        var queries = [prefix("nameKey", lower), prefix("name", typed), prefix("name", typed.capitalized)]
+        if !code.isEmpty { queries.insert(prefix("code", code), at: 0) }
+        let box = SearchBox()
+        // friends match on any part of their name, straight from what's loaded
+        for f in friends where f.name.lowercased().contains(lower) || f.code.lowercased().contains(lower) { box.found[f.id] = Card(person: f) }
+        if let me, me.name.lowercased().contains(lower) || me.code.lowercased().contains(lower) { box.found[me.id] = Card(person: me) }
+        box.left = queries.count
+        let blocked = Set(me?.blocked ?? [])
+        for q in queries {
+            q.getDocuments { [weak self] snap, _ in
                 MainActor.assumeIsolated {
-                    let blocked = Set(self?.me?.blocked ?? [])
-                    done((snap?.documents ?? []).map { Card(id: $0.documentID, data: $0.data()) }.filter { !blocked.contains($0.id) && !$0.code.isEmpty })
+                    for d in snap?.documents ?? [] where !blocked.contains(d.documentID) {
+                        let c = Card(id: d.documentID, data: d.data())
+                        if !c.code.isEmpty { box.found[c.id] = c }
+                    }
+                    box.left -= 1
+                    guard box.left == 0 else { return }
+                    let friendIds = Set(self?.friends.map(\.id) ?? [])
+                    func rank(_ c: Card) -> Int {
+                        let handle = c.code.lowercased(), name = c.name.lowercased()
+                        if handle == lower { return 0 }
+                        if handle.hasPrefix(lower) { return friendIds.contains(c.id) ? 1 : 2 }
+                        if name.hasPrefix(lower) || name.split(separator: " ").contains(where: { $0.hasPrefix(lower) }) { return friendIds.contains(c.id) ? 3 : 4 }
+                        return 5
+                    }
+                    done(box.found.values.sorted { (rank($0), $0.name) < (rank($1), $1.name) }.prefix(25).map { $0 })
                 }
             }
+        }
+    }
+
+    /// what a search has found so far, while its queries come back
+    @MainActor private final class SearchBox {
+        var found: [String: Card] = [:]
+        var left = 0
     }
 
     /// Quick Add, like Snapchat: friends of your friends, most mutual friends first

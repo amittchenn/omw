@@ -235,30 +235,34 @@ extension FriendsMapView {
 extension FriendsMapView {
     /// along the bottom, like Snap Map: you, your saved places, then your friends (sharing ones first)
     var friendBar: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 14) {
-                bubble(label: "Me", lit: true, tap: { if let here = location.last?.coordinate { fly(to: here) } }) {
-                    Avatar(session.me, size: 46)
-                }
-                ForEach(session.friends.sorted { (session.spots[$0.id]?.isFresh == true ? 0 : 1) < (session.spots[$1.id]?.isFresh == true ? 0 : 1) }) { f in
-                    let spot = session.spots[f.id]
-                    bubble(label: f.firstName, lit: spot?.isFresh == true, tap: {
-                        if let spot, spot.isFresh { fly(to: spot.coordinate) } else { selected = f }
-                    }) {
-                        Avatar(f, size: 46)
-                    }
+        HStack(alignment: .center, spacing: 10) {
+            // just as wide as the people in it; it scrolls once there are more than fit
+            ViewThatFits(in: .horizontal) {
+                people
+                ScrollView(.horizontal) { people }.scrollIndicators(.hidden)
+            }
+            .background(.regularMaterial, in: .rect(cornerRadius: 26))
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 6)
+    }
+
+    private var people: some View {
+        HStack(spacing: 14) {
+            bubble(label: "Me", lit: true, tap: { if let here = location.last?.coordinate { fly(to: here) } }) {
+                Avatar(session.me, size: 46)
+            }
+            ForEach(session.friends.sorted { (session.spots[$0.id]?.isFresh == true ? 0 : 1) < (session.spots[$1.id]?.isFresh == true ? 0 : 1) }) { f in
+                let spot = session.spots[f.id]
+                bubble(label: f.firstName, lit: spot?.isFresh == true, tap: {
+                    if let spot, spot.isFresh { fly(to: spot.coordinate) } else { selected = f }
+                }) {
+                    Avatar(f, size: 46)
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
         }
-        .scrollIndicators(.hidden)
-        .background(.regularMaterial, in: .rect(cornerRadius: 26))
-        .frame(maxWidth: .infinity)
-        // the yellow ＋ beside it, like on every tab
-        .padding(.leading, 10)
-        .padding(.trailing, 84)
-        .overlay(alignment: .trailing) { PlanFab().padding(.trailing, 14) }
-        .padding(.bottom, 6)
+        .padding(.horizontal, 14).padding(.vertical, 10)
     }
 
     private func bubble<Face: View>(label: String, lit: Bool, tap: @escaping () -> Void, @ViewBuilder face: () -> Face) -> some View {

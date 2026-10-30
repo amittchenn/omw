@@ -5,7 +5,7 @@ import { test, before, after } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
-import { doc, setDoc, getDoc, updateDoc, deleteDoc, addDoc, collection, writeBatch, arrayUnion, arrayRemove, deleteField,
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, addDoc, collection, writeBatch, serverTimestamp, arrayUnion, arrayRemove, deleteField,
          query, where, getDocs } from "firebase/firestore";
 
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
@@ -66,12 +66,33 @@ test("friend requests: only an accepted request makes friends", async () => {
   await assertSucceeds(deleteDoc(doc(db("eve"), "users/alice/friends/eve")));  // unfriending works from either side
 });
 
-test("friend IDs", async () => {
+test("usernames: one each, a change every 30 days", async () => {
   await friends();
-  await assertSucceeds(setDoc(doc(db("alice"), "codes", "ALICE_1"), { uid: "alice", name: "Alice" }));
+  const claim = (who, code, extra = {}) => {
+    const f = db(who), b = writeBatch(f);
+    b.set(doc(f, "codes", code), { uid: who, name: who });
+    b.set(doc(f, "users", who), { code, ...extra }, { merge: true });
+    return b.commit();
+  };
+  await assertSucceeds(claim("alice", "ALICE_1"));  // a first username: no wait
   await assertSucceeds(getDoc(doc(db("eve"), "codes", "ALICE_1")));
-  await assertFails(setDoc(doc(db("eve"), "codes", "ALICE_1"), { uid: "eve", name: "Eve" }));
+  await assertFails(claim("eve", "ALICE_1"));  // taken
   await assertFails(setDoc(doc(db("eve"), "codes", "BOB"), { uid: "bob" }));
+  await assertFails(setDoc(doc(db("alice"), "codes", "ALICE_2"), { uid: "alice", name: "Alice" }));  // a second one
+  await assertFails(deleteDoc(doc(db("alice"), "codes", "ALICE_1")));  // dropping it to skip the wait
+  const swap = (code, at) => {
+    const f = db("alice"), b = writeBatch(f);
+    b.set(doc(f, "codes", code), { uid: "alice", name: "Alice" });
+    b.set(doc(f, "users", "alice"), { code, codeChangedAt: at }, { merge: true });
+    b.delete(doc(f, "codes", "ALICE_1"));
+    return b.commit();
+  };
+  await assertSucceeds(swap("ALICE_2", serverTimestamp()));  // a change, stamped
+  const f = db("alice"), b = writeBatch(f);  // again right away: too soon
+  b.set(doc(f, "codes", "ALICE_3"), { uid: "alice", name: "Alice" });
+  b.set(doc(f, "users", "alice"), { code: "ALICE_3", codeChangedAt: serverTimestamp() }, { merge: true });
+  b.delete(doc(f, "codes", "ALICE_2"));
+  await assertFails(b.commit());
 });
 
 test("plans: who sees them and who changes what", async () => {

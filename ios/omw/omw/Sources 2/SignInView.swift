@@ -25,8 +25,8 @@ struct SignInView: View {
         VStack(spacing: 0) {
             Spacer()
             VStack(spacing: 6) {
-                OmwMark()
-                    .frame(width: 168, height: 168)
+                Ticki(mood: .wave)
+                    .frame(width: 190, height: 190)
                     .rotationEffect(.degrees(shown ? 0 : -14))
                     .scaleEffect(shown ? 1 : 0.7)
                     .padding(.bottom, 8)

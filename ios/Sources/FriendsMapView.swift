@@ -17,6 +17,7 @@ struct FriendsMapView: View {
     @State private var hits: [PlaceHit] = []
     @State private var place: MapPlace?
     @State private var showSaved = false
+    @State private var showMe = false
     @FocusState private var searching: Bool
     @Environment(LocationService.self) private var location
 
@@ -70,6 +71,7 @@ struct FriendsMapView: View {
                             .padding(.horizontal, 8).padding(.vertical, 2)
                             .background(Color.sun, in: Capsule()).foregroundStyle(.black)
                     }
+                    .onTapGesture { showMe = true }  // you, like anyone else: your profile
                 }
                 ForEach(photoSpots) { spot in
                     Annotation(spot.post.venueName, coordinate: CLLocationCoordinate2D(latitude: spot.post.venue[0], longitude: spot.post.venue[1]), anchor: .bottom) {
@@ -146,6 +148,11 @@ struct FriendsMapView: View {
             }
             .sheet(item: $openPost) { post in
                 NavigationStack { PostDetailView(id: post.id).withProfileRoutes() }.withOmw()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showMe) {
+                NavigationStack { ProfileView(uid: session.uid ?? "").withProfileRoutes() }.withOmw()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
@@ -235,47 +242,47 @@ extension FriendsMapView {
 extension FriendsMapView {
     /// along the bottom, like Snap Map: you, your saved places, then your friends (sharing ones first)
     var friendBar: some View {
-        HStack(alignment: .center, spacing: 10) {
-            // just as wide as the people in it; it scrolls once there are more than fit
-            ViewThatFits(in: .horizontal) {
-                people
-                ScrollView(.horizontal) { people }.scrollIndicators(.hidden)
-            }
-            .background(.regularMaterial, in: .rect(cornerRadius: 26))
-            Spacer(minLength: 0)
+        // floating faces, no panel: centered when they fit, scrolling once there are more
+        ViewThatFits(in: .horizontal) {
+            people.frame(maxWidth: .infinity)
+            ScrollView(.horizontal) { people }.scrollIndicators(.hidden)
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 6)
+        .padding(.bottom, 10)
     }
 
     private var people: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             bubble(label: "Me", lit: true, tap: { if let here = location.last?.coordinate { fly(to: here) } }) {
-                Avatar(session.me, size: 46)
+                Avatar(session.me, size: 50)
             }
             ForEach(session.friends.sorted { (session.spots[$0.id]?.isFresh == true ? 0 : 1) < (session.spots[$1.id]?.isFresh == true ? 0 : 1) }) { f in
                 let spot = session.spots[f.id]
                 bubble(label: f.firstName, lit: spot?.isFresh == true, tap: {
                     if let spot, spot.isFresh { fly(to: spot.coordinate) } else { selected = f }
                 }) {
-                    Avatar(f, size: 46)
+                    Avatar(f, size: 50)
                 }
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .padding(.horizontal, 16).padding(.vertical, 6)
     }
 
     private func bubble<Face: View>(label: String, lit: Bool, tap: @escaping () -> Void, @ViewBuilder face: () -> Face) -> some View {
         Button(action: tap) {
-            VStack(spacing: 4) {
+            VStack(spacing: 5) {
                 face()
+                    .overlay(Circle().strokeBorder(.white, lineWidth: 2.5))
+                    .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
                     .overlay(alignment: .bottomTrailing) {
                         // sharing where they are right now
-                        if lit && label != "Me" { Circle().fill(Color.freeGreen).frame(width: 12, height: 12).overlay(Circle().strokeBorder(.white, lineWidth: 2)) }
+                        if lit && label != "Me" { Circle().fill(Color.freeGreen).frame(width: 13, height: 13).overlay(Circle().strokeBorder(.white, lineWidth: 2)) }
                     }
-                Text(label).font(.caption2.weight(.bold)).lineLimit(1).foregroundStyle(.primary)
+                Text(label).font(.caption2.weight(.heavy)).lineLimit(1)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(label == "Me" ? AnyShapeStyle(Color.sun) : AnyShapeStyle(.regularMaterial), in: Capsule())
+                    .foregroundStyle(label == "Me" ? Color.black : Color.primary)
             }
-            .frame(width: 54)
+            .frame(width: 60)
         }
         .buttonStyle(Pressable())
     }

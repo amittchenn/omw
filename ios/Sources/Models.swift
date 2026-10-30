@@ -12,6 +12,7 @@ struct Person: Identifiable, Equatable {
     var name: String
     var photo: String
     var code: String          // their friend ID, shown as @username in lowercase
+    var codeChangedAt: Date?  // last time they changed it (once every 30 days)
     var freeUntil: Date?
     var nowKind: String?      // "out" at a hangout, or on their way
     var nowUntil: Date?
@@ -30,6 +31,7 @@ struct Person: Identifiable, Equatable {
         name = data["name"] as? String ?? "Friend"
         photo = Self.safePhoto(data["photo"] as? String)
         code = data["code"] as? String ?? ""
+        codeChangedAt = When.parse(data["codeChangedAt"])
         freeUntil = When.parse(data["freeUntil"])
         let now = data["now"] as? [String: Any]
         nowKind = now?["kind"] as? String
@@ -50,7 +52,7 @@ struct Person: Identifiable, Equatable {
     }
 
     static func == (a: Person, b: Person) -> Bool {
-        a.id == b.id && a.name == b.name && a.photo == b.photo && a.code == b.code && a.freeUntil == b.freeUntil
+        a.id == b.id && a.name == b.name && a.photo == b.photo && a.code == b.code && a.codeChangedAt == b.codeChangedAt && a.freeUntil == b.freeUntil
             && a.nowKind == b.nowKind && a.nowUntil == b.nowUntil && a.blocked == b.blocked && a.shareMode == b.shareMode
             && a.travelMode == b.travelMode && a.habits == b.habits && a.categories == b.categories && a.homeName == b.homeName && a.checkins == b.checkins
             && a.home?.latitude == b.home?.latitude && a.home?.longitude == b.home?.longitude

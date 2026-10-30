@@ -23,9 +23,12 @@ struct FeedView: View {
                     .padding(.bottom, 10)
                     Divider()
                     if session.posts.isEmpty {
-                        ContentUnavailableView("No posts yet", systemImage: "photo.on.rectangle.angled",
-                                               description: Text("When your friends share photos from their hangouts, they show up here."))
-                            .padding(.top, 60)
+                        VStack(spacing: 8) {
+                            Ticki(mood: .wave).frame(width: 130, height: 130)
+                            Text("Nothing here yet").font(.headline)
+                            Text("Hang out and share the photo.").font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 50)
                     }
                     ForEach(session.posts) { post in
                         PostCard(post: post) { commentsFor = post }
@@ -33,7 +36,6 @@ struct FeedView: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .planButton()
             .toolbar(.hidden, for: .navigationBar)  // our own header, like Instagram's (the bar's glass buttons squash the logo)
             // swipe in from the right edge for Chats, from the left edge for a new post, like Instagram
             .simultaneousGesture(
