@@ -157,8 +157,10 @@ extension Session {
             photos.compactMap { Session.jpegDataURL($0, maxChars: many ? 210_000 : 380_000) }
         }.value
         guard encoded.count == photos.count, let first = photos.first else { throw API.Failure(message: "One of those photos is too big. Try another one.") }
-        let cover = many ? await Task.detached { Session.jpegDataURL(first, maxChars: 60_000) }.value : encoded[0]
-        guard let cover else { throw API.Failure(message: "That photo is too big. Try another one.") }
+        // a small cover for grids when there are several photos, else the photo itself
+        var small: String? = encoded[0]
+        if many { small = await Task.detached { Session.jpegDataURL(first, maxChars: 60_000) }.value }
+        guard let cover = small else { throw API.Failure(message: "That photo is too big. Try another one.") }
 
         var names = [uid: me.name]
         var handles = [uid: me.handle]

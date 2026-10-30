@@ -7,7 +7,7 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 
 | Screen | Status |
 |---|---|
-| Sign in (Apple, email) | Done |
+| Sign in (Google, Apple, email; forgot password) | Done |
 | Feed: friends row with statuses, posts with photo swipe, likes, double-tap to like, report/hide/delete | Done |
 | Comments sheet (hold a comment to delete or report) | Done |
 | New post: Apple's photo picker (up to 4), caption, location search, tag friends | Done |
@@ -21,7 +21,9 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 | + planner: what, who, where, when, everyone's leave time, send invites | Done |
 | Plan details: Going / Can't make it, leave-by time, directions, I'm here, who's arrived | Done |
 | Chats: DMs, group chats (name, add people, leave), every plan's group chat, unread badges, search | Done |
-| Edit profile, ranking places, notifications, Live Activity | Next (still in the current app) |
+| Edit profile: picture, name, friend ID (checks it's free), how you get around | Done |
+| New accounts: a friend ID, a public card and your Google/Apple picture, like the web app | Done |
+| Ranking places, notifications, Live Activity | Next (still in the current app) |
 
 `Sources/`:
 - `OmwApp.swift`: app start; signed out → sign in, signed in → tabs
@@ -29,6 +31,7 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 - `Models.swift`: the Firestore documents
 - `Components.swift`: colors, pictures, avatars
 - `Session+Actions.swift`: adding friends and posting
+- `Account.swift`: setting up your account (friend ID, public card) and Edit profile
 - `Chats.swift`: the inbox, DMs, group chats and plan chats (same documents as web/dms.js and web/chat.js)
 - `API.swift`: the omw! server (place search, deleting accounts; the planner next)
 - `LocationService.swift`: sharing your location the way you chose, and checking you in when you arrive
@@ -47,6 +50,10 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
    if needed", pick "Create groups" (or "folders"), make sure the `omw` target is checked → Finish.
 3. **Add Firebase.** File → Add Package Dependencies… → paste `https://github.com/firebase/firebase-ios-sdk` → Add Package.
    When it asks which products: check **FirebaseAuth** and **FirebaseFirestore** (target `omw`) → Add Package.
+3b. **Google sign-in.** File → Add Package Dependencies… → paste `https://github.com/google/GoogleSignIn-iOS` → Add Package →
+   check **GoogleSignIn** (target `omw`). Then target `omw` → Info → **URL Types** → **+** → URL Schemes:
+   `com.googleusercontent.apps.1073392073956-svchks68h49563ot14rv0dqtsi0dg3nq` (the `REVERSED_CLIENT_ID` in
+   GoogleService-Info.plist), so Google can hand you back to omw! after you sign in.
 4. **Firebase's file.** Drag `GoogleService-Info.plist` into the `omw` folder in the sidebar (check "Copy items if needed").
    It's the same one the current app uses: `~/omw-git/mobile/ios/App/App/GoogleService-Info.plist`.
 5. **Settings** (click the blue `omw` project at the top of the sidebar → target `omw`):

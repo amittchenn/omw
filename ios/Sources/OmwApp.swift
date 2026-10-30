@@ -2,6 +2,9 @@
 // (web/), so both apps see the same friends, posts and plans while this one grows.
 import SwiftUI
 import FirebaseCore
+#if canImport(GoogleSignIn)
+import GoogleSignIn
+#endif
 
 @main
 struct OmwApp: App {
@@ -22,6 +25,11 @@ struct OmwApp: App {
                 .environment(session)
                 .environment(location)
                 .tint(Color.primary)
+                .onOpenURL { url in
+                    #if canImport(GoogleSignIn)
+                    _ = GIDSignIn.sharedInstance.handle(url)  // coming back from Google's sign-in
+                    #endif
+                }
                 // sharing follows your choice, whether omw! is open, and which plans are coming up
                 .onChange(of: phase) { location.foreground(phase == .active) }
                 .onChange(of: session.uid) { location.apply() }
@@ -45,5 +53,6 @@ struct RootView: View {
             }
         }
         .animation(.snappy(duration: 0.22), value: session.user == nil)
+        .fontDesign(.rounded)  // omw!'s friendly rounded type everywhere, like the web app's Nunito
     }
 }

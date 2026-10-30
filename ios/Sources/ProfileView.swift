@@ -79,7 +79,7 @@ struct ProfileView: View {
     @ViewBuilder private var buttons: some View {
         if mine {
             HStack(spacing: 8) {
-                NavigationLink { ComingSoon(title: "Edit profile", symbol: "pencil") } label: { pill("Edit profile") }
+                NavigationLink { EditProfileView() } label: { pill("Edit profile") }
                 ShareLink(item: "Add me on omw! My friend ID is \(code)") { pill("Share profile") }
             }
             .buttonStyle(.plain)
@@ -151,8 +151,15 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section("Account") {
-                    LabeledContent("Name", value: session.me?.name ?? "")
-                    LabeledContent("Friend ID", value: session.me?.code ?? "")
+                    NavigationLink { EditProfileView() } label: {
+                        HStack(spacing: 12) {
+                            Avatar(session.me, size: 44)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(session.me?.name ?? "").font(.headline)
+                                Text("@\((session.me?.code ?? "").lowercased())").font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
                 Section {
                     ForEach(ShareMode.allCases) { mode in

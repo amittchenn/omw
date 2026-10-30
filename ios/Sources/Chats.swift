@@ -85,7 +85,7 @@ extension Session {
         let ref = db.collection("chats").document()
         try await setDocument(ref, ["members": [uid] + uids, "group": true, "title": String(title.prefix(40)), "createdBy": uid, "createdAt": at,
                             "names": names, "photos": [String: String](), "last": note, "read": [uid: at]])
-        ref.collection("messages").addDocument(data: note)
+        _ = try await ref.collection("messages").addDocument(data: note)
         return ref.documentID
     }
 
@@ -398,7 +398,9 @@ struct NewChatSheet: View {
         working = true
         Task {
             do {
-                let id = picked.count == 1 ? try await session.openDM(with: picked[0]) : try await session.createGroup(picked, title: title)
+                let id: String
+                if picked.count == 1 { id = try await session.openDM(with: picked[0]) }
+                else { id = try await session.createGroup(picked, title: title) }
                 dismiss()
                 started(.chat(id))
             } catch { problem = error.localizedDescription }
