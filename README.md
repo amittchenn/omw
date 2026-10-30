@@ -20,6 +20,17 @@ roads will look like at that moment.
 - **Memories.** Once everyone has arrived, someone takes a group photo. It goes on a shared calendar of your hangouts.
 - **Your calendar.** Hangouts go straight into Google Calendar, with a reminder at your leave time.
 
+And the social side, so there's a reason to open it between plans:
+
+- **Feed.** Friends' posts (several photos, a caption, a place, tagged friends) and group photos from hangouts, with
+  likes, comments and who's out, on their way or free right now. Report, block and hide on every post.
+- **Profiles.** Posts by week, friends lists, an on-time score, and private or public accounts (public by default).
+- **Map.** Friends where they are (only if they share it), places you saved and spots your friends rated.
+- **Rank places.** After a hangout, rate the spot by comparing it with ones you've been to, like Beli. Your list builds itself.
+- **Add friends.** Search usernames, accept requests, and Quick Add for friends of friends.
+- **On the iPhone.** Leave-now notifications, and a Live Activity on the Lock Screen and in the Dynamic Island
+  counting down to when you leave.
+
 ## The two models
 
 ### 1. Lateness: when does each person actually leave?
@@ -109,6 +120,7 @@ Sign-in, friends, plans, chats, photos and the feed use Firebase (Auth + Firesto
 | `firestore.rules`, `tests/` | Who can read and change what in the database, and the tests for it (`tests/rules.test.mjs`) |
 | `demo/` | The demo account for App Review (`python demo/seed_demo.py`) |
 | `APP_STORE.md` | Submitting the iPhone app: the checklist |
-| `mobile/` | The iPhone app (Capacitor): see `mobile/README.md` |
-| `Dockerfile`, `railway.json` | Deploying on Railway: see `DEPLOY.md` |
-| `web/` | The app: `index.html` (planner and map), `feed.js` (the home feed: posts, comments, group photos, and the tabs), `maptab.js` (the Map tab: friends, saved places), `friends.js` (profile, friends, plans), `chat.js` and `dms.js` (chats), `memories.js` (group photos), `live.js` (live map), `leaderboard.js`, `island.js` (the Dynamic Island), `privacy.html`, `terms.html`, `support.html` |
+| `web/` | The app: `index.html` (planner and map), `feed.js` (the home feed: posts, comments, profiles, add friends, ranking places, and the tabs), `maptab.js` (the Map tab: friends, saved places), `glmap.js` (the map, on Mapbox GL), `friends.js` (settings, friends, plans), `chat.js` and `dms.js` (chats), `memories.js` (group photos), `live.js` (live map), `leaderboard.js`, `island.js` (the Dynamic Island), `privacy.html`, `terms.html`, `support.html` |
+| `mobile/` | The iPhone app today: `web/` inside a native shell (Capacitor), plus the Live Activity. See `mobile/README.md` |
+| `ios/` | The native iPhone app in SwiftUI, being built screen by screen on the same Firebase data. See `ios/README.md` |
+| `Dockerfile`, `railway.json` | Deploying the server (Railway or Render): see `DEPLOY.md` |
