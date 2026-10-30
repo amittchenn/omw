@@ -164,6 +164,16 @@ extension Session {
             return SavedPlace(name: d["name"] as? String ?? "Saved place", address: d["address"] as? String ?? "", lat: lat, lng: lng,
                               at: d["at"] as? String ?? "")
         }
+        // places rated before stars existed: give them the stars their old spot in the list meant, once, so the
+        // list shows what you'd expect and keeps it
+        var missing: [String: Any] = [:]
+        for key in RankBucket.allCases.flatMap({ ranks[$0] }) where stars[key] == nil {
+            if let n = starsFor(key) { missing[key] = n }
+        }
+        if !missing.isEmpty, let uid {
+            for (k, v) in missing { stars[k] = v as? Int }
+            db.collection("private").document(uid).setData(["stars": missing], merge: true)
+        }
     }
 
     /// places you've been that aren't on your list yet: past plans, your posts, saved places

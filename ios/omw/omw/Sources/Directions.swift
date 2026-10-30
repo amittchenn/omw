@@ -31,7 +31,9 @@ struct DirectionsView: View {
     @State private var showSteps = false
     @State private var speaker = AVSpeechSynthesizer()
 
-    private static let modes: [(id: String, symbol: String)] = [("driving", "car.fill"), ("walking", "figure.walk"), ("cycling", "bicycle"), ("transit", "tram.fill")]
+    private struct Way: Identifiable { let id: String, symbol: String }
+    private static let modes = [Way(id: "driving", symbol: "car.fill"), Way(id: "walking", symbol: "figure.walk"),
+                                Way(id: "cycling", symbol: "bicycle"), Way(id: "transit", symbol: "tram.fill")]
 
     var body: some View {
         Map(position: $position) {
@@ -97,7 +99,7 @@ struct DirectionsView: View {
         VStack(spacing: 12) {
             if !going {
                 HStack(spacing: 8) {
-                    ForEach(Self.modes, id: \.id) { m in
+                    ForEach(Self.modes) { m in
                         Button { mode = m.id } label: {
                             Image(systemName: m.symbol).font(.headline)
                                 .frame(maxWidth: .infinity, minHeight: 40)

@@ -129,7 +129,7 @@ struct PlaceholderRow: View {
 struct Shimmer: ViewModifier {
     @State private var phase: CGFloat = -1
 
-    func body(content: Content) -> some View {
+    @ViewBuilder func body(content: Content) -> some View {
         content
             .overlay {
                 GeometryReader { g in
@@ -178,7 +178,7 @@ struct OpensProfile: ViewModifier {
     @Environment(\.pushesProfiles) private var pushes
     @State private var open = false
 
-    func body(content: Content) -> some View {
+    @ViewBuilder func body(content: Content) -> some View {
         if uid.isEmpty {
             content
         } else if pushes {

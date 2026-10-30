@@ -1,0 +1,12 @@
+# Keeps the omw! server on Render's free plan from falling asleep, so the first plan of the day isn't slow:
+# it says hello every 10 minutes. (One free web service running all month fits in Render's free hours.)
+name: Keep the server awake
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS --max-time 60 https://omw-bzq4.onrender.com/health || true

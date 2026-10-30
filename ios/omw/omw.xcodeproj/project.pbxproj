@@ -405,16 +405,17 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = omw/Info.plist;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Take the group photo when everyone's there.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "With \"Always\", omw! checks you in when you arrive at a hangout, even when it's closed.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "omw! shows you on the map with your friends.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Pick photos to post.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take the group photo when everyone's arrived at the hangout.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "With \"Always\", omw! checks you in when you arrive at a hangout and tells your friends you're on the way, even when the app is closed. You can change this anytime in Settings.";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "omw! uses your location to work out when you need to leave for a hangout, give you directions, and show you on the map to your friends.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Pick photos from your library to post or use as your profile picture.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -444,16 +445,17 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = omw/Info.plist;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Take the group photo when everyone's there.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "With \"Always\", omw! checks you in when you arrive at a hangout, even when it's closed.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "omw! shows you on the map with your friends.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Pick photos to post.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take the group photo when everyone's arrived at the hangout.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "With \"Always\", omw! checks you in when you arrive at a hangout and tells your friends you're on the way, even when the app is closed. You can change this anytime in Settings.";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "omw! uses your location to work out when you need to leave for a hangout, give you directions, and show you on the map to your friends.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Pick photos from your library to post or use as your profile picture.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

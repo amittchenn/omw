@@ -25,7 +25,7 @@ const ON_TIME_MIN = 5;       // later than this and the post says who was late
 // Your list is private/{uid}.ranks = { liked: [key], fine: [key], disliked: [key] } (best first) and .places = { key: { name, address, venue } };
 // a place's score comes from where it sits: liked 6.7 to 10, fine 3.4 to 6.6, didn't like 0 to 3.3.
 const BUCKETS = [["liked", "I liked it", 6.7, 10], ["fine", "It was fine", 3.4, 6.6], ["disliked", "I didn't like it", 0, 3.3]];
-let ranks = { liked: [], fine: [], disliked: [] }, places = {}, ranking = null;
+let ranks = { liked: [], fine: [], disliked: [] }, places = {}, stars = {}, ranking = null;  // stars: { key: 1-5 } (the iPhone app rates by stars)
 const placeKey = p => `${p.venueName || p.name}|${p.address || ""}`.toLowerCase().replace(/[.#$/\[\]]/g, "").slice(0, 200);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -241,14 +241,14 @@ function groupHtml(p) {
       <button class="fp-more" data-post-menu="${esc(p.id)}" aria-label="More options">${icon("ellipsis")}</button></header>
     <div class="fp-photo" data-like-twice="${esc(p.id)}"><img src="${esc(p.photo)}" alt="Group photo at ${esc(p.venueName || "a hangout")}" loading="lazy">
       ${p.venueName ? `<div class="fp-place">
-        <span class="fp-score ${s == null ? "none" : ""}">${s == null ? "new" : s.toFixed(1)}</span>
+        <span class="fp-score ${s == null ? "none" : ""}">${s == null ? "new" : `★ ${(s / 2).toFixed(1)}`}</span>
         <span class="fp-pname"><b>${esc(p.venueName)}</b><small>${esc([s == null ? "Not rated yet" : `Rated by ${Object.keys(p.ratings).length}`,
           away(p.venue)].filter(Boolean).join(" · "))}</small></span>
       </div>` : ""}
     </div>
     ${mine && myRating == null && p.venueName ? `<button class="fp-rate" data-rank="${esc(p.id)}">${icon("star")}<span><b>Rank ${esc(p.venueName)}</b>
       <small>Where does it go on your list?</small></span>${icon("chevron-right")}</button>` : ""}
-    ${actions(p, liked, myRating != null ? `<small class="fp-mine">You: ${myRating.toFixed(1)}</small>` : "")}
+    ${actions(p, liked, myRating != null ? `<small class="fp-mine">You: ★ ${Math.round(myRating / 2)}</small>` : "")}
     ${commentsHtml(p)}
   </article>`;
 }
@@ -571,10 +571,13 @@ function renderProfile() {
   if (profileTab === "add") return addPage();
   if (profileTab === "friends" && friendIds) return friendsPage(friendIds, mine, code, name);
   if (profileTab === "places") {
-    const list = BUCKETS.flatMap(([b]) => ranks[b].map((k, i) => ({ k, b, score: scoreAt(b, i, ranks[b].length) })));
+    // by stars (what you gave it; older ratings: from where they sat), then in your ranked order
+    const list = BUCKETS.flatMap(([b]) => ranks[b].map((k, i) => ({ k, b, score: scoreAt(b, i, ranks[b].length) })))
+      .map((x, order) => ({ ...x, order, stars: stars[x.k] || Math.min(5, Math.max(1, Math.round(x.score / 2)) )}))
+      .sort((a, b) => b.stars - a.stars || a.order - b.order);
     body = list.length ? `<button class="rate-btn" data-rate-place>${icon("star")} Rate a place</button>
       <div class="rank-list">${list.map((x, i) => `<button class="rank-item" data-rerank="${esc(x.k)}"><span class="rank-n">${i + 1}</span>
-        <span><b>${esc(places[x.k]?.name || "")}</b><small>${esc(places[x.k]?.address || "")}</small></span><span class="fp-score">${x.score.toFixed(1)}</span></button>`).join("")}</div>`
+        <span><b>${esc(places[x.k]?.name || "")}</b><small>${esc(places[x.k]?.address || "")}</small></span><span class="fp-score">${"★".repeat(x.stars)}</span></button>`).join("")}</div>`
       : `<div class="pf-empty">${icon("star")}<b>Your places</b>Rate the spots you go to. Your list builds itself, best first.
         <button class="fe-go" data-rate-place>${icon("star")} Rate a place</button></div>`;
   } else if (profileTab === "posts") {
@@ -1415,7 +1418,7 @@ if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")) {
     });
     onSnapshot(doc(db, "private", u.uid), d => {
       const data = d.data() || {};
-      ranks = { liked: [], fine: [], disliked: [], ...(data.ranks || {}) }; places = data.places || {};
+      ranks = { liked: [], fine: [], disliked: [], ...(data.ranks || {}) }; places = data.places || {}; stars = data.stars || {};
       if (profile?.uid === u.uid && profileTab === "places") renderProfile();
     }, () => {});
     onSnapshot(doc(db, "publicProfiles", u.uid), d => { myPublic = !!d.data()?.public; privacyUi(); if (profile?.uid === u.uid) renderProfile(); }, () => {});

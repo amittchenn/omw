@@ -147,7 +147,6 @@ struct ProfileView: View {
     /// how often they're on time, once they've checked in somewhere
     private var onTime: Int? { standing.flatMap { $0.hangouts > 0 ? $0.percent : nil } }
 
-    /// a title from how on time they are, like a badge
     /// you, or a friend: who gets to see your on-time status
     private var close: Bool { mine || session.isFriend(uid) }
 
