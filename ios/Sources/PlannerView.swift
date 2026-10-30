@@ -382,21 +382,13 @@ struct PlanSheet: View {
     }
 
     /// where someone leaves from: where they are now (if it's fresh), else home
-    /// (a live spot more than 150 km from the place — another city, or the simulator's pretend location — isn't where
-    /// they'll leave from: home is, if they have one)
     private func startPoint(_ uid: String) -> CLLocationCoordinate2D? {
-        let home = session.person(uid)?.home
-        var live: CLLocationCoordinate2D?
         if uid == session.uid {
-            if let here = location.last, Date.now.timeIntervalSince(here.timestamp) < 30 * 60 { live = here.coordinate }
-        } else if let spot = session.spots[uid], spot.isFresh {
-            live = spot.coordinate
+            if let here = location.last, Date.now.timeIntervalSince(here.timestamp) < 30 * 60 { return here.coordinate }
+            return session.me?.home
         }
-        if let live, let lat = place?.lat, let lng = place?.lng, home != nil,
-           CLLocation(latitude: live.latitude, longitude: live.longitude).distance(from: CLLocation(latitude: lat, longitude: lng)) > 150_000 {
-            return home
-        }
-        return live ?? home
+        if let spot = session.spots[uid], spot.isFresh { return spot.coordinate }
+        return session.person(uid)?.home
     }
 
     private func plan() {
