@@ -5,7 +5,6 @@ import SwiftUI
 struct FeedView: View {
     @Environment(Session.self) private var session
     @State private var commentsFor: Post?
-    @State private var posting = false
     @State private var chatsOpen = false
 
     var body: some View {
@@ -37,9 +36,8 @@ struct FeedView: View {
             }
             .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)  // our own header, like Instagram's (the bar's glass buttons squash the logo)
-            // swipe in from the very right edge for Chats, from the very left edge for a new post, like Instagram. Only
-            // thin strips at the screen's edges listen, so scrolling the friends row or a post's photos never opens them.
-            .overlay(alignment: .leading) { edgeSwipe(left: true) }
+            // swipe in from the very right edge for Chats, like Instagram. Only a thin strip at the screen's edge listens,
+            // so scrolling the friends row or a memory's photos never opens it.
             .overlay(alignment: .trailing) { edgeSwipe(left: false) }
             .navigationDestination(isPresented: $chatsOpen) { ChatsView() }
             .withProfileRoutes()
@@ -48,13 +46,13 @@ struct FeedView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
-            .newPostFlow($posting)
         }
     }
 }
 
 extension FeedView {
-    /// omw! on the left; add friends, post and chats on the right, as plain icons (the web app's feed header)
+    /// omw! on the left; add friends and chats on the right, as plain icons. (No "new post": what you share on omw! is
+    /// the group photo from a hangout, so the feed is everyone's memories.)
     var header: some View {
         HStack(spacing: 2) {
             Text("omw\(Text("!").foregroundStyle(Color.sun))")
@@ -63,8 +61,6 @@ extension FeedView {
             Spacer()
             NavigationLink { AddFriendsView() } label: { HeaderIcon(symbol: "person.badge.plus", count: session.incoming.count, dot: true) }
                 .accessibilityLabel("Add friends")
-            Button { posting = true } label: { HeaderIcon(symbol: "plus.app") }
-                .accessibilityLabel("New post")
             NavigationLink { ChatsView() } label: { HeaderIcon(symbol: "bubble.left", count: session.unreadChats) }
                 .accessibilityLabel("Chats")
         }
@@ -72,7 +68,7 @@ extension FeedView {
         .padding(.leading, 16).padding(.trailing, 8).padding(.vertical, 2)
     }
 
-    /// a thin, invisible strip at a screen edge that turns a swipe inward into Chats (right) or a new post (left)
+    /// a thin, invisible strip at the right screen edge that turns a swipe inward into Chats
     private func edgeSwipe(left: Bool) -> some View {
         Color.clear
             .frame(width: 14)
@@ -80,7 +76,7 @@ extension FeedView {
             .gesture(DragGesture(minimumDistance: 15).onEnded { v in
                 let dx = v.translation.width
                 guard abs(dx) > 60, abs(dx) > abs(v.translation.height) * 1.5 else { return }
-                if left, dx > 0 { posting = true } else if !left, dx < 0 { chatsOpen = true }
+                if !left, dx < 0 { chatsOpen = true }
             })
     }
 }
@@ -254,7 +250,7 @@ struct PostCard: View {
             Spacer()
             Menu {
                 if mine {
-                    Button("Delete post", systemImage: "trash", role: .destructive) { session.deletePost(post) }
+                    Button("Delete memory", systemImage: "trash", role: .destructive) { session.deletePost(post) }
                 } else {
                     Button("Hide", systemImage: "eye.slash") { withAnimation(.snappy(duration: 0.25)) { session.hide(post) } }
                     Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) { session.report(post) }
@@ -356,10 +352,10 @@ struct PostDetailView: View {
             if let post = session.allPosts.first(where: { $0.id == id }) {
                 PostCard(post: post) { commentsFor = post }
             } else {
-                ContentUnavailableView("This post is gone", systemImage: "photo")
+                ContentUnavailableView("This memory is gone", systemImage: "photo")
             }
         }
-        .navigationTitle("Post")
+        .navigationTitle("Memory")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $commentsFor) { post in
             CommentsSheet(post: post).withOmw().presentationDetents([.medium, .large]).presentationDragIndicator(.visible)

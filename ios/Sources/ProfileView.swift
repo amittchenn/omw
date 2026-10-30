@@ -9,19 +9,20 @@ struct ProfileView: View {
     let uid: String
     @Environment(Session.self) private var session
     @State private var settings = false
-    @State private var posting = false
     @State private var removing = false
     @State private var card: Card?  // for people who aren't your friends: their public card
     @State private var tab = Tab.posts
     @State private var friendCount = 0
 
-    enum Tab: String, CaseIterable { case posts = "Posts", places = "Places", memories = "Memories" }
+    // Memories: the group photos from hangouts (and any posts from before omw! went memories-only); Calendar: the same
+    // memories by day
+    enum Tab: String, CaseIterable { case posts = "Memories", places = "Places", memories = "Calendar" }
 
     private var mine: Bool { uid == session.uid }
     private var person: Person? { session.person(uid) }
     private var name: String { person?.name ?? card?.name ?? "omw! user" }
     private var code: String { person?.code ?? card?.code ?? "" }
-    private var posts: [Post] { session.posts.filter { $0.by == uid || $0.members.contains(uid) && mine } }
+    private var posts: [Post] { session.posts.filter { $0.by == uid || $0.members.contains(uid) } }
     /// hangouts you've been to together (yours: all of them)
     private var hangoutCount: Int { session.past.filter { $0.attendees.contains(uid) }.count }
 
@@ -88,20 +89,16 @@ struct ProfileView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if mine {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { posting = true } label: { Image(systemName: "plus.app") }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { settings = true } label: { Image(systemName: "line.3.horizontal") }
                 }
             }
         }
         .sheet(isPresented: $settings) { SettingsView().withOmw() }
-        .newPostFlow($posting)
         .confirmationDialog("Remove \(name.split(separator: " ").first.map(String.init) ?? name)?", isPresented: $removing, titleVisibility: .visible) {
             Button("Remove", role: .destructive) { session.removeFriend(uid) }
         } message: {
-            Text("You'll both need to add each other again to plan together and see friends-only posts.")
+            Text("You'll both need to add each other again to plan together and see each other's memories.")
         }
         .task(id: uid) {
             if person == nil { session.cards([uid]) { card = $0[uid] } }
@@ -118,7 +115,7 @@ struct ProfileView: View {
         HStack(spacing: 0) {
             ForEach(Tab.allCases, id: \.self) { t in
                 Button { withAnimation(.snappy(duration: 0.2)) { tab = t } } label: {
-                    Label(t.rawValue, systemImage: t == .posts ? "square.grid.3x3" : t == .places ? "star" : "photo.on.rectangle.angled")
+                    Label(t.rawValue, systemImage: t == .posts ? "photo.on.rectangle.angled" : t == .places ? "star" : "calendar")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(tab == t ? Color.primary : Color.secondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -198,10 +195,12 @@ struct ProfileView: View {
     @ViewBuilder private var grid: some View {
         if posts.isEmpty {
             ContentUnavailableView {
-                Label(mine ? "Share your first post" : session.isFriend(uid) || mine ? "No posts yet" : "Add them to see their posts",
+                Label(mine ? "No memories yet" : session.isFriend(uid) ? "No memories yet" : "Add them to see their memories",
                       systemImage: mine || session.isFriend(uid) ? "photo.on.rectangle.angled" : "lock")
+            } description: {
+                if mine { Text("Make a plan, show up on time, and snap the group photo when everyone's there.") }
             } actions: {
-                if mine { Button("New post") { posting = true }.buttonStyle(.borderedProminent).tint(Color.primary) }
+                if mine { Button("Make a plan") { PlanLauncher.shared.open = true }.buttonStyle(.borderedProminent).tint(Color.primary) }
             }
             .padding(.top, 40)
         } else {
@@ -305,7 +304,7 @@ struct SettingsView: View {
                     privacyAsk = nil
                 }
             } message: {
-                Text(privacyAsk == true ? "Only your friends will see your posts." : "Anyone on omw! will see your posts.")
+                Text(privacyAsk == true ? "Only your friends will see your memories." : "Anyone on omw! will see your memories.")
             }
             .confirmationDialog("Delete your omw! account?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete account", role: .destructive) {

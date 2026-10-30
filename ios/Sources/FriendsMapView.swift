@@ -126,8 +126,7 @@ struct FriendsMapView: View {
                 hits = await API.suggestPlaces(q, near: (near.latitude, near.longitude))
             }
             .sheet(item: $place) { p in
-                PlaceCard(place: p).withOmw()
-                    .presentationDetents([.height(250), .height(420)], selection: .constant(.height(420)))
+                PlaceCard(place: p).withOmw()  // it sizes its own sheet to what it shows
                     .presentationDragIndicator(.visible)
                     .presentationBackgroundInteraction(.enabled)
             }
@@ -408,9 +407,13 @@ struct PlaceCard: View {
                     going = DirectionsTarget(name: place.name, coordinate: place.coordinate, mode: session.me?.travelMode ?? "driving")
                 }
             }
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 18).padding(.top, 22)
+        .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 12)
+        // never wider than the sheet (Look Around would otherwise stretch everything off the side)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // just tall enough for what's there: with a picture, or without
+        .presentationDetents([.height(hasPicture ? 360 : 220)])
+        .animation(.snappy(duration: 0.25), value: hasPicture)
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
@@ -428,6 +431,8 @@ struct PlaceCard: View {
         }
     }
 
+    private var hasPicture: Bool { info?.photos?.isEmpty == false || lookAround != nil }
+
     /// its photos side by side (Google's), or Apple's Look Around of the street, or nothing
     @ViewBuilder private var photos: some View {
         if let refs = info?.photos, !refs.isEmpty {
@@ -435,15 +440,18 @@ struct PlaceCard: View {
                 HStack(spacing: 6) {
                     ForEach(refs, id: \.self) { ref in
                         RemoteImage(source: "\(API.base.absoluteString)/place-photo?ref=\(ref)&w=600")
-                            .frame(width: refs.count == 1 ? 320 : 200, height: 140)
+                            .frame(width: refs.count == 1 ? 300 : 200, height: 140)
                             .background(Color(.secondarySystemFill))
                             .clipShape(.rect(cornerRadius: 14))
                     }
                 }
             }
             .scrollIndicators(.hidden)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 140)
         } else if let lookAround {
             LookAroundPreview(initialScene: lookAround)
+                .frame(maxWidth: .infinity)
                 .frame(height: 140)
                 .clipShape(.rect(cornerRadius: 14))
         }
