@@ -13,6 +13,7 @@ struct FriendsMapView: View {
     @State private var query = ""
     @State private var hits: [PlaceHit] = []
     @State private var place: MapPlace?
+    @State private var showSaved = false
     @FocusState private var searching: Bool
     @Environment(LocationService.self) private var location
 
@@ -35,10 +36,38 @@ struct FriendsMapView: View {
         }
     }
 
+    /// where friends have been: posts with a place, and plans you've been to
+    private var heat: [HeatSpot] {
+        var seen = Set<String>(), out: [HeatSpot] = []
+        func add(_ lat: Double, _ lng: Double) {
+            if seen.insert(String(format: "%.3f,%.3f", lat, lng)).inserted { out.append(HeatSpot(lat: lat, lng: lng)) }
+        }
+        for p in session.posts where p.venue.count == 2 { add(p.venue[0], p.venue[1]) }
+        for h in session.hangouts { if let v = h.venue { add(v.latitude, v.longitude) } }
+        return Array(out.prefix(60))
+    }
+
     var body: some View {
         NavigationStack {
+          MapReader { proxy in
             Map(position: $position) {
-                UserAnnotation()
+                // a warm glow where your friends hang out (their posts and your plans), like Snap Map's heat
+                ForEach(heat) { h in
+                    MapCircle(center: h.coordinate, radius: 420).foregroundStyle(Color.orange.opacity(0.10))
+                    MapCircle(center: h.coordinate, radius: 220).foregroundStyle(Color.orange.opacity(0.16))
+                    MapCircle(center: h.coordinate, radius: 90).foregroundStyle(Color.pink.opacity(0.22))
+                }
+                // you, as your picture (like Snap Map's "Me")
+                UserAnnotation { _ in
+                    VStack(spacing: 3) {
+                        Avatar(session.me, size: 46)
+                            .overlay(Circle().strokeBorder(.white, lineWidth: 3))
+                            .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
+                        Text("Me").font(.caption.weight(.heavy))
+                            .padding(.horizontal, 8).padding(.vertical, 2)
+                            .background(Color.sun, in: Capsule()).foregroundStyle(.black)
+                    }
+                }
                 ForEach(photoSpots) { spot in
                     Annotation(spot.post.venueName, coordinate: CLLocationCoordinate2D(latitude: spot.post.venue[0], longitude: spot.post.venue[1]), anchor: .bottom) {
                         PhotoPin(spot: spot).onTapGesture { openPost = spot.post }
@@ -68,12 +97,20 @@ struct FriendsMapView: View {
                     .annotationTitles(.hidden)
                 }
             }
-            .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .including([.cafe, .restaurant, .park, .bakery, .museum, .movieTheater, .nightlife])))
+            .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .including([.cafe, .restaurant, .bakery, .nightlife, .park, .museum, .movieTheater, .stadium, .university])))
+            // tap anywhere: the place there (a cafe, a park…), or the address, with Save / Plan here / Rate / Go
+            .onTapGesture { point in
+                guard let c = proxy.convert(point, from: .local) else { return }
+                searching = false
+                Task { if let p = await MapPlace.at(c) { place = p } }
+            }
+          }
             .mapControls {
                 MapUserLocationButton()
                 MapCompass()
             }
             .overlay(alignment: .top) { searchBar }
+            .overlay(alignment: .bottom) { friendBar }
             .task(id: query) {
                 let q = query.trimmingCharacters(in: .whitespaces)
                 guard !q.isEmpty else { hits = []; return }
@@ -83,7 +120,7 @@ struct FriendsMapView: View {
                 hits = await API.suggestPlaces(q, near: (near.latitude, near.longitude))
             }
             .sheet(item: $place) { p in
-                PlaceCard(place: p)
+                PlaceCard(place: p).withOmw()
                     .presentationDetents([.height(250)])
                     .presentationDragIndicator(.visible)
                     .presentationBackgroundInteraction(.enabled)
@@ -95,13 +132,21 @@ struct FriendsMapView: View {
                     position = .camera(MapCamera(centerCoordinate: here, distance: 2200, heading: 0, pitch: 50))
                 }
             }
+            .sheet(isPresented: $showSaved) {
+                SavedList { p in
+                    fly(to: p.coordinate)
+                    place = p
+                }
+                .withOmw()
+                .presentationDetents([.medium, .large])
+            }
             .sheet(item: $openPost) { post in
-                NavigationStack { PostDetailView(id: post.id).withProfileRoutes() }
+                NavigationStack { PostDetailView(id: post.id).withProfileRoutes() }.withOmw()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
             .sheet(item: $selected) { f in
-                FriendCard(person: f)
+                FriendCard(person: f).withOmw()
                     .presentationDetents([.height(190)])
                     .presentationDragIndicator(.visible)
             }
@@ -119,16 +164,21 @@ extension FriendsMapView {
                 TextField("Search places", text: $query)
                     .focused($searching)
                     .submitLabel(.search)
+                    .onSubmit { if let first = hits.first { open(first) } }  // Search: go to the best match
                     .autocorrectionDisabled()
                 if !query.isEmpty {
                     Button { query = ""; searching = false } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                } else {
+                    // your favourites
+                    Button { showSaved = true } label: { Image(systemName: "bookmark.fill").foregroundStyle(Color.omwBlue) }
+                        .accessibilityLabel("Saved places")
                 }
             }
             .padding(.horizontal, 14).frame(height: 46)
             .background(.regularMaterial, in: Capsule())
             .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
 
-            if searching && !hits.isEmpty {
+            if !query.trimmingCharacters(in: .whitespaces).isEmpty && !hits.isEmpty && place == nil {
                 VStack(spacing: 0) {
                     ForEach(hits.prefix(6), id: \.key) { h in
                         Button { open(h) } label: {
@@ -148,11 +198,6 @@ extension FriendsMapView {
                     }
                 }
                 .background(.regularMaterial, in: .rect(cornerRadius: 18))
-            } else if live.isEmpty && !searching {
-                Text(session.friends.isEmpty ? "Add friends to see them here" : "No friends sharing their location right now")
-                    .font(.footnote.weight(.semibold))
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(.regularMaterial, in: Capsule())
             }
         }
         .padding(.horizontal, 12)
@@ -162,6 +207,7 @@ extension FriendsMapView {
 
     func open(_ hit: PlaceHit) {
         searching = false
+        hits = []
         Task {
             let full = await API.placeDetails(hit)
             guard let lat = full.lat, let lng = full.lng else { return }
@@ -170,6 +216,113 @@ extension FriendsMapView {
                 position = .region(MKCoordinateRegion(center: p.coordinate, latitudinalMeters: 900, longitudinalMeters: 900))
             }
             place = p
+        }
+    }
+}
+
+extension FriendsMapView {
+    /// along the bottom, like Snap Map: you, then your friends (sharing ones first). Tap to fly to them.
+    var friendBar: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 12) {
+                bubble(session.me, label: "Me", lit: true) {
+                    if let here = location.last?.coordinate { fly(to: here) }
+                }
+                ForEach(session.friends.sorted { (session.spots[$0.id]?.isFresh == true ? 0 : 1) < (session.spots[$1.id]?.isFresh == true ? 0 : 1) }) { f in
+                    let spot = session.spots[f.id]
+                    bubble(f, label: f.firstName, lit: spot?.isFresh == true) {
+                        if let spot, spot.isFresh { fly(to: spot.coordinate) } else { selected = f }
+                    }
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+        }
+        .scrollIndicators(.hidden)
+        .padding(.bottom, 4)
+    }
+
+    private func bubble(_ p: Person?, label: String, lit: Bool, tap: @escaping () -> Void) -> some View {
+        Button(action: tap) {
+            VStack(spacing: 4) {
+                Avatar(p, size: 52, showStatus: true)
+                    .overlay(Circle().strokeBorder(.white, lineWidth: 2.5))
+                    .shadow(color: .black.opacity(0.25), radius: 5, y: 3)
+                    .overlay(alignment: .bottomTrailing) {
+                        // sharing where they are right now
+                        if lit { Circle().fill(Color.freeGreen).frame(width: 13, height: 13).overlay(Circle().strokeBorder(.white, lineWidth: 2)) }
+                    }
+                Text(label).font(.caption.weight(.heavy)).lineLimit(1)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(.regularMaterial, in: Capsule())
+            }
+            .frame(width: 64)
+        }
+        .buttonStyle(Pressable())
+    }
+
+    func fly(to c: CLLocationCoordinate2D) {
+        withAnimation(.snappy(duration: 0.45)) {
+            position = .camera(MapCamera(centerCoordinate: c, distance: 1400, heading: 0, pitch: 55))
+        }
+    }
+}
+
+struct HeatSpot: Identifiable {
+    let lat: Double
+    let lng: Double
+    var id: String { "\(lat),\(lng)" }
+    var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lng) }
+}
+
+extension MapPlace {
+    /// what's at a spot you tapped: the nearest place within ~60 m, else the street address
+    static func at(_ c: CLLocationCoordinate2D) async -> MapPlace? {
+        let request = MKLocalPointsOfInterestRequest(center: c, radius: 60)
+        if let items = try? await MKLocalSearch(request: request).start().mapItems, !items.isEmpty {
+            let here = CLLocation(latitude: c.latitude, longitude: c.longitude)
+            let best = items.min { here.distance(from: $0.placemark.location ?? here) < here.distance(from: $1.placemark.location ?? here) }
+            if let best, let name = best.name {
+                let p = best.placemark
+                return MapPlace(name: name, address: [p.thoroughfare, p.locality].compactMap { $0 }.joined(separator: ", "),
+                                lat: p.coordinate.latitude, lng: p.coordinate.longitude)
+            }
+        }
+        let placemark = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: c.latitude, longitude: c.longitude)).first
+        let street = [placemark?.subThoroughfare, placemark?.thoroughfare].compactMap { $0 }.joined(separator: " ")
+        return MapPlace(name: street.isEmpty ? "Dropped pin" : street, address: placemark?.locality ?? "", lat: c.latitude, lng: c.longitude)
+    }
+}
+
+/// your saved places, like a favourites list: tap one to go there, swipe to remove
+struct SavedList: View {
+    var open: (MapPlace) -> Void
+    @Environment(Session.self) private var session
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(session.saved) { s in
+                    Button {
+                        dismiss()
+                        open(MapPlace(name: s.name, address: s.address, lat: s.lat, lng: s.lng))
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "bookmark.fill").foregroundStyle(Color.omwBlue)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(s.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                if !s.address.isEmpty { Text(s.address).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                            }
+                        }
+                    }
+                }
+                .onDelete { rows in
+                    for i in rows { let s = session.saved[i]; session.toggleSaved(name: s.name, address: s.address, lat: s.lat, lng: s.lng) }
+                }
+            }
+            .overlay { if session.saved.isEmpty { ContentUnavailableView("Nothing saved yet", systemImage: "bookmark", description: Text("Tap a place on the map, then Save.")) } }
+            .navigationTitle("Saved")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
@@ -224,11 +377,11 @@ struct PlaceCard: View {
         .padding(20)
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .sheet(isPresented: $planning) {
-            PlanSheet(start: place.hit).presentationDetents([.large]).presentationDragIndicator(.visible)
+            PlanSheet(start: place.hit).withOmw().presentationDetents([.large]).presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $rating) {
             RankSheet(place: RankedPlace(name: place.name, address: place.address, venue: [place.lat, place.lng]))
-                .presentationDetents([.height(380)]).presentationDragIndicator(.visible)
+                .withOmw().presentationDetents([.height(380)]).presentationDragIndicator(.visible)
         }
     }
 

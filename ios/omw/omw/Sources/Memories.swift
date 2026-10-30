@@ -1,4 +1,4 @@
-// Calendar, like the web app's Memories: each month as a calendar, with the photo you posted (or the plan you went to)
+// Memories, like the web app's: each month as a calendar, with the photo you posted (or the plan you went to)
 // on its day. Tap a day with a photo to open the post, or a plan to open it.
 import SwiftUI
 

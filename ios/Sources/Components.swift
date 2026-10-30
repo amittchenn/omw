@@ -80,11 +80,15 @@ struct Avatar: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(Color.sun.opacity(0.35))
-            Text(String(name.prefix(1)).uppercased())
-                .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-            if !photo.isEmpty { RemoteImage(source: photo) }
+            Circle().fill(photo.isEmpty ? Color.sun.opacity(0.35) : Color(.secondarySystemFill))
+            if photo.isEmpty {
+                // no picture: their first letter (never drawn under a picture, so it can't show through)
+                Text(String(name.prefix(1)).uppercased())
+                    .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+            } else {
+                RemoteImage(source: photo)
+            }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())

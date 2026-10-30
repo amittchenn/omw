@@ -279,7 +279,8 @@ struct PlanSheet: View {
                             .background(Circle().fill(Color(.systemBackground)).padding(2))
                     }
                 }
-                .opacity(picked ? 1 : 0.55)
+                .padding(3)
+                .overlay(Circle().strokeBorder(picked ? Color.omwBlue : Color.clear, lineWidth: 2.5))  // picked: a ring, like Instagram
             Text(name).font(.caption.weight(.semibold)).lineLimit(1)
         }
         .frame(width: 62)

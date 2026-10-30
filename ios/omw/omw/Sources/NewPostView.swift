@@ -16,10 +16,10 @@ struct NewPostFlow: ViewModifier {
             .fullScreenCover(isPresented: $picking, onDismiss: {
                 if let pending { draft = pending; self.pending = nil }
             }) {
-                AlbumPicker { images in pending = Draft(images: images) }
+                AlbumPicker { images in pending = Draft(images: images) }.withOmw()
             }
             .sheet(item: $draft) { draft in
-                ComposeView(draft: draft)
+                ComposeView(draft: draft).withOmw()
                     .interactiveDismissDisabled()
             }
     }
@@ -70,7 +70,7 @@ struct ComposeView: View {
                         row("person.crop.circle.badge.plus", "Tag people", tagged.compactMap { session.person($0)?.handle }.joined(separator: ", "))
                     }
                     Divider()
-                    Text(session.isPublic ? "Anyone on omw! can see this post." : "Your friends see it in their feed.")
+                    Text(session.isPublic ? "Public" : "Friends only")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .padding(16)

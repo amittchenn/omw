@@ -111,7 +111,7 @@ struct WeatherPanel: View {
             } else if tried {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(spot == nil ? "Pick a spot for the forecast" : "No forecast yet").font(.subheadline.weight(.semibold))
-                    Text(spot == nil ? "It shows the weather there at that hour." : "It shows up about two weeks out.")
+                    Text(spot == nil ? "" : "Shows up about two weeks out.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             } else {

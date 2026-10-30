@@ -183,7 +183,7 @@ struct EditProfileView: View {
             } header: {
                 Text("Username")
             } footer: {
-                Text(codeNote.isEmpty ? "Friends find and add you with this. Letters, numbers and _, 3 to 15." : codeNote)
+                Text(codeNote)
                     .foregroundStyle(codeChanged && !codeOK && !codeNote.isEmpty && codeNote != "Checking…" ? Color.red : Color.secondary)
             }
 
@@ -197,8 +197,6 @@ struct EditProfileView: View {
                 }
             } header: {
                 Text("Home")
-            } footer: {
-                Text("Where you leave from when your location's off. Only you and your friends' plans use it.")
             }
 
             Section("How you get around") {

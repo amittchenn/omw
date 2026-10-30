@@ -64,7 +64,7 @@ struct Person: Identifiable, Equatable {
     }
 
     /// Only pictures we can show safely: https links or JPEG/PNG/WebP data.
-    static func safePhoto(_ s: String?) -> String {
+    nonisolated static func safePhoto(_ s: String?) -> String {
         guard let s else { return "" }
         return s.hasPrefix("https://") || s.hasPrefix("data:image/jpeg") || s.hasPrefix("data:image/png") || s.hasPrefix("data:image/webp") ? s : ""
     }
@@ -187,7 +187,7 @@ struct Card: Identifiable, Equatable {
         code = data["code"] as? String ?? ""
     }
 
-    init(person: Person) {
+    nonisolated init(person: Person) {
         id = person.id; name = person.name; photo = person.photo; code = person.code
     }
 }
@@ -326,7 +326,7 @@ enum When {
         return f
     }()
     nonisolated(unsafe) static let isoPlain = ISO8601DateFormatter()
-    nonisolated(unsafe) static let local: DateFormatter = {
+    nonisolated static let local: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd'T'HH:mm"

@@ -25,7 +25,7 @@ LatLng = Annotated[list[float], Field(min_length=2, max_length=2)]
 from avatar_ai import TooMany, make_avatar, ready as avatars_ready
 from calendar_feed import build_ics, hangouts_for_token
 from muse_features import fair_spot, plan_from_text
-from places import details, place_name, search, search_places, suggest
+from places import details, place_info, place_name, place_photo, search, search_places, suggest
 from predictor import HISTORY, alert_buffer, learn_from, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
 import traffic
@@ -330,6 +330,27 @@ def places_details(id: str, session: Optional[str] = None):
         return details(id, session)
     except Exception as e:
         raise HTTPException(502, f"Couldn't find that place: {e}")
+
+
+@app.get("/places/info")
+def places_info(name: Annotated[str, Query(max_length=120)], lat: float, lng: float):
+    """A place's card: photos, rating, price, open now (the iPhone app's place card, like Google Maps')."""
+    try:
+        return place_info(name, lat, lng)
+    except Exception as e:
+        print(f"[places] info failed: {e}")
+        return {}
+
+
+@app.get("/place-photo")
+def place_photo_route(ref: Annotated[str, Query(max_length=400, pattern=r"^places/[A-Za-z0-9_-]+/photos/[A-Za-z0-9_-]+$")], w: int = 800):
+    """One place photo, through our server so the Google key stays here. Not behind sign-in (pictures load like any
+    image), but only Google photo names are accepted, and phones cache them for a day."""
+    try:
+        data, kind = place_photo(ref, max(100, min(w, 1600)))
+    except Exception:
+        raise HTTPException(404, "No photo")
+    return Response(content=data, media_type=kind, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/place-name")

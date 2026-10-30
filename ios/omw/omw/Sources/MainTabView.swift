@@ -36,12 +36,12 @@ struct MainTabView: View {
             if new == .plan { tab = old; planning = true }
         }
         .sheet(isPresented: $planning) {
-            PlanSheet()
+            PlanSheet().withOmw()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
         .sensoryFeedback(.selection, trigger: tab)
-        .sheet(item: Bindable(router).open) { PushDestinationView(destination: $0) }
+        .sheet(item: Bindable(router).open) { PushDestinationView(destination: $0).withOmw() }
         .onAppear { session.setUpPush() }
     }
 }

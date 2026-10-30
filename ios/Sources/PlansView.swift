@@ -10,7 +10,18 @@ struct PlansView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text("Plans").font(.system(size: 34, weight: .black, design: .rounded))
+                    HStack {
+                        Text("Plans").font(.system(size: 34, weight: .black, design: .rounded))
+                        Spacer()
+                        Button { PlanLauncher.shared.open = true } label: {
+                            Image(systemName: "plus").font(.system(size: 20, weight: .bold))
+                                .frame(width: 42, height: 42)
+                                .background(Color.sun, in: Circle())
+                                .foregroundStyle(.black)
+                        }
+                        .buttonStyle(Pressable())
+                        .accessibilityLabel("New plan")
+                    }
 
                     if !session.invites.isEmpty {
                         group("Invites") {
@@ -22,7 +33,9 @@ struct PlansView: View {
                         VStack(spacing: 8) {
                             Image(systemName: "calendar.badge.plus").font(.system(size: 40)).foregroundStyle(.secondary)
                             Text("Nothing planned").font(.headline)
-                            Text("Tap + to make a plan.").font(.subheadline).foregroundStyle(.secondary)
+                            Button("Make a plan") { PlanLauncher.shared.open = true }
+                                .font(.subheadline.weight(.bold))
+                                .buttonStyle(.borderedProminent).tint(Color.sun).foregroundStyle(.black)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 40)

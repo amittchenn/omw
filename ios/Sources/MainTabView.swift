@@ -1,13 +1,13 @@
-// The five tabs, like Instagram: Feed, Map, + (plan a hangout), Plans, Me.
+// The four tabs: Feed, Map, Plans, Me. Planning opens over whatever you're on (PlanLauncher), from the ＋ buttons.
 import SwiftUI
 
 struct MainTabView: View {
     @Environment(Session.self) private var session
     @State private var tab: Tab = .feed
-    @State private var planning = false
+    @State private var planner = PlanLauncher.shared
     @State private var router = PushRouter.shared  // a tapped notification (Push.swift)
 
-    enum Tab: Hashable { case feed, map, plan, plans, me }
+    enum Tab: Hashable { case feed, map, plans, me }
 
     var body: some View {
         TabView(selection: $tab) {
@@ -17,9 +17,6 @@ struct MainTabView: View {
             FriendsMapView()
                 .tabItem { Label("Map", systemImage: "map") }
                 .tag(Tab.map)
-            Color.clear
-                .tabItem { Label("Plan", systemImage: "plus.app") }
-                .tag(Tab.plan)
             PlansView()
                 .tabItem { Label("Plans", systemImage: "calendar") }
                 .badge(session.invites.count)
@@ -31,11 +28,7 @@ struct MainTabView: View {
             .tabItem { Label("Me", systemImage: "person.crop.circle") }
             .tag(Tab.me)
         }
-        // + doesn't switch tabs: it brings up the planner over whatever you were looking at
-        .onChange(of: tab) { old, new in
-            if new == .plan { tab = old; planning = true }
-        }
-        .sheet(isPresented: $planning) {
+        .sheet(isPresented: Bindable(planner).open) {
             PlanSheet().withOmw()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -54,4 +47,11 @@ extension View {
             .navigationDestination(for: ChatRef.self) { ConversationView(ref: $0) }
             .navigationDestination(for: PlanRoute.self) { PlanDetailView(id: $0.id) }
     }
+}
+
+/// "Plan a hangout", from anywhere: the ＋ on Plans, the Feed's ＋ menu
+@MainActor @Observable
+final class PlanLauncher {
+    static let shared = PlanLauncher()
+    var open = false
 }

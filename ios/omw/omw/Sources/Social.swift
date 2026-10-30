@@ -207,7 +207,7 @@ struct BoardView: View {
                     .opacity(s.hangouts == 0 ? 0.55 : 1)
                 }
             } footer: {
-                Text("Ranked by how often each person arrives within 5 minutes of the start. omw! checks people in when they get there, or they tap “I'm here”.")
+                Text("On time = there within 5 minutes of the start.")
             }
         }
         .navigationTitle("On-time board")
@@ -246,19 +246,28 @@ struct FriendsListView: View {
     }
 
     var body: some View {
-        List(shown) { c in
-            NavigationLink(value: ProfileRoute(uid: c.id)) {
-                HStack(spacing: 12) {
-                    Avatar(photo: c.photo, name: c.name, size: 46)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(c.handle).font(.subheadline.weight(.semibold))
-                        Text(c.name).font(.footnote).foregroundStyle(.secondary)
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(shown) { c in
+                    NavigationLink(value: ProfileRoute(uid: c.id)) {
+                        HStack(spacing: 12) {
+                            Avatar(photo: c.photo, name: c.name, size: 50)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(c.handle).font(.subheadline.weight(.bold))
+                                Text(c.name).font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if c.id != session.uid, !session.isFriend(c.id) { FriendButton(uid: c.id, card: c) }
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(.top, 4)
         }
-        .listStyle(.plain)
-        .searchable(text: $query, prompt: "Search")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
         .overlay { if !mine && !loaded { ProgressView() } else if shown.isEmpty && query.isEmpty { ContentUnavailableView("No friends yet", systemImage: "person.2") } }
         .navigationTitle("Friends")
         .navigationBarTitleDisplayMode(.inline)

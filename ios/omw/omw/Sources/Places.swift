@@ -248,9 +248,7 @@ struct RatePlaceSheet: View {
                 if query.isEmpty {
                     Section {
                         ForEach(session.placesToRate, id: \.name) { p in row(p.name, p.address) { rating = p } }
-                    } header: { Text("Places you've been") } footer: {
-                        if session.placesToRate.isEmpty { Text("Places from your plans and posts show up here. Or search above.") }
-                    }
+                    } header: { Text("Places you've been") }
                 } else {
                     ForEach(hits, id: \.key) { h in
                         row(h.name ?? "", h.address ?? "") {
@@ -275,7 +273,7 @@ struct RatePlaceSheet: View {
                 hits = await API.suggestPlaces(q, near: (near.latitude, near.longitude))
             }
             .sheet(item: Binding(get: { rating.map(RatingItem.init) }, set: { if $0 == nil { rating = nil } })) { item in
-                RankSheet(place: item.place).presentationDetents([.height(380)]).presentationDragIndicator(.visible)
+                RankSheet(place: item.place).withOmw().presentationDetents([.height(380)]).presentationDragIndicator(.visible)
             }
         }
     }
@@ -343,9 +341,9 @@ struct PlacesList: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 14)
-        .sheet(isPresented: $rating) { RatePlaceSheet() }
+        .sheet(isPresented: $rating) { RatePlaceSheet().withOmw() }
         .sheet(item: Binding(get: { rerank.map(RatingItem.init) }, set: { if $0 == nil { rerank = nil } })) { item in
-            RankSheet(place: item.place).presentationDetents([.height(380)]).presentationDragIndicator(.visible)
+            RankSheet(place: item.place).withOmw().presentationDetents([.height(380)]).presentationDragIndicator(.visible)
         }
     }
 }

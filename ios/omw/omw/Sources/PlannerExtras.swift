@@ -102,9 +102,9 @@ struct FairSpotFinder: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Image(systemName: "scalemass").foregroundStyle(.secondary)
-                TextField("Fair for everyone: tacos, coffee…", text: $query)
+                TextField(people.count > 1 ? "Fair for everyone: tacos, coffee…" : "Find a spot: tacos, coffee…", text: $query)
                     .submitLabel(.search)
                     .onSubmit(find)
                 if working { ProgressView() } else if !query.isEmpty {
@@ -112,6 +112,7 @@ struct FairSpotFinder: View {
                         .buttonStyle(.plain)
                 }
             }
+            .softField()
             if let problem { Text(problem).font(.footnote).foregroundStyle(.secondary) }
             if let answer {
                 if let why = answer.why, !answer.candidates.isEmpty {
@@ -168,7 +169,7 @@ struct FairSpotFinder: View {
     private func find() {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return }
-        guard people.count >= 2 else { problem = "Pick at least one friend under Who first."; return }
+        guard !people.isEmpty else { problem = "Sign in again to search."; return }
         let center = near ?? session.me?.home ?? CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
         working = true; problem = nil
         Task {
@@ -210,48 +211,89 @@ struct MuseBar: View {
     var filled: (MuseAnswer) -> String   // the planner fills itself in and says what it did
     @Environment(Session.self) private var session
     @State private var text = ""
-    @State private var working = false
     @State private var said = ""
     @State private var failed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles").foregroundStyle(Color.orange)
-                TextField("Describe a plan: boba with Priya Friday", text: $text, axis: .vertical)
-                    .lineLimit(1...3)
+                Image(systemName: "bolt.fill").foregroundStyle(Color.orange)
+                TextField("Quick plan: boba with Priya Fri 7pm", text: $text)
                     .submitLabel(.go)
                     .onSubmit(ask)
-                if working { ProgressView() } else if !text.trimmingCharacters(in: .whitespaces).isEmpty {
+                if !text.trimmingCharacters(in: .whitespaces).isEmpty {
                     Button(action: ask) { Image(systemName: "arrow.up.circle.fill").font(.title2).foregroundStyle(Color.primary) }
                         .buttonStyle(.plain)
                 }
             }
+            .softField()
             if !said.isEmpty {
-                Text(said).font(.footnote).foregroundStyle(failed ? Color.red : Color.secondary)
+                Text(said).font(.footnote.weight(.medium)).foregroundStyle(failed ? Color.red : Color.secondary)
+                    .padding(.horizontal, 4)
             }
         }
-        .padding(.vertical, 2)
     }
 
+    /// Fills in right away what's plain in what you typed (names, the kind of thing, the day and time), then lets the
+    /// server's Muse finish it (the place, and anything said in a roundabout way) without making you wait.
     private func ask() {
         let q = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty, !working else { return }
+        guard !q.isEmpty else { return }
+        text = ""
+        failed = false
+        said = filled(quickRead(q))
         let at = near ?? session.me?.home ?? CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
         let types = HangoutType.all + (session.me?.categories ?? [])
         let request = MuseRequest(text: q, friends: session.friends.map { .init(id: $0.id, name: $0.name) },
                                   categories: types.map { .init(id: $0.id, name: $0.name) },
                                   now: When.local.string(from: .now), lat: at.latitude, lng: at.longitude)
-        working = true; said = "Working on it…"; failed = false
         Task {
-            do {
-                let answer = try await API.send("/ai/plan", request, as: MuseAnswer.self)
-                said = filled(answer)
-                text = ""
-            } catch {
-                said = error.localizedDescription; failed = true
-            }
-            working = false
+            if let answer = try? await API.send("/ai/plan", request, as: MuseAnswer.self) { said = filled(answer) }
         }
+    }
+
+    /// the obvious bits, on the phone: friends' names, "coffee"/"dinner"/…, "tonight"/"tomorrow"/"fri", "7pm"/"7:30"
+    private func quickRead(_ q: String) -> MuseAnswer {
+        let words = q.lowercased().split { !$0.isLetter && !$0.isNumber && $0 != ":" }.map(String.init)
+        let who = session.friends.filter { words.contains($0.firstName.lowercased()) }.map(\.id)
+        let kinds: [(String, [String])] = [
+            ("coffee", ["coffee", "boba", "cafe", "tea", "matcha", "latte"]),
+            ("food", ["food", "dinner", "lunch", "breakfast", "brunch", "eat", "tacos", "pizza", "sushi", "ramen", "burgers"]),
+            ("study", ["study", "homework", "library", "work"]),
+            ("party", ["party", "drinks", "bar", "club", "karaoke"]),
+            ("sports", ["sports", "gym", "basketball", "soccer", "tennis", "run", "hike", "volleyball"]),
+        ]
+        var type = kinds.first { _, keys in keys.contains { words.contains($0) } }?.0
+        for c in session.me?.categories ?? [] where words.contains(c.name.lowercased()) { type = c.id }
+
+        let cal = Calendar.current
+        var day: Date?
+        if words.contains("tonight") || words.contains("today") { day = .now }
+        if words.contains("tomorrow") || words.contains("tmr") || words.contains("tmrw") { day = cal.date(byAdding: .day, value: 1, to: .now) }
+        let weekdays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+        for w in words {
+            if let i = weekdays.firstIndex(where: { w.hasPrefix($0) && w.count <= 9 }) {
+                day = cal.nextDate(after: .now, matching: DateComponents(weekday: i + 1), matchingPolicy: .nextTime)
+            }
+        }
+        var hour: Int?, minute = 0
+        for (k, w) in words.enumerated() {
+            let pm = w.hasSuffix("pm") || words.indices.contains(k + 1) && words[k + 1] == "pm"
+            let am = w.hasSuffix("am") || words.indices.contains(k + 1) && words[k + 1] == "am"
+            let digits = w.replacingOccurrences(of: "pm", with: "").replacingOccurrences(of: "am", with: "")
+            let parts = digits.split(separator: ":")
+            guard let h = Int(parts.first ?? ""), (1...23).contains(h), parts.count <= 2,
+                  pm || am || parts.count == 2 || (k > 0 && words[k - 1] == "at") else { continue }
+            hour = pm && h < 12 ? h + 12 : am && h == 12 ? 0 : (!am && !pm && h < 8 ? h + 12 : h)
+            minute = parts.count == 2 ? Int(parts[1]) ?? 0 : 0
+        }
+        var when: String?
+        if day != nil || hour != nil {
+            let base = day ?? .now
+            var start = cal.date(bySettingHour: hour ?? 19, minute: minute, second: 0, of: base) ?? base
+            if start < .now { start = cal.date(byAdding: .day, value: 1, to: start) ?? start }
+            when = When.local.string(from: start)
+        }
+        return MuseAnswer(who: who, type: type, when: when, place: nil, place_options: nil, place_query: nil, summary: "Got it", note: nil)
     }
 }

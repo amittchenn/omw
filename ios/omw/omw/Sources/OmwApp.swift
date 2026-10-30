@@ -16,8 +16,11 @@ struct OmwApp: App {
     init() {
         FirebaseApp.configure()  // reads GoogleService-Info.plist
         let session = Session()
+        let location = LocationService(session: session)
         _session = State(initialValue: session)
-        _location = State(initialValue: LocationService(session: session))
+        _location = State(initialValue: location)
+        Session.shared = session
+        LocationService.shared = location
     }
 
     var body: some Scene {
@@ -66,5 +69,13 @@ struct RootView: View {
         }
         .animation(.snappy(duration: 0.22), value: session.user == nil)
         .fontDesign(.rounded)  // omw!'s friendly rounded type everywhere, like the web app's Nunito
+    }
+}
+
+extension View {
+    /// The app's shared state, handed to a sheet or full-screen page explicitly (iOS doesn't always pass it along to
+    /// everything that's presented, and a screen without it would crash)
+    func withOmw() -> some View {
+        environment(Session.shared).environment(LocationService.shared)
     }
 }

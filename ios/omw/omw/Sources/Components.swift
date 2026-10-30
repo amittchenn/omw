@@ -80,14 +80,19 @@ struct Avatar: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(Color.sun.opacity(0.35))
-            Text(String(name.prefix(1)).uppercased())
-                .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-            if !photo.isEmpty { RemoteImage(source: photo) }
+            Circle().fill(photo.isEmpty ? Color.sun.opacity(0.35) : Color(.secondarySystemFill))
+            if photo.isEmpty {
+                // no picture: their first letter (never drawn under a picture, so it can't show through)
+                Text(String(name.prefix(1)).uppercased())
+                    .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+            } else {
+                RemoteImage(source: photo)
+            }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .compositingGroup()  // fading a picture fades it as one image (no letter showing through)
         .padding(ring == nil ? 0 : 3)
         .overlay {
             if let ring { Circle().strokeBorder(ring, lineWidth: 2.5) }
@@ -99,6 +104,15 @@ extension Avatar {
     init(_ person: Person?, fallback: String = "", size: CGFloat = 40, showStatus: Bool = false) {
         self.init(photo: person?.photo ?? "", name: person?.name ?? fallback, size: size,
                   ring: showStatus ? person?.status.color : nil)
+    }
+}
+
+extension View {
+    /// a soft rounded box, like the web app's search fields and rows
+    func softField() -> some View {
+        padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .background(Color(.secondarySystemFill), in: .rect(cornerRadius: 16))
     }
 }
 

@@ -132,6 +132,14 @@ extension Session {
     }
 
     // ---------- "I'm free" ----------
+    /// free till `date` (rounded up to a quarter hour), or not free (nil)
+    func setFree(until date: Date?) {
+        guard let uid else { return }
+        let until = date.map { Date(timeIntervalSinceReferenceDate: ($0.timeIntervalSinceReferenceDate / 900).rounded(.up) * 900) }
+        me?.freeUntil = until  // feels instant
+        db.collection("users").document(uid).setData(["freeUntil": until.map { When.string($0) } ?? NSNull()], merge: true)
+    }
+
     /// free for the next `hours` (rounded up to a quarter hour), or tonight (till 11:59 pm); 0 hours turns it off
     func setFree(hours: Int = 0, tonight: Bool = false) {
         guard let uid else { return }

@@ -74,146 +74,152 @@ struct PlanSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    MuseBar(near: location.last?.coordinate, filled: fill)
-                } footer: {
-                    Text("Or fill it in yourself below.")
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(greeting).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                        Text("Plan a hangout").font(.system(size: 32, weight: .black, design: .rounded))
+                    }
+                    .padding(.bottom, 14)
 
-                Section {
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 8) {
-                            ForEach(HangoutType.all + (session.me?.categories ?? [])) { t in
-                                Button { type = t; results = nil } label: {
-                                    Label(t.name, systemImage: t.symbol)
-                                        .font(.subheadline.weight(.semibold))
-                                        .padding(.horizontal, 14).frame(height: 38)
-                                        .background(type == t ? Color.primary : Color(.secondarySystemFill), in: Capsule())
-                                        .foregroundStyle(type == t ? Color(.systemBackground) : Color.primary)
-                                }
-                                .buttonStyle(.plain)
-                                .contextMenu {
-                                    if t.id.hasPrefix("c_") {
-                                        Button("Delete", systemImage: "trash", role: .destructive) {
-                                            session.removeCategory(t.id)
-                                            if type == t { type = HangoutType.all[0] }
+                    MuseBar(near: location.last?.coordinate, filled: fill)
+
+                    block("What") {
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(HangoutType.all + (session.me?.categories ?? [])) { t in
+                                    Button { type = t; results = nil } label: {
+                                        Label(t.name, systemImage: t.symbol)
+                                            .font(.subheadline.weight(.bold))
+                                            .padding(.horizontal, 14).frame(height: 40)
+                                            .background(type == t ? Color.primary : Color(.secondarySystemFill), in: Capsule())
+                                            .foregroundStyle(type == t ? Color(.systemBackground) : Color.primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .contextMenu {
+                                        if t.id.hasPrefix("c_") {
+                                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                                session.removeCategory(t.id)
+                                                if type == t { type = HangoutType.all[0] }
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            Button { naming = true } label: {
-                                Label("New", systemImage: "plus")
-                                    .font(.subheadline.weight(.semibold))
-                                    .padding(.horizontal, 14).frame(height: 38)
-                                    .overlay(Capsule().strokeBorder(Color(.separator), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .scrollIndicators(.hidden)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                } header: { Text("What") }
-
-                Section {
-                    ScrollView(.horizontal) {
-                        HStack(alignment: .top, spacing: 14) {
-                            if let me = session.me { person(me, name: "You", picked: true) }
-                            ForEach(session.friends) { f in
-                                Button { toggle(f.id) } label: { person(f, name: f.firstName, picked: who.contains(f.id)) }
-                                    .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.vertical, 6)
-                    }
-                    .scrollIndicators(.hidden)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                } header: { Text("Who") } footer: {
-                    if session.friends.isEmpty { Text("Add friends to plan with them.") }
-                }
-
-                if !who.isEmpty {
-                    Section("Getting there") {
-                        ForEach([session.uid ?? ""] + who, id: \.self) { id in
-                            let mode = modeFor[id] ?? session.person(id)?.travelMode ?? "driving"
-                            HStack(spacing: 12) {
-                                Avatar(session.person(id), size: 32)
-                                Text(id == session.uid ? "You" : session.person(id)?.firstName ?? "Friend").font(.subheadline.weight(.semibold))
-                                Spacer()
-                                Menu {
-                                    ForEach(Travel.modes, id: \.self) { m in
-                                        Button(Travel.name(m), systemImage: Travel.symbol(m)) { modeFor[id] = m; results = nil }
-                                    }
-                                } label: {
-                                    Label(Travel.name(mode), systemImage: Travel.symbol(mode))
-                                        .font(.subheadline.weight(.semibold))
-                                        .padding(.horizontal, 12).frame(height: 32)
-                                        .background(Color(.secondarySystemFill), in: Capsule())
-                                }
-                                .foregroundStyle(.primary)
-                            }
-                        }
-                    }
-                }
-
-                Section("Where") {
-                    NavigationLink { PlacePicker(selection: $place) } label: {
-                        HStack {
-                            Image(systemName: "mappin.and.ellipse").foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(place?.name ?? "Pick a spot").foregroundStyle(place == nil ? .secondary : .primary)
-                                if let address = place?.address, !address.isEmpty { Text(address).font(.footnote).foregroundStyle(.secondary).lineLimit(1) }
-                            }
-                        }
-                    }
-                    FairSpotFinder(people: fairPeople, near: location.last?.coordinate) { place = $0 }
-                }
-
-                Section("When") {
-                    // quick picks, like the web app's time chips; the wheel below for anything else
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 8) {
-                            ForEach(PlanSheet.quickTimes()) { quick in
-                                let date = quick.date
-                                Button { when = date } label: {
-                                    Text(quick.label)
-                                        .font(.subheadline.weight(.semibold))
-                                        .padding(.horizontal, 14).frame(height: 36)
-                                        .background(when == date ? Color.primary : Color(.secondarySystemFill), in: Capsule())
-                                        .foregroundStyle(when == date ? Color(.systemBackground) : Color.primary)
+                                Button { naming = true } label: {
+                                    Label("New", systemImage: "plus")
+                                        .font(.subheadline.weight(.bold))
+                                        .padding(.horizontal, 14).frame(height: 40)
+                                        .overlay(Capsule().strokeBorder(Color(.separator), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.vertical, 2)
+                        .scrollIndicators(.hidden)
                     }
-                    .scrollIndicators(.hidden)
-                    .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 6, trailing: 16))
-                    DatePicker("Starts", selection: $when, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
-                }
 
-                Section("Weather") {
-                    WeatherPanel(spot: weatherSpot, when: when)
-                        .padding(.vertical, 4)
-                }
+                    block(who.isEmpty ? "Who" : "Who · \(who.count + 1) people") {
+                        ScrollView(.horizontal) {
+                            HStack(alignment: .top, spacing: 14) {
+                                if let me = session.me { person(me, name: "You", picked: true) }
+                                ForEach(session.friends) { f in
+                                    Button { toggle(f.id) } label: { person(f, name: f.firstName, picked: who.contains(f.id)) }
+                                        .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .scrollIndicators(.hidden)
+                        if session.friends.isEmpty { Text("Add friends to plan with them.").font(.footnote).foregroundStyle(.secondary) }
+                    }
 
-                if let results {
-                    Section {
-                        ForEach(results) { r in resultRow(r) }
-                        ForEach(noSpot, id: \.self) { uid in
-                            HStack(spacing: 12) {
-                                Avatar(session.person(uid), size: 40)
-                                Text("\(session.person(uid)?.firstName ?? "Friend") has no location or home yet, so they'll pick their own time.")
-                                    .font(.footnote).foregroundStyle(.secondary)
+                    // only your own way there: friends travel their own way (set on their profile)
+                    block("Getting there") {
+                        let id = session.uid ?? ""
+                        let mode = modeFor[id] ?? session.me?.travelMode ?? "driving"
+                        HStack(spacing: 8) {
+                            ForEach(Travel.modes, id: \.self) { m in
+                                Button { modeFor[id] = m; results = nil } label: {
+                                    Label(Travel.name(m), systemImage: Travel.symbol(m))
+                                        .labelStyle(.iconOnly)
+                                        .font(.system(size: 17, weight: .semibold))
+                                        .frame(maxWidth: .infinity, minHeight: 42)
+                                        .background(mode == m ? Color.primary : Color(.secondarySystemFill), in: Capsule())
+                                        .foregroundStyle(mode == m ? Color(.systemBackground) : Color.primary)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(Travel.name(m))
                             }
                         }
-                    } header: { Text("When everyone leaves") } footer: {
-                        Text("Leave times allow for traffic at that hour and how late each person usually runs.")
+                    }
+
+                    block("Where") {
+                        NavigationLink { PlacePicker(selection: $place) } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: place == nil ? "magnifyingglass" : "mappin.circle.fill")
+                                    .foregroundStyle(place == nil ? Color.secondary : Color.red)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(place?.name ?? "Search for a spot").foregroundStyle(place == nil ? .secondary : .primary)
+                                        .fontWeight(place == nil ? .regular : .semibold)
+                                    if let address = place?.address, !address.isEmpty {
+                                        Text(address).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                }
+                                Spacer()
+                                if place != nil {
+                                    Button { place = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                                        .buttonStyle(.plain)
+                                }
+                            }
+                            .softField()
+                        }
+                        .buttonStyle(.plain)
+                        FairSpotFinder(people: fairPeople, near: location.last?.coordinate) { place = $0 }
+                    }
+
+                    block("When") {
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(PlanSheet.quickTimes()) { quick in
+                                    let date = quick.date
+                                    Button { when = date } label: {
+                                        Text(quick.label)
+                                            .font(.subheadline.weight(.bold))
+                                            .padding(.horizontal, 14).frame(height: 38)
+                                            .background(when == date ? Color.primary : Color(.secondarySystemFill), in: Capsule())
+                                            .foregroundStyle(when == date ? Color(.systemBackground) : Color.primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                        DatePicker("Pick a time", selection: $when, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
+                            .font(.subheadline.weight(.semibold))
+                    }
+
+                    block("Weather") {
+                        WeatherPanel(spot: weatherSpot, when: when)
+                    }
+
+                    if let results {
+                        block("When everyone leaves") {
+                            ForEach(results) { r in resultRow(r) }
+                            ForEach(noSpot, id: \.self) { uid in
+                                HStack(spacing: 12) {
+                                    Avatar(session.person(uid), size: 40)
+                                    Text("\(session.person(uid)?.firstName ?? "Friend") has no location or home yet, so they'll pick their own time.")
+                                        .font(.footnote).foregroundStyle(.secondary)
+                                }
+                            }
+                            Text("Includes traffic and how late each person usually runs.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
             }
-            .navigationTitle("Plan a hangout")
+            .scrollDismissesKeyboard(.interactively)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -247,6 +253,22 @@ struct PlanSheet: View {
         }
     }
 
+    /// a section like the web app's planner: a line, a bold label, then what's in it
+    private func block<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Divider().padding(.bottom, 4)
+            Text(title).font(.system(size: 17, weight: .heavy, design: .rounded))
+            content()
+        }
+        .padding(.top, 18)
+    }
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: .now)
+        let part = hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+        return "\(part), \(session.me?.firstName ?? "friend")"
+    }
+
     private func person(_ p: Person, name: String, picked: Bool) -> some View {
         VStack(spacing: 5) {
             Avatar(p, size: 52)
@@ -257,7 +279,8 @@ struct PlanSheet: View {
                             .background(Circle().fill(Color(.systemBackground)).padding(2))
                     }
                 }
-                .opacity(picked ? 1 : 0.55)
+                .padding(3)
+                .overlay(Circle().strokeBorder(picked ? Color.omwBlue : Color.clear, lineWidth: 2.5))  // picked: a ring, like Instagram
             Text(name).font(.caption.weight(.semibold)).lineLimit(1)
         }
         .frame(width: 62)

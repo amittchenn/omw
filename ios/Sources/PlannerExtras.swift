@@ -217,8 +217,8 @@ struct MuseBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "bolt.fill").foregroundStyle(Color.orange)
-                TextField("Quick plan: boba with Priya Fri 7pm", text: $text)
+                // plain, like a message: an example with one of your own friends in it
+                TextField("Type it: boba with \(session.friends.first?.firstName ?? "Sam") fri 7pm", text: $text)
                     .submitLabel(.go)
                     .onSubmit(ask)
                 if !text.trimmingCharacters(in: .whitespaces).isEmpty {

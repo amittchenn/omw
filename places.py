@@ -182,3 +182,35 @@ def search(q, lat, lng, here=None):
         except Exception as e:
             print(f"[places] Google search failed, using Mapbox/OpenStreetMap: {e}")
     return _fallback(q, lat, lng, here)
+
+
+def place_info(name, lat, lng):
+    """A place's card, like Google Maps': up to 6 photos, rating, reviews, price, open now, type, phone and website.
+    Found by name near the spot (taps on the map and Apple's search don't carry Google's id). Photos are given as
+    names for /places/photo, so the Google key never leaves the server."""
+    if not GOOGLE_KEY or not name.strip():
+        return {}
+    fields = ",".join("places." + f for f in ["id", "displayName", "location", "rating", "userRatingCount", "priceLevel",
+                                              "currentOpeningHours.openNow", "primaryTypeDisplayName", "photos",
+                                              "nationalPhoneNumber", "websiteUri", "googleMapsUri"])
+    data = _google("places:searchText", {"textQuery": name[:100], "pageSize": 1,
+                                          "locationBias": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": 300}}}, fields)
+    found = data.get("places") or []
+    if not found:
+        return {}
+    p = found[0]
+    loc = p.get("location") or {}
+    if _meters((lat, lng), (loc.get("latitude", lat), loc.get("longitude", lng))) > 600:  # not the place you tapped
+        return {}
+    return {"name": p.get("displayName", {}).get("text", name), "rating": p.get("rating"), "reviews": p.get("userRatingCount"),
+            "price": PRICE.get(p.get("priceLevel"), ""), "open": p.get("currentOpeningHours", {}).get("openNow"),
+            "type": p.get("primaryTypeDisplayName", {}).get("text", ""), "phone": p.get("nationalPhoneNumber", ""),
+            "website": p.get("websiteUri", ""), "maps": p.get("googleMapsUri", ""),
+            "photos": [ph["name"] for ph in (p.get("photos") or [])[:6] if ph.get("name")]}
+
+
+def place_photo(ref, width=800):
+    """The picture itself (Google gives a short-lived link to it)."""
+    r = requests.get(f"{GOOGLE}/{ref}/media", params={"maxWidthPx": width, "key": GOOGLE_KEY}, timeout=8)
+    r.raise_for_status()
+    return r.content, r.headers.get("content-type", "image/jpeg")

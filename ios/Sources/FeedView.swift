@@ -65,8 +65,11 @@ extension FeedView {
             Spacer()
             NavigationLink { AddFriendsView() } label: { HeaderIcon(symbol: "person.badge.plus", count: session.incoming.count, dot: true) }
                 .accessibilityLabel("Add friends")
-            Button { posting = true } label: { HeaderIcon(symbol: "plus.app") }
-                .accessibilityLabel("New post")
+            Menu {
+                Button("New plan", systemImage: "calendar.badge.plus") { PlanLauncher.shared.open = true }
+                Button("New post", systemImage: "camera") { posting = true }
+            } label: { HeaderIcon(symbol: "plus.app") }
+            .accessibilityLabel("New plan or post")
             NavigationLink { ChatsView() } label: { HeaderIcon(symbol: "bubble.left", count: session.unreadChats) }
                 .accessibilityLabel("Chats")
         }

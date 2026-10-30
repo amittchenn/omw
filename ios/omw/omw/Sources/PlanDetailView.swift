@@ -65,7 +65,8 @@ struct PlanDetailView: View {
                 }
                 .padding(.vertical, 4)
                 if let venue = h.venue {
-                    Map(initialPosition: .automatic, interactionModes: onTheWay.isEmpty ? [] : [.pan, .zoom]) {
+                    Map(initialPosition: onTheWay.isEmpty ? .region(MKCoordinateRegion(center: venue, latitudinalMeters: 900, longitudinalMeters: 900)) : .automatic,
+                        interactionModes: onTheWay.isEmpty ? [] : [.pan, .zoom]) {
                         Marker(h.venueName, systemImage: "mappin", coordinate: venue).tint(.red)
                         UserAnnotation()
                         // the others on their way, live (only while they're coming)
@@ -98,8 +99,8 @@ struct PlanDetailView: View {
                     .disabled(working)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
-                } footer: {
-                    Text("\(h.names[h.createdBy].map { $0.split(separator: " ").first.map(String.init) ?? $0 } ?? "A friend") invited you. Say yes and omw! works out when you should leave.")
+                } header: {
+                    Text("\(h.names[h.createdBy].map { $0.split(separator: " ").first.map(String.init) ?? $0 } ?? "A friend") invited you")
                 }
             }
 
@@ -158,10 +159,6 @@ struct PlanDetailView: View {
                 if h.checkInOpen {
                     Button { imHere(h) } label: { Label("I'm here", systemImage: "mappin.and.ellipse") }
                 }
-            }
-        } footer: {
-            if h.arrivals[uid] == nil, location.mode == .always {
-                Text("You'll be checked in automatically when you get there.")
             }
         }
     }

@@ -37,6 +37,9 @@ final class Session {
     @ObservationIgnored private var setUpFor: String?   // the account we've set up this time (Account.swift)
     @ObservationIgnored var newAccount = false          // made just now: starts public, like the web app
 
+    /// the one Session the app made (OmwApp), for withOmw()
+    static var shared: Session!
+
     var uid: String? { user?.uid }
 
     init() {

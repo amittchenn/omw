@@ -13,6 +13,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     var authorization: CLAuthorizationStatus
     var last: CLLocation?
 
+    static var shared: LocationService!  // the one the app made (OmwApp), for withOmw()
+
     private let manager = CLLocationManager()
     private unowned let session: Session
     @ObservationIgnored private var inForeground = true
@@ -31,23 +33,21 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.activityType = .other
     }
 
-    var mode: ShareMode { session.me?.shareMode ?? .whileUsing }
-
-    /// what iOS lets omw! do falls short of what you picked (e.g. "Always" chosen, but iOS says "While Using")
-    var needsSettings: Bool {
-        switch mode {
-        case .never: false
-        case .whileUsing: authorization == .denied || authorization == .restricted
-        case .always: authorization != .authorizedAlways && authorization != .notDetermined
+    /// You choose in the iPhone's Settings → omw! → Location, like any Apple app: Never, While Using, or Always.
+    var mode: ShareMode {
+        switch authorization {
+        case .authorizedAlways: .always
+        case .denied, .restricted: .never
+        default: .whileUsing
         }
     }
 
-    func choose(_ mode: ShareMode) {
-        guard let uid = session.uid else { return }
+    /// keeps your profile in step with what you picked in Settings (the web app and friends' maps read it)
+    private func remember() {
+        guard let uid = session.uid, authorization != .notDetermined, session.me?.shareMode != mode else { return }
         session.db.collection("users").document(uid).setData(["shareMode": mode.rawValue, "shareLive": mode != .never], merge: true)
-        session.me?.shareMode = mode  // feels instant; the listener confirms it
+        session.me?.shareMode = mode
         if mode == .never { session.db.collection("locations").document(uid).delete(); sent = nil }
-        apply()
     }
 
     func foreground(_ active: Bool) {
@@ -58,6 +58,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     /// start or stop the right kind of updates for your choice, what iOS allows, and whether omw! is open
     func apply() {
         guard session.uid != nil else { stopAll(); return }
+        if authorization == .notDetermined { manager.requestWhenInUseAuthorization(); return }  // iOS asks once
+        remember()
         switch mode {
         case .never:
             stopAll()
