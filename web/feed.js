@@ -46,7 +46,7 @@ const tick = () => window.Capacitor?.Plugins?.Haptics?.impact({ style: "LIGHT" }
   }
 }
 
-let db, me = null, posts = {}, stopFeed = null, tab = "feed", freeMenu = false, widened = new Set(), nowSent = "", menuFor = null;
+let db, me = null, posts = {}, stopFeed = null, tab = "feed", widened = new Set(), nowSent = "", menuFor = null;
 let comments = {}, commentStops = {}, draft = null, loaded = false;
 let profile = null, profilePosts = {}, profileStop = null, profileTab = "posts", myPublic = false, myCard = null, cards = {}, viewing = null;
 const getPost = id => posts[id] || profilePosts[id];
@@ -123,23 +123,22 @@ function patch(box, items) {
   keep.forEach(el => el.remove());
 }
 
+const short = iso => clock(iso).replace(":00", "").replace(/\s/g, "").toLowerCase();  // "9pm", "4:45am"
 function friendsRow() {
   const mine = (window.myFriends || []).find(p => p.isMe) || {};
   const free = mine.freeUntil && new Date(mine.freeUntil) > Date.now();
   const rank = s => ({ out: 0, omw: 1, free: 2 })[s] ?? 3;
   const list = friends().map(p => ({ p, s: statusOf(p) })).sort((a, b) => rank(a.s[0]) - rank(b.s[0]) || a.p.name.localeCompare(b.p.name));
+  // like Instagram's notes: a little bubble over a picture says who's free and until when
+  const note = (p, mineToo) => p.freeUntil && new Date(p.freeUntil) > Date.now()
+    ? `<span class="ff-note free" title="Free till ${esc(short(p.freeUntil))}">till ${esc(short(p.freeUntil).replace(/[ap]m$/, ""))}</span>` : mineToo ? `<span class="ff-note ask">Free?</span>` : "";
   return `<div class="ff-row">
-    <button class="ff-me ${free ? "free" : ""}" data-free-menu>
-      ${free ? face(mine.user_id, mine.realName, "big") : `<span class="ff big add">${icon("plus")}</span>`}
-      <b>${free ? "You're free" : "I'm free"}</b><small>${free ? `til ${esc(clock(mine.freeUntil))}` : "Tap me"}</small></button>
+    <button class="ff-me ${free ? "free" : ""}" data-free-menu aria-label="${free ? "Change when you're free" : "Let friends know you're free"}">
+      ${note(mine, true)}${face(mine.user_id, mine.realName, "big")}<b>You</b><small></small></button>
     ${list.map(({ p, s }) => `<button class="ff-friend ${s[0]}" data-profile="${esc(p.user_id)}" title="${esc(p.name)}">
-      ${face(p.user_id, p.name, "big")}<b>${esc(first(p.name))}</b><small>${esc(s[1])}</small></button>`).join("")}
-    <button class="ff-friend" data-add-friends><span class="ff big add">${icon("user-round-plus")}</span><b>Add friends</b><small>${list.length ? "" : "by friend ID"}</small></button>
-  </div>
-  ${freeMenu ? `<div class="free-menu">
-    <span>Let your friends know you're up for something</span>
-    <div><button data-free="2">Next 2 hours</button><button data-free="tonight">Tonight</button>
-    ${free ? `<button data-free="off" class="off">Not free anymore</button>` : ""}</div></div>` : ""}`;
+      ${note(p)}${face(p.user_id, p.name, "big")}<b>${esc(first(p.name))}</b><small>${s[0] === "free" ? "" : esc(s[1])}</small></button>`).join("")}
+    <button class="ff-friend" data-add-page><span class="ff big add">${icon("user-round-plus")}</span><b>Add friends</b><small></small></button>
+  </div>`;
 }
 
 function upNext() {  // your next hangout in the next two days
@@ -344,6 +343,19 @@ function postMenu(p) {
   $("actionSheet").hidden = false;
 }
 const closeSheet = () => { $("actionSheet").hidden = true; };
+// "I'm free": tap your picture in the friends row, pick how long, and your friends see "Free till 9" over it
+function freeSheet() {
+  const mine = (window.myFriends || []).find(p => p.isMe) || {}, free = mine.freeUntil && new Date(mine.freeUntil) > Date.now();
+  const late = new Date().getHours() >= 21;
+  $("actionSheet").innerHTML = `<div class="as-card" role="menu">
+    <div class="as-group"><div class="as-title"><b>${free ? `You're free till ${esc(short(mine.freeUntil))}` : "Let friends know you're free"}</b>
+      ${free ? "Change it, or turn it off." : "They'll see it over your picture, so they can ask you to hang out."}</div>
+      <button data-free="1">For an hour</button><button data-free="2">Next 2 hours</button>
+      ${late ? "" : `<button data-free="tonight">Tonight</button>`}
+      ${free ? `<button class="danger" data-free="off">I'm not free anymore</button>` : ""}</div>
+    <button class="as-cancel" data-sheet-cancel>Cancel</button></div>`;
+  $("actionSheet").hidden = false;
+}
 // press and hold a comment (or right-click it) for Delete or Report, like Instagram
 function commentMenu(el) {
   const id = el.dataset.comment, yours = el.dataset.yours === "1";
@@ -1014,7 +1026,7 @@ document.addEventListener("touchmove", e => {
     if (next) { shown(next); sw.into = screenOf(next); }
   }
   sw.vx = (d - sw.dx) / Math.max(1, Date.now() - (sw.t || sw.at)); sw.t = Date.now(); sw.dx = d;
-  const x = next ? d : d / 3;  // nothing that way: it gives a little, like the end of a list
+  const x = next ? d : 0;  // Feed is the first tab and Me the last: nothing that way, so it doesn't move
   move(sw.els, x);
   move(sw.into, x + (d < 0 ? innerWidth : -innerWidth));
 }, { passive: true });
@@ -1127,13 +1139,14 @@ document.addEventListener("click", async e => {
     $("pcTags").innerHTML = tagHtml(); return;
   }
   if (t.hasAttribute("data-pc-unplace")) { draft.caption = $("pcCaption").value; draft.place = null; return compose(); }
-  if (t.hasAttribute("data-free-menu")) { freeMenu = !freeMenu; return render(); }
+  if (t.hasAttribute("data-free-menu")) return freeSheet();
   if (ds.free) {
     const end = new Date();
-    if (ds.free === "2") end.setHours(end.getHours() + 2);
+    if (ds.free === "1") end.setHours(end.getHours() + 1);
+    else if (ds.free === "2") end.setHours(end.getHours() + 2);
     else if (end.getHours() >= 21) end.setHours(end.getHours() + 3);  // late already: the next few hours
     else end.setHours(23, 59, 0, 0);
-    freeMenu = false;
+    if (ds.free === "1" || ds.free === "2") end.setMinutes(Math.ceil(end.getMinutes() / 15) * 15, 0, 0);  // till 5:15, not 5:13
     await setDoc(doc(db, "users", me.uid), { freeUntil: ds.free === "off" ? null : end.toISOString() }, { merge: true })
       .catch(err => alert(friendly(err, "update that")));
     return render();

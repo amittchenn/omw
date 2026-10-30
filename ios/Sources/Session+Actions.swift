@@ -88,6 +88,22 @@ extension Session {
         db.collection("requests").document("\(request.from)_\(uid)").delete()
     }
 
+    // ---------- "I'm free" ----------
+    /// free for the next `hours` (rounded up to a quarter hour), or tonight (till 11:59 pm); 0 hours turns it off
+    func setFree(hours: Int = 0, tonight: Bool = false) {
+        guard let uid else { return }
+        let cal = Calendar.current
+        var until: Date?
+        if tonight {
+            until = cal.date(bySettingHour: 23, minute: 59, second: 0, of: .now)
+        } else if hours > 0 {
+            let end = Date.now.addingTimeInterval(TimeInterval(hours) * 3600).timeIntervalSinceReferenceDate
+            until = Date(timeIntervalSinceReferenceDate: (end / 900).rounded(.up) * 900)  // till 5:15, not 5:13
+        }
+        me?.freeUntil = until  // feels instant
+        db.collection("users").document(uid).setData(["freeUntil": until.map { When.string($0) } ?? NSNull()], merge: true)
+    }
+
     // ---------- posting ----------
     /// Shares a post with your friends (and everyone, if your account is public). Photos are stored as small JPEGs,
     /// like the web app: one photo up to ~280 KB, or 2 to 4 at ~155 KB each with a small cover for grids.

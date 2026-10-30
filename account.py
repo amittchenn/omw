@@ -1,13 +1,17 @@
 """
-Deleting your account (Profile -> Delete account; the App Store requires it). Removes your sign-in and everything that's
-yours in Firestore, and takes you out of everything you shared with others:
+Deleting your account (Profile -> Delete account; the App Store requires it). Everything that's about you goes; things
+you shared with other people stay theirs, without you in them:
 
-  - your profile, friend list (both sides), friend ID, requests, private doc, live location
-  - plans you made, with their chat; on other people's plans you're taken off and your chat messages are deleted
-  - group photos, posts and comments you made; on others' posts you're taken off (and your likes and ratings go)
-  - DMs and group chats: you leave them and your messages are deleted
+  - your profile, friend list (both sides), friend ID, requests, private doc, live location: deleted
+  - your posts, your comments everywhere, your likes and ratings: deleted
+  - plans you made: handed to someone else who's going (with their chat); if nobody else is going, deleted.
+    On other people's plans you're taken off and your chat messages are deleted
+  - group photos you posted with other people in them: kept for them, posted by one of them now, without you.
+    Just you in it: deleted
+  - chats: your messages are deleted. A 1:1 chat stays for the other person, with you shown as "Deleted user";
+    you leave group chats
 """
-from google.cloud.firestore_v1 import ArrayRemove, DELETE_FIELD
+from google.cloud.firestore_v1 import ArrayRemove, ArrayUnion, DELETE_FIELD
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 PER_PERSON = ("rsvp", "names", "alerts", "travel", "arrivals", "origins", "modes")  # hangout maps keyed by uid
@@ -46,44 +50,63 @@ def delete_account(db, uid):
     for c in _where(db, "codes", "uid", "==", uid):
         c.reference.delete()
 
-    # plans
+    # plans: yours go to someone else who's going, so their plan (and its chat) doesn't vanish
     seen = set()
     for field in ("attendees", "invited"):
         for h in _where(db, "hangouts", field, "array_contains", uid):
             if h.id in seen:
                 continue
             seen.add(h.id)
-            if (h.to_dict() or {}).get("createdBy") == uid:
+            data = h.to_dict() or {}
+            going = [u for u in data.get("attendees") or [] if u != uid]
+            if data.get("createdBy") == uid and not going:
                 _wipe(h.reference)
-            else:
-                _my_messages(h.reference, uid)
-                h.reference.collection("where").document(uid).delete()
-                h.reference.update({"attendees": ArrayRemove([uid]), "invited": ArrayRemove([uid]),
-                                    **{f"{k}.{uid}": DELETE_FIELD for k in PER_PERSON}})
+                continue
+            _my_messages(h.reference, uid)
+            h.reference.collection("where").document(uid).delete()
+            h.reference.update({"attendees": ArrayRemove([uid]), "invited": ArrayRemove([uid]),
+                                **({"createdBy": going[0]} if data.get("createdBy") == uid else {}),
+                                **{f"{k}.{uid}": DELETE_FIELD for k in PER_PERSON}})
 
-    # photos
+    # group photos: kept for the other people in them, posted by one of them now
     for m in _where(db, "memories", "members", "array_contains", uid):
-        if (m.to_dict() or {}).get("by") == uid:
+        data = m.to_dict() or {}
+        others = [u for u in data.get("members") or [] if u != uid]
+        if data.get("by") == uid and not others:
             m.reference.delete()
-        else:
-            m.reference.update({"members": ArrayRemove([uid]), f"names.{uid}": DELETE_FIELD})
+            continue
+        m.reference.update({"members": ArrayRemove([uid]), f"names.{uid}": DELETE_FIELD,
+                            **({"by": others[0], "byName": (data.get("names") or {}).get(others[0], "")} if data.get("by") == uid else {})})
     for p in _where(db, "feed", "viewers", "array_contains", uid):
-        if (p.to_dict() or {}).get("by") == uid:
-            _wipe(p.reference)  # with its comments
-        else:
-            for c in p.reference.collection("comments").where(filter=FieldFilter("from", "==", uid)).stream():
-                c.reference.delete()
-            p.reference.update({"members": ArrayRemove([uid]), "viewers": ArrayRemove([uid]), "likes": ArrayRemove([uid]),
-                                f"names.{uid}": DELETE_FIELD, f"ratings.{uid}": DELETE_FIELD, f"late.{uid}": DELETE_FIELD})
+        data = p.to_dict() or {}
+        others = [u for u in data.get("members") or [] if u != uid]
+        mine = data.get("by") == uid
+        if mine and (data.get("kind") == "post" or not others):
+            _wipe(p.reference)  # your own post, with its comments
+            continue
+        for c in p.reference.collection("comments").where(filter=FieldFilter("from", "==", uid)).stream():
+            c.reference.delete()
+        p.reference.update({"members": ArrayRemove([uid]), "viewers": ArrayRemove([uid]), "likes": ArrayRemove([uid]),
+                            "tagged": ArrayRemove([uid]), f"names.{uid}": DELETE_FIELD, f"handles.{uid}": DELETE_FIELD,
+                            f"ratings.{uid}": DELETE_FIELD, f"late.{uid}": DELETE_FIELD,
+                            **({"by": others[0], "byName": (data.get("names") or {}).get(others[0], "")} if mine else {})})
 
-    # chats
+    # chats: your messages go; a 1:1 chat stays for the other person (you show as "Deleted user"); you leave groups
     for c in _where(db, "chats", "members", "array_contains", uid):
-        members = (c.to_dict() or {}).get("members") or []
-        if len([u for u in members if u != uid]) <= 1 and not (c.to_dict() or {}).get("group"):
-            _wipe(c.reference)  # a DM: nothing left to keep
+        data = c.to_dict() or {}
+        _my_messages(c.reference, uid)
+        left = list(c.reference.collection("messages").order_by("at", direction="DESCENDING").limit(1).stream())
+        if not data.get("group") and not left:
+            _wipe(c.reference)  # nothing of theirs in it either
+            continue
+        last = left[0].to_dict() if left else DELETE_FIELD
+        change = {f"photos.{uid}": DELETE_FIELD, f"read.{uid}": DELETE_FIELD,
+                  **({"last": last} if (data.get("last") or {}).get("from") == uid else {})}
+        if data.get("group"):
+            change.update({"members": ArrayRemove([uid]), f"names.{uid}": DELETE_FIELD})
         else:
-            _my_messages(c.reference, uid)
-            c.reference.update({"members": ArrayRemove([uid]), f"names.{uid}": DELETE_FIELD, f"photos.{uid}": DELETE_FIELD})
+            change.update({f"names.{uid}": "Deleted user", "gone": ArrayUnion([uid])})
+        c.reference.update(change)
 
     # you
     if profile.get("code"):

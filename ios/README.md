@@ -14,9 +14,11 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 | Add friends: search usernames, requests, Quick Add (friends of friends), invite | Done |
 | Profiles: yours and anyone's, Add / Requested / Accept, Friends ▾ → Remove, posts grid | Done |
 | Map (Apple Maps): friends sharing their location, you, 3D buildings | Done |
+| "I'm free": tap your picture for 1 hour / 2 hours / tonight; "till 9" bubbles over free friends | Done |
+| Share my location: Never / While using the app / Always (auto check-in at the spot even with omw! closed) | Done |
 | Plans: coming up and past | Done |
-| Settings: sign out, delete account (with Apple's confirm), privacy/terms/help | Done |
-| + planner, chats, edit profile, ranking places, sharing your location, notifications, Live Activity | Next (still in the current app) |
+| Settings: location sharing, sign out, delete account (with Apple's confirm), privacy/terms/help | Done |
+| + planner, chats, edit profile, ranking places, notifications, Live Activity | Next (still in the current app) |
 
 `Sources/`:
 - `OmwApp.swift`: app start; signed out → sign in, signed in → tabs
@@ -25,6 +27,7 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
 - `Components.swift`: colors, pictures, avatars
 - `Session+Actions.swift`: adding friends and posting
 - `API.swift`: the omw! server (place search, deleting accounts; the planner next)
+- `LocationService.swift`: sharing your location the way you chose, and checking you in when you arrive
 - the screens: `SignInView`, `MainTabView`, `FeedView`, `CommentsSheet`, `NewPostView`, `AddFriendsView`, `ProfileView`,
   `FriendsMapView`, `PlansView`
 
@@ -47,6 +50,8 @@ current Capacitor app (`mobile/`), so the same accounts, friends, posts and plan
    - Signing & Capabilities → Team: your Apple developer team → **+ Capability** → **Sign in with Apple**
    - Info → hover any row → **+** → `Privacy - Location When In Use Usage Description` →
      `omw! shows you on the map with your friends.`
+   - Same way, add `Privacy - Location Always and When In Use Usage Description` →
+     `With "Always", omw! checks you in when you arrive at a hangout, even when it's closed.`
    - Same way, add `Privacy - Photo Library Usage Description` → `Pick photos to post.`
      (Apple's photo picker doesn't strictly need it, but App Review likes it there)
 6. Pick an iPhone simulator at the top and press **▶**.

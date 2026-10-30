@@ -1,5 +1,6 @@
 // A profile, like Instagram: picture, name and @username, counts, buttons, and their posts in a grid.
 import SwiftUI
+import UIKit
 import AuthenticationServices
 import FirebaseAuth
 
@@ -137,6 +138,7 @@ struct ProfileView: View {
 /// Settings (the ≡ on your profile). More of the web app's settings move here next.
 struct SettingsView: View {
     @Environment(Session.self) private var session
+    @Environment(LocationService.self) private var location
     @Environment(\.dismiss) private var dismiss
     @State private var confirmDelete = false
     @State private var appleStep = false
@@ -151,6 +153,31 @@ struct SettingsView: View {
                 Section("Account") {
                     LabeledContent("Name", value: session.me?.name ?? "")
                     LabeledContent("Friend ID", value: session.me?.code ?? "")
+                }
+                Section {
+                    ForEach(ShareMode.allCases) { mode in
+                        Button { location.choose(mode) } label: {
+                            HStack(alignment: .firstTextBaseline) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(mode.title).foregroundStyle(.primary)
+                                    Text(mode.detail).font(.footnote).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if location.mode == mode { Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(Color.omwBlue) }
+                            }
+                        }
+                    }
+                    if location.needsSettings {
+                        Button("Allow in iPhone Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        }
+                    }
+                } header: {
+                    Text("Share my location")
+                } footer: {
+                    Text(location.needsSettings
+                         ? (location.mode == .always ? "iPhone Settings → omw! → Location → Always." : "iPhone Settings → omw! → Location → While Using the App.")
+                         : "Only your friends can see it.")
                 }
                 Section {
                     Button("Sign out") { dismiss(); session.signOut() }

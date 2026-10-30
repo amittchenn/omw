@@ -13,9 +13,11 @@ struct Person: Identifiable, Equatable {
     var nowKind: String?      // "out" at a hangout, or on their way
     var nowUntil: Date?
     var blocked: [String]
+    var shareMode: ShareMode
 
     init(id: String, data: [String: Any]) {
         self.id = id
+        shareMode = ShareMode(rawValue: data["shareMode"] as? String ?? "") ?? (data["shareLive"] as? Bool == false ? .never : .whileUsing)
         name = data["name"] as? String ?? "Friend"
         photo = Self.safePhoto(data["photo"] as? String)
         code = data["code"] as? String ?? ""
@@ -40,6 +42,24 @@ struct Person: Identifiable, Equatable {
     static func safePhoto(_ s: String?) -> String {
         guard let s else { return "" }
         return s.hasPrefix("https://") || s.hasPrefix("data:image/jpeg") || s.hasPrefix("data:image/png") || s.hasPrefix("data:image/webp") ? s : ""
+    }
+}
+
+/// Sharing your location with friends, like Apple's own choices: never, while you're using omw!, or always
+/// (in the background too, so you're checked in when you arrive even with omw! closed). users/{uid}.shareMode;
+/// the web app reads users/{uid}.shareLive (on unless "never").
+enum ShareMode: String, CaseIterable, Identifiable {
+    case never, whileUsing = "using", always
+    var id: String { rawValue }
+    var title: String {
+        switch self { case .never: "Never"; case .whileUsing: "While using the app"; case .always: "Always" }
+    }
+    var detail: String {
+        switch self {
+        case .never: "Friends don't see where you are. You check in with “I'm here”."
+        case .whileUsing: "Friends see you on the map while omw! is open."
+        case .always: "Friends see roughly where you are, and you're checked in when you arrive, even with omw! closed."
+        }
     }
 }
 
@@ -150,6 +170,10 @@ struct Hangout: Identifiable, Equatable {
     var address: String
     var attendees: [String]
     var createdBy: String
+    var venue: CLLocationCoordinate2D?
+    var arrivals: [String: Date]
+    var alerts: [String: Date]
+    var travel: [String: Double]  // trip minutes per person
 
     init(id: String, data: [String: Any]) {
         self.id = id
@@ -160,6 +184,22 @@ struct Hangout: Identifiable, Equatable {
         address = data["address"] as? String ?? ""
         attendees = data["attendees"] as? [String] ?? []
         createdBy = data["createdBy"] as? String ?? ""
+        if let v = data["venue"] as? [NSNumber], v.count == 2 {
+            venue = CLLocationCoordinate2D(latitude: v[0].doubleValue, longitude: v[1].doubleValue)
+        }
+        arrivals = (data["arrivals"] as? [String: Any] ?? [:]).compactMapValues { When.parse($0) }
+        alerts = (data["alerts"] as? [String: Any] ?? [:]).compactMapValues { When.parse($0) }
+        travel = (data["travel"] as? [String: Any] ?? [:]).compactMapValues { ($0 as? NSNumber)?.doubleValue }
+    }
+
+    /// check-in is open from an hour before the start to two hours after (same as the web app)
+    var checkInOpen: Bool {
+        let m = Date.now.timeIntervalSince(start) / 60
+        return m > -60 && m < 120
+    }
+
+    static func == (a: Hangout, b: Hangout) -> Bool {
+        a.id == b.id && a.start == b.start && a.attendees == b.attendees && a.arrivals == b.arrivals && a.title == b.title
     }
 
     var end: Date { start.addingTimeInterval(TimeInterval(durationMin * 60)) }

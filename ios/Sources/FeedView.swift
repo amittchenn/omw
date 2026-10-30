@@ -55,37 +55,81 @@ struct FeedView: View {
     }
 }
 
-/// Friends across the top, like stories: a colored ring when they're out (yellow), on their way (blue) or free (green)
+/// Friends across the top, like stories: a colored ring when they're out (yellow), on their way (blue) or free (green).
+/// Like Instagram's notes, a little bubble over a picture says until when they're free; tap yours to set it.
 struct FriendsRow: View {
     @Environment(Session.self) private var session
+    @State private var askingFree = false
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
                 if let me = session.me {
-                    NavigationLink(value: ProfileRoute(uid: me.id)) {
-                        bubble(Avatar(me, size: 62), name: "You", status: "")
+                    Button { askingFree = true } label: {
+                        bubble(me, name: "You", note: me.status == .free ? me.freeUntil.map(Self.till) : "Free?", free: me.status == .free)
                     }
+                    .accessibilityLabel(me.status == .free ? "Change when you're free" : "Let friends know you're free")
                 }
                 ForEach(session.friends) { f in
                     NavigationLink(value: ProfileRoute(uid: f.id)) {
-                        bubble(Avatar(f, size: 62, showStatus: true), name: f.firstName, status: f.status.label, color: f.status.color)
+                        bubble(f, name: f.firstName, note: f.status == .free ? f.freeUntil.map(Self.till) : nil, free: true,
+                               status: f.status == .free ? "" : f.status.label)
                     }
+                }
+                NavigationLink { AddFriendsView() } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "person.badge.plus").font(.title2)
+                            .frame(width: 62, height: 62).background(Color(.secondarySystemBackground), in: Circle())
+                        Text("Add friends").font(.caption.weight(.semibold))
+                    }
+                    .padding(.top, 20).frame(width: 74)
                 }
             }
             .padding(.horizontal, 14)
         }
         .scrollIndicators(.hidden)
         .buttonStyle(.plain)
+        .confirmationDialog(freeTitle, isPresented: $askingFree, titleVisibility: .visible) {
+            Button("For an hour") { session.setFree(hours: 1) }
+            Button("Next 2 hours") { session.setFree(hours: 2) }
+            if Calendar.current.component(.hour, from: .now) < 21 { Button("Tonight") { session.setFree(tonight: true) } }
+            if session.me?.status == .free { Button("I'm not free anymore", role: .destructive) { session.setFree(hours: 0) } }
+        } message: {
+            Text(session.me?.status == .free ? "Change it, or turn it off." : "They'll see it over your picture, so they can ask you to hang out.")
+        }
     }
 
-    private func bubble(_ avatar: Avatar, name: String, status: String, color: Color? = nil) -> some View {
+    private var freeTitle: String {
+        if session.me?.status == .free, let until = session.me?.freeUntil { return "You're free till \(until.formatted(date: .omitted, time: .shortened))" }
+        return "Let friends know you're free"
+    }
+
+    /// "till 9", "till 5:15" (it's always within the next few hours, so no am/pm)
+    static func till(_ date: Date) -> String {
+        let h = Calendar.current.component(.hour, from: date) % 12, m = Calendar.current.component(.minute, from: date)
+        return "till \(h == 0 ? 12 : h)\(m == 0 ? "" : String(format: ":%02d", m))"
+    }
+
+    private func bubble(_ person: Person, name: String, note: String?, free: Bool, status: String = "") -> some View {
         VStack(spacing: 4) {
-            avatar
+            Avatar(person, size: 62, showStatus: true)
+                .overlay(alignment: .top) {
+                    if let note {
+                        Text(note)
+                            .font(.caption2.weight(.heavy)).lineLimit(1)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .foregroundStyle(free && note != "Free?" ? Color.freeGreen : Color.secondary)
+                            .background(.regularMaterial, in: Capsule())
+                            .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
+                            .offset(y: -16)
+                    }
+                }
             Text(name).font(.caption.weight(.semibold)).lineLimit(1)
-            Text(status.isEmpty ? " " : status).font(.caption2.weight(.semibold)).foregroundStyle(color ?? .secondary).lineLimit(1)
+            Text(status.isEmpty ? " " : status).font(.caption2.weight(.semibold))
+                .foregroundStyle(person.status.color ?? .secondary).lineLimit(1)
         }
-        .frame(width: 72)
+        .padding(.top, 20)
+        .frame(width: 74)
     }
 }
 

@@ -8,7 +8,7 @@ struct FriendsMapView: View {
     @Environment(Session.self) private var session
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var selected: Person?
-    @State private var location = LocationPermission()
+    @Environment(LocationService.self) private var location
 
     private var live: [LiveFriend] {
         session.friends.compactMap { f in
@@ -43,7 +43,7 @@ struct FriendsMapView: View {
                         .padding(.top, 8)
                 }
             }
-            .onAppear { location.ask() }
+            .onAppear { location.apply() }
             .sheet(item: $selected) { f in
                 FriendCard(person: f)
                     .presentationDetents([.height(190)])
@@ -94,14 +94,5 @@ struct FriendCard: View {
             Spacer()
         }
         .padding(20)
-    }
-}
-
-/// Asks once for "while using the app" location, so the map can show you (Info.plist has the reason).
-@MainActor @Observable
-final class LocationPermission {
-    private let manager = CLLocationManager()
-    func ask() {
-        if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization() }
     }
 }
