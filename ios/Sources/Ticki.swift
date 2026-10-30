@@ -268,12 +268,16 @@ struct Ticki: View {
             }
         }
 
-        // a soft, blurred shadow on the ground, smaller and lighter while up in the air
+        // a soft shadow on the ground (a gradient, not a blur, so nothing but Ticki is ever drawn), smaller and lighter
+        // while up in the air
         let up = min(p.lift / 26, 1)
         var shadow = ctx
-        shadow.addFilter(.blur(radius: 3.5))
-        shadow.fill(Path(ellipseIn: CGRect(x: 58 + 16 * up, y: 184, width: 84 - 32 * up, height: 12)),
-                    with: .color(.black.opacity(0.26 - 0.12 * up)))
+        shadow.translateBy(x: 100, y: 190)
+        shadow.scaleBy(x: 1, y: 0.16)
+        let r = 44 - 16 * up
+        shadow.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r)),
+                    with: .radialGradient(Gradient(colors: [.black.opacity(0.3 - 0.14 * up), .black.opacity(0.12 - 0.06 * up), .clear]),
+                                          center: .zero, startRadius: 0, endRadius: r))
 
         var fig = ctx  // the whole figure: lifted, squashed from the feet, tilted
         fig.translateBy(x: 100, y: 188 - p.lift)
@@ -313,11 +317,9 @@ struct Ticki: View {
         let faceShape = Path(ellipseIn: faceRect)
         fig.fill(faceShape, with: .radialGradient(Gradient(colors: [Self.cream, Self.cream, Self.creamShade]),
                                                   center: CGPoint(x: 94, y: 92), startRadius: 0, endRadius: 62))
-        // sunk in: a soft shadow along the top inside edge, light along the bottom
-        var inner = fig
-        inner.clip(to: faceShape)
-        inner.addFilter(.blur(radius: 3))
-        inner.stroke(Path(ellipseIn: faceRect.offsetBy(dx: 2, dy: 5)), with: .color(Self.coralDeep.opacity(0.5)), lineWidth: 9)
+        // sunk in: shade along the top inside edge (a gradient centered low, darkest at the top rim)
+        fig.fill(faceShape, with: .radialGradient(Gradient(colors: [.clear, .clear, Self.coralDeep.opacity(0.32)]),
+                                                  center: CGPoint(x: 102, y: 108), startRadius: 0, endRadius: 60))
         fig.stroke(Path(ellipseIn: faceRect.insetBy(dx: 1, dy: 1)),
                    with: .linearGradient(Gradient(colors: [Self.coralDark.opacity(0.7), Self.coralDark.opacity(0.15)]),
                                          startPoint: CGPoint(x: 70, y: 52), endPoint: CGPoint(x: 130, y: 150)), lineWidth: 2.5)

@@ -37,15 +37,10 @@ struct FeedView: View {
             }
             .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)  // our own header, like Instagram's (the bar's glass buttons squash the logo)
-            // swipe in from the right edge for Chats, from the left edge for a new post, like Instagram
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 20).onEnded { v in
-                    let dx = v.translation.width, dy = v.translation.height, width = UIScreen.main.bounds.width
-                    guard abs(dx) > 70, abs(dx) > abs(dy) * 1.8 else { return }
-                    if dx < 0, v.startLocation.x > width - 44 { chatsOpen = true }
-                    else if dx > 0, v.startLocation.x < 44 { posting = true }
-                }
-            )
+            // swipe in from the very right edge for Chats, from the very left edge for a new post, like Instagram. Only
+            // thin strips at the screen's edges listen, so scrolling the friends row or a post's photos never opens them.
+            .overlay(alignment: .leading) { edgeSwipe(left: true) }
+            .overlay(alignment: .trailing) { edgeSwipe(left: false) }
             .navigationDestination(isPresented: $chatsOpen) { ChatsView() }
             .withProfileRoutes()
             .sheet(item: $commentsFor) { post in
@@ -75,6 +70,18 @@ extension FeedView {
         }
         .buttonStyle(.plain)
         .padding(.leading, 16).padding(.trailing, 8).padding(.vertical, 2)
+    }
+
+    /// a thin, invisible strip at a screen edge that turns a swipe inward into Chats (right) or a new post (left)
+    private func edgeSwipe(left: Bool) -> some View {
+        Color.clear
+            .frame(width: 14)
+            .contentShape(.rect)
+            .gesture(DragGesture(minimumDistance: 15).onEnded { v in
+                let dx = v.translation.width
+                guard abs(dx) > 60, abs(dx) > abs(v.translation.height) * 1.5 else { return }
+                if left, dx > 0 { posting = true } else if !left, dx < 0 { chatsOpen = true }
+            })
     }
 }
 
