@@ -14,6 +14,7 @@ struct PlanDetailView: View {
     @Environment(LocationService.self) private var location
     @Environment(\.dismiss) private var dismiss
     @State private var working = false
+    @State private var route: DirectionsTarget?
     @State private var note: String?
     @State private var leaving = false
     @State private var live: [String: (CLLocationCoordinate2D, Date)] = [:]  // hangouts/{id}/where: people on their way
@@ -26,6 +27,7 @@ struct PlanDetailView: View {
             if let h { content(h) } else { ContentUnavailableView("This plan is gone", systemImage: "calendar.badge.exclamationmark") }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(item: $route) { DirectionsView(target: $0).withOmw() }
         .onAppear {
             liveStop = session.db.collection("hangouts").document(id).collection("where").addSnapshotListener { snap, _ in
                 MainActor.assumeIsolated {
@@ -189,24 +191,17 @@ struct PlanDetailView: View {
                 Text(status.0).font(.footnote).foregroundStyle(status.1)
             }
         }
+        .opensProfile(u)
     }
 
     static func modeName(_ mode: String?) -> String {
         switch mode { case "walking": "walk"; case "cycling": "bike"; case "transit": "by transit"; default: "drive" }
     }
 
-    /// Apple Maps, with directions there by how you're getting there
+    /// directions right here in the app (Directions.swift), by how you're getting there
     private func directions(_ h: Hangout) {
         guard let venue = h.venue else { return }
-        let item = MKMapItem(placemark: MKPlacemark(coordinate: venue))
-        item.name = h.venueName
-        let mode: String = switch h.modes[session.uid ?? ""] {
-        case "walking": MKLaunchOptionsDirectionsModeWalking
-        case "transit": MKLaunchOptionsDirectionsModeTransit
-        case "cycling": MKLaunchOptionsDirectionsModeCycling
-        default: MKLaunchOptionsDirectionsModeDriving
-        }
-        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: mode])
+        route = DirectionsTarget(name: h.venueName.isEmpty ? h.title : h.venueName, coordinate: venue, mode: h.modes[session.uid ?? ""] ?? "driving")
     }
 
     /// within 300 m of the spot: checked in (the same as arriving with "Always" on)

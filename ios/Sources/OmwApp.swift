@@ -58,11 +58,15 @@ struct OmwApp: App {
 
 struct RootView: View {
     @Environment(Session.self) private var session
+    @AppStorage("seenTickiTour") private var seenTour = false
 
     var body: some View {
         Group {
             if session.user == nil {
                 SignInView()
+                    .transition(.opacity)
+            } else if !seenTour {
+                TickiTour { withAnimation(.snappy) { seenTour = true } }
                     .transition(.opacity)
             } else {
                 MainTabView()
@@ -70,6 +74,7 @@ struct RootView: View {
             }
         }
         .animation(.snappy(duration: 0.22), value: session.user == nil)
+        .animation(.snappy(duration: 0.22), value: seenTour)
         .fontDesign(.rounded)  // omw!'s friendly rounded type everywhere, like the web app's Nunito
     }
 }

@@ -15,7 +15,14 @@ struct AddFriendsView: View {
                 Section {
                     if results.isEmpty {
                         if searching { ForEach(0..<2, id: \.self) { _ in PlaceholderRow() } }
-                        else { Text("No one found").foregroundStyle(.secondary) }
+                        else {
+                            VStack(spacing: 6) {
+                                Ticki(mood: .worried, lines: ["Check the spelling?", "Invite them to omw!"]).frame(width: 90, height: 90).padding(.top, 24)
+                                Text("No one found").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .listRowBackground(Color.clear)
+                        }
                     }
                     ForEach(results) { card in
                         PersonRow(card: card, detail: card.id == session.uid ? "\(card.name) · You" : card.name)
@@ -26,11 +33,14 @@ struct AddFriendsView: View {
                     Section("Added me") {
                         ForEach(session.incoming) { r in
                             HStack(spacing: 12) {
-                                Avatar(photo: r.fromPhoto, name: r.fromName, size: 46)
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(r.fromName).font(.subheadline.weight(.semibold))
-                                    Text("wants to be friends").font(.footnote).foregroundStyle(.secondary)
+                                HStack(spacing: 12) {
+                                    Avatar(photo: r.fromPhoto, name: r.fromName, size: 46)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(r.fromName).font(.subheadline.weight(.semibold))
+                                        Text("wants to be friends").font(.footnote).foregroundStyle(.secondary)
+                                    }
                                 }
+                                .opensProfile(r.from)
                                 Spacer()
                                 Button("Accept") { session.accept(r) }
                                     .buttonStyle(.borderedProminent).tint(Color.omwBlue).controlSize(.small)

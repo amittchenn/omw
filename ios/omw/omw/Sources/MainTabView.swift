@@ -51,7 +51,8 @@ struct MainTabView: View {
 extension View {
     /// tapping a person or a post anywhere opens their profile / the post
     func withProfileRoutes() -> some View {
-        navigationDestination(for: ProfileRoute.self) { ProfileView(uid: $0.uid) }
+        environment(\.pushesProfiles, true)
+            .navigationDestination(for: ProfileRoute.self) { ProfileView(uid: $0.uid) }
             .navigationDestination(for: PostRoute.self) { PostDetailView(id: $0.id) }
             .navigationDestination(for: ChatRef.self) { ConversationView(ref: $0) }
             .navigationDestination(for: PlanRoute.self) { PlanDetailView(id: $0.id) }

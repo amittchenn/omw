@@ -152,8 +152,9 @@ def _alerts_tick():
             h.setdefault("pushed", {})[f"alert_{uid}"] = True
             mins = (h.get("travel") or {}).get(uid)
             where = h.get("venueName") or "the hangout"
-            body = f"Head out now to get to {where} by {_local_time(h, h.get('start'))}" + (f" · {round(mins)} min trip" if mins else "")
-            send([uid], f"Time to leave for {h.get('title') or 'your hangout'}", body, {"hangout": hid, "kind": "alert"})
+            # in Ticki's voice (the app's mascot, a little alarm clock)
+            body = f"Ticki here: head out now and you'll make {where} by {_local_time(h, h.get('start'))}" + (f" ({round(mins)} min trip)" if mins else "")
+            send([uid], f"⏰ Time to go! {h.get('title') or 'Your hangout'}", body, {"hangout": hid, "kind": "alert"})
 
 
 def _alerts_loop():

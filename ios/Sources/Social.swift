@@ -93,8 +93,9 @@ struct UpNextCard: View {
     var body: some View {
         let uid = session.uid ?? ""
         let others = hangout.attendees.filter { $0 != uid }
-        NavigationLink(value: PlanRoute(id: hangout.id)) {
-          HStack(alignment: .center, spacing: 8) {
+        // Ticki sits beside the link, not inside it: tapping Ticki is Ticki's, tapping the rest opens the plan
+        HStack(alignment: .center, spacing: 8) {
+          NavigationLink(value: PlanRoute(id: hangout.id)) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("\(dayName) · \(hangout.start.formatted(date: .omitted, time: .shortened))")
                     .font(.caption.weight(.bold)).foregroundStyle(.red).textCase(.uppercase)
@@ -127,13 +128,14 @@ struct UpNextCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            // Ticki beside the plan: running once it's nearly time to go, cheering once you're there
-            Ticki(mood: tickiMood, lines: tickiLines).frame(width: 72, height: 72)
+            .contentShape(.rect)
           }
-          .padding(16)
-          .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+          .buttonStyle(.plain)
+          // running once it's nearly time to go, cheering once you're there
+          Ticki(mood: tickiMood, lines: tickiLines).frame(width: 72, height: 72)
         }
-        .buttonStyle(.plain)
+        .padding(16)
+        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
     }
 
     private var tooFar: Bool { (hangout.travel[session.uid ?? ""] ?? 0) > 12 * 60 }

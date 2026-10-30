@@ -24,6 +24,7 @@ final class Session {
     var planSeen: [String: Date] = [:]   // when you last opened each plan's chat (kept on this phone)
     var ranks = Ranks()                  // your places, ranked (Places.swift)
     var rankedPlaces: [String: RankedPlace] = [:]
+    var stars: [String: Int] = [:]        // place → the stars you gave it (Places.swift)
     var saved: [SavedPlace] = []         // places you saved from the map
 
     @ObservationIgnored let db = Firestore.firestore()
@@ -304,7 +305,7 @@ final class Session {
         feedStop?.remove(); feedStop = nil
         chats = []; planMessages = [:]; planSeen = [:]
         setUpFor = nil; newAccount = false
-        ranks = Ranks(); rankedPlaces = [:]; saved = []
+        ranks = Ranks(); rankedPlaces = [:]; stars = [:]; saved = []
         friendsByID = [:]; friends = []; spots = [:]; allPosts = []; hangouts = []; comments = [:]; me = nil
         incoming = []; outgoing = []; invites = []
     }

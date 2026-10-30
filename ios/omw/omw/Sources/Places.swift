@@ -4,7 +4,9 @@
 //   ranks  = { liked: [key], fine: [key], disliked: [key] }   best first
 //   places = { key: { name, address, venue: [lat, lng] } }
 //   saved  = [{ name, address, lat, lng, at }]
-// A place's score comes from where it sits: liked 6.7 to 10, fine 3.4 to 6.6, didn't like 0 to 3.3.
+//   stars  = { key: 1…5 }   what you gave it; your list is by stars, then by your "which did you like more?" answers
+// Each place is on your list once: rating it again (or the same spot under a slightly different name) replaces it.
+// On posts, ratings stay out of 10 (stars × 2) so the web app reads them the same.
 import SwiftUI
 import CoreLocation
 import FirebaseFirestore
@@ -43,7 +45,7 @@ enum RankBucket: String, CaseIterable, Identifiable {
 struct RankedItem: Identifiable {
     let key: String
     let place: RankedPlace
-    let score: Double
+    let stars: Int
     var id: String { key }
 }
 
@@ -64,11 +66,35 @@ extension Session {
         return String(raw.prefix(200))
     }
 
-    func score(of key: String) -> Double? {
+    /// the stars you gave a place (older ratings without stars: from where it sat in your list)
+    func score(of key: String) -> Double? { starsFor(key).map(Double.init) }
+
+    func starsFor(_ key: String) -> Int? {
+        if let n = stars[key] { return n }
         for b in RankBucket.allCases {
-            if let i = ranks[b].firstIndex(of: key) { return Self.score(b, i, ranks[b].count) }
+            if let i = ranks[b].firstIndex(of: key) { return min(5, max(1, Int((Self.score(b, i, ranks[b].count) / 2).rounded()))) }
         }
         return nil
+    }
+
+    /// the key a place is already on your list under: the same name and address, or the same spot nearby by a
+    /// slightly different name ("Tin Drum" from a plan, "Tin Drum Asian Kitchen" from search)
+    func existingKey(for place: RankedPlace) -> String? {
+        let key = Self.placeKey(place.name, place.address)
+        let all = RankBucket.allCases.flatMap { ranks[$0] }
+        if all.contains(key) { return key }
+        let name = place.name.lowercased()
+        return all.first { k in
+            guard let p = rankedPlaces[k] else { return false }
+            let other = p.name.lowercased()
+            let sameName = !name.isEmpty && (other == name || other.hasPrefix(name) || name.hasPrefix(other))
+            guard sameName else { return false }
+            if place.venue.count == 2, p.venue.count == 2 {
+                return CLLocation(latitude: place.venue[0], longitude: place.venue[1])
+                    .distance(from: CLLocation(latitude: p.venue[0], longitude: p.venue[1])) < 120
+            }
+            return true
+        }
     }
 
     static func score(_ b: RankBucket, _ i: Int, _ n: Int) -> Double {
@@ -76,29 +102,35 @@ extension Session {
         return ((hi - (Double(i) + 0.5) / Double(max(n, 1)) * (hi - lo)) * 10).rounded() / 10
     }
 
-    /// your list, best first
+    /// your list, best first: by stars, then in the order your comparisons put them
     var rankedList: [RankedItem] {
-        var list: [RankedItem] = []
-        for b in RankBucket.allCases {
-            let keys = ranks[b]
-            for (i, key) in keys.enumerated() {
-                if let place = rankedPlaces[key] { list.append(RankedItem(key: key, place: place, score: Self.score(b, i, keys.count))) }
-            }
+        var list: [(item: RankedItem, order: Int)] = []
+        for key in RankBucket.allCases.flatMap({ ranks[$0] }) {
+            if let place = rankedPlaces[key], let n = starsFor(key) { list.append((RankedItem(key: key, place: place, stars: n), list.count)) }
         }
-        return list
+        return list.sorted { ($0.item.stars, -$0.order) > ($1.item.stars, -$1.order) }.map(\.item)
     }
 
     /// puts a place in your list at `index` of `bucket` (taking it out of wherever it was), and on the post you rated it from
-    func saveRank(_ place: RankedPlace, key: String, bucket: RankBucket, index: Int, post: String?) {
+    func saveRank(_ place: RankedPlace, key: String, stars n: Int, bucket: RankBucket, index: Int, post: String?) {
         guard let uid else { return }
-        for b in RankBucket.allCases { ranks[b].removeAll { $0 == key } }
-        ranks[bucket].insert(key, at: min(index, ranks[bucket].count))
-        rankedPlaces[key] = place
-        let ranksDoc: [String: Any] = ["liked": ranks.liked, "fine": ranks.fine, "disliked": ranks.disliked]
-        db.collection("private").document(uid).setData(["ranks": ranksDoc, "places": [key: place.dict]], merge: true)
-        if let post, let s = score(of: key) {
-            db.collection("feed").document(post).updateData(["ratings.\(uid)": s])
+        // once per place: out it comes from wherever it was (and any older copy of the same spot)
+        let old = existingKey(for: place)
+        var gone: [String: Any] = [:]
+        for k in Set([key, old].compactMap { $0 }) {
+            for b in RankBucket.allCases { ranks[b].removeAll { $0 == k } }
+            if k != key { rankedPlaces[k] = nil; stars[k] = nil; gone[k] = FieldValue.delete() }
         }
+        ranks[bucket].insert(key, at: min(max(index, 0), ranks[bucket].count))
+        rankedPlaces[key] = place
+        stars[key] = n
+        let ranksDoc: [String: Any] = ["liked": ranks.liked, "fine": ranks.fine, "disliked": ranks.disliked]
+        var starsDoc: [String: Any] = gone
+        starsDoc[key] = n
+        var placesDoc: [String: Any] = gone
+        placesDoc[key] = place.dict
+        db.collection("private").document(uid).setData(["ranks": ranksDoc, "places": placesDoc, "stars": starsDoc], merge: true)
+        if let post { db.collection("feed").document(post).updateData(["ratings.\(uid)": Double(n * 2)]) }
     }
 
     // ---------- saved places ----------
@@ -120,6 +152,7 @@ extension Session {
     /// reads private/{uid} (called by the listener in Session.swift)
     func readPrivate(_ data: [String: Any]) {
         let r = data["ranks"] as? [String: Any] ?? [:]
+        stars = (data["stars"] as? [String: Any] ?? [:]).compactMapValues { ($0 as? NSNumber)?.intValue }
         ranks = Ranks(liked: r["liked"] as? [String] ?? [], fine: r["fine"] as? [String] ?? [], disliked: r["disliked"] as? [String] ?? [])
         rankedPlaces = (data["places"] as? [String: Any] ?? [:]).compactMapValues { v in
             guard let d = v as? [String: Any] else { return nil }
@@ -138,8 +171,9 @@ extension Session {
         var seen = Set(RankBucket.allCases.flatMap { ranks[$0] }), list: [RankedPlace] = []
         func add(_ name: String, _ address: String, _ venue: [Double]) {
             let key = Self.placeKey(name, address)
-            guard !name.isEmpty, seen.insert(key).inserted else { return }
-            list.append(RankedPlace(name: name, address: address, venue: venue))
+            let place = RankedPlace(name: name, address: address, venue: venue)
+            guard !name.isEmpty, existingKey(for: place) == nil, seen.insert(key).inserted else { return }
+            list.append(place)
         }
         for h in past { add(h.venueName, h.address, h.venue.map { [$0.latitude, $0.longitude] } ?? []) }
         for p in allPosts where p.members.contains(uid ?? "") { add(p.venueName, p.address, p.venue) }
@@ -162,7 +196,9 @@ struct RankSheet: View {
     @State private var others: [String] = []  // that part of your list, without this place
     @State private var stars = 0
 
-    private var key: String { Session.placeKey(place.name, place.address) }
+    /// the place's key on your list (the one it's already under, if you rated it before)
+    private var key: String { session.existingKey(for: place) ?? Session.placeKey(place.name, place.address) }
+    private var before: Int? { session.starsFor(key) }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -184,6 +220,7 @@ struct RankSheet: View {
                 VStack(spacing: 4) {
                     Text("How was \(place.name)?").font(.title3.weight(.bold)).multilineTextAlignment(.center)
                     if !place.address.isEmpty { Text(place.address).font(.footnote).foregroundStyle(.secondary).lineLimit(1) }
+                    if let before { Text("You gave it \(before) star\(before == 1 ? "" : "s"). Tap to change it.").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 2) }
                 }
                 // stars: 4–5 liked it, 3 fine, 1–2 didn't (the same three groups as the web app's list)
                 VStack(spacing: 10) {
@@ -235,8 +272,9 @@ struct RankSheet: View {
         }
     }
 
+    /// compare only with places you gave the same stars, so a 4 never lands above a 5
     private func feel(_ b: RankBucket) {
-        others = session.ranks[b].filter { $0 != key }
+        others = session.ranks[b].filter { $0 != key && session.starsFor($0) == stars }
         lo = 0; hi = others.count; asked = 0
         bucket = b
         if lo >= hi { finish(b) }
@@ -249,7 +287,13 @@ struct RankSheet: View {
     }
 
     private func finish(_ b: RankBucket) {
-        session.saveRank(place, key: key, bucket: b, index: lo, post: post)
+        // where that lands in the whole group: before the place it beat, or after the last one with these stars
+        let list = session.ranks[b].filter { $0 != key }
+        let index: Int
+        if lo < others.count, let i = list.firstIndex(of: others[lo]) { index = i }
+        else if let last = others.last, let i = list.firstIndex(of: last) { index = i + 1 }
+        else { index = list.firstIndex { (session.starsFor($0) ?? 0) < stars } ?? list.count }
+        session.saveRank(place, key: key, stars: stars, bucket: b, index: index, post: post)
         dismiss()
     }
 }
@@ -271,7 +315,8 @@ struct RatePlaceSheet: View {
                     } header: { Text("Places you've been") }
                 } else {
                     ForEach(hits, id: \.key) { h in
-                        row(h.name ?? "", h.address ?? "") {
+                        row(h.name ?? "", h.address ?? "", rated: session.existingKey(for: RankedPlace(name: h.name ?? "", address: h.address ?? "",
+                                venue: [h.lat, h.lng].compactMap { $0 })).flatMap { session.starsFor($0) }) {
                             Task {
                                 let full = await API.placeDetails(h)
                                 rating = RankedPlace(name: full.name ?? "", address: full.address ?? "",
@@ -298,11 +343,16 @@ struct RatePlaceSheet: View {
         }
     }
 
-    private func row(_ name: String, _ address: String, action: @escaping () -> Void) -> some View {
+    private func row(_ name: String, _ address: String, rated: Int? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                if !address.isEmpty { Text(address).font(.footnote).foregroundStyle(.secondary).lineLimit(1) }
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    if !address.isEmpty { Text(address).font(.footnote).foregroundStyle(.secondary).lineLimit(1) }
+                }
+                Spacer()
+                // already on your list: tapping changes that rating rather than adding it twice
+                if let rated { Label("\(rated)", systemImage: "star.fill").font(.footnote.weight(.bold)).foregroundStyle(Color.sun) }
             }
         }
     }
@@ -347,10 +397,15 @@ struct PlacesList: View {
                             if !item.place.address.isEmpty { Text(item.place.address).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                         }
                         Spacer()
-                        Text(String(format: "%.1f", item.score))
-                            .font(.subheadline.weight(.bold))
-                            .frame(width: 42, height: 42)
-                            .overlay(Circle().strokeBorder(item.score >= 6.7 ? Color.freeGreen : item.score >= 3.4 ? Color.orange : Color.red, lineWidth: 2))
+                        // exactly the stars you gave it
+                        HStack(spacing: 1) {
+                            ForEach(1...5, id: \.self) { n in
+                                Image(systemName: n <= item.stars ? "star.fill" : "star")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(n <= item.stars ? Color.sun : Color(.tertiaryLabel))
+                            }
+                        }
+                        .accessibilityLabel("\(item.stars) stars")
                     }
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())

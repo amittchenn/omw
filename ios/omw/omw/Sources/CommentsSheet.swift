@@ -53,10 +53,10 @@ struct CommentsSheet: View {
 
     private func row(_ c: Comment) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Avatar(session.person(c.from), fallback: c.name, size: 34)
+            Avatar(session.person(c.from), fallback: c.name, size: 34).opensProfile(c.from)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
-                    Text(session.handle(c.from, name: c.name)).font(.footnote.weight(.semibold))
+                    Text(session.handle(c.from, name: c.name)).font(.footnote.weight(.semibold)).opensProfile(c.from)
                     Text(When.ago(c.at)).font(.footnote).foregroundStyle(.secondary)
                 }
                 Text(c.text).font(.subheadline)
