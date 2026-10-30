@@ -116,7 +116,9 @@ struct FriendsMapView: View {
             }
             // in the map's safe area, so Apple's own buttons and labels move out of their way
             .safeAreaInset(edge: .top) { searchBar }
-            .safeAreaInset(edge: .bottom) { friendBar }
+            // the friend bar floats over the map with room underneath, so Apple's "Maps · Legal" mark (which has to stay
+            // visible) sits tucked along the bottom edge instead of hovering above the bar
+            .overlay(alignment: .bottom) { friendBar.padding(.bottom, 24) }
             .task(id: query) {
                 let q = query.trimmingCharacters(in: .whitespaces)
                 guard !q.isEmpty else { hits = []; return }
@@ -383,12 +385,13 @@ struct PlaceCard: View {
     @State private var going: DirectionsTarget?
     @State private var info: PlaceInfo?
     @State private var lookAround: MKLookAroundScene?
+    @State private var height: CGFloat = 220
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             photos
             VStack(alignment: .leading, spacing: 4) {
-                Text(place.name).font(.title3.weight(.bold)).lineLimit(2)
+                Text(place.name).font(.title3.weight(.bold)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 facts
                 if !place.address.isEmpty {
                     Text(place.address).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
@@ -409,11 +412,14 @@ struct PlaceCard: View {
             }
         }
         .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 12)
+        // the sheet is exactly as tall as the card (measured), so nothing's cut off and there's no empty space
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         // never wider than the sheet (Look Around would otherwise stretch everything off the side)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        // just tall enough for what's there: with a picture, or without
-        .presentationDetents([.height(hasPicture ? 360 : 220)])
-        .animation(.snappy(duration: 0.25), value: hasPicture)
+        .presentationDetents([.height(max(160, height))])
+        .presentationBackground(Color(.systemBackground))  // a solid card, not glass over a busy map
+        .presentationCornerRadius(28)
+        .animation(.snappy(duration: 0.25), value: height)
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
@@ -430,8 +436,6 @@ struct PlaceCard: View {
                 .withOmw().presentationDetents([.height(380)]).presentationDragIndicator(.visible)
         }
     }
-
-    private var hasPicture: Bool { info?.photos?.isEmpty == false || lookAround != nil }
 
     /// its photos side by side (Google's), or Apple's Look Around of the street, or nothing
     @ViewBuilder private var photos: some View {
@@ -450,7 +454,7 @@ struct PlaceCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 140)
         } else if let lookAround {
-            LookAroundPreview(initialScene: lookAround)
+            LookAroundPreview(initialScene: lookAround, allowsNavigation: false, badgePosition: .bottomTrailing)
                 .frame(maxWidth: .infinity)
                 .frame(height: 140)
                 .clipShape(.rect(cornerRadius: 14))
