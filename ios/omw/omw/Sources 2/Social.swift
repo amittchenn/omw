@@ -249,7 +249,8 @@ struct FriendsListView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(shown) { c in
-                    NavigationLink(value: ProfileRoute(uid: c.id)) {
+                    // straight to their profile (a link that carries its own screen, so it can't open anything else)
+                    NavigationLink { ProfileView(uid: c.id) } label: {
                         HStack(spacing: 12) {
                             Avatar(photo: c.photo, name: c.name, size: 50)
                             VStack(alignment: .leading, spacing: 1) {

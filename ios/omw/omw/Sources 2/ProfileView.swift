@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 import AuthenticationServices
 import FirebaseAuth
-internal import FirebaseFirestoreInternal
+import FirebaseFirestore
 
 struct ProfileView: View {
     let uid: String

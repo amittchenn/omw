@@ -3,6 +3,9 @@
 import SwiftUI
 import CoreLocation
 import FirebaseFirestore
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 /// the kinds of hangout (the same ids the web app and the server use)
 struct HangoutType: Identifiable, Hashable {
@@ -220,6 +223,7 @@ struct PlanSheet: View {
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
+            .onAppear { API.wake() }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

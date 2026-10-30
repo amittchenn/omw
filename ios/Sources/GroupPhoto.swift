@@ -4,6 +4,10 @@
 import SwiftUI
 import PhotosUI
 import FirebaseFirestore
+import CoreLocation
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 extension Hangout {
     var everyoneHere: Bool { !attendees.isEmpty && attendees.allSatisfy { arrivals[$0] != nil } }
@@ -88,7 +92,12 @@ struct GroupPhotoSection: View {
                             .buttonStyle(.bordered)
                         }
                         .disabled(posting)
-                        if posting { ProgressView("Posting…") }
+                        if posting {
+                            HStack(spacing: 8) {
+                                OmwMark().frame(width: 24, height: 24).modifier(Wiggle())
+                                Text("Posting…").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                     .padding(.vertical, 4)
                 }

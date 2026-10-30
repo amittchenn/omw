@@ -44,7 +44,9 @@ struct OmwApp: App {
                 .onChange(of: session.uid) { location.apply(); session.setUpPush() }
                 .onChange(of: session.me?.shareMode) { location.apply() }
                 .onChange(of: session.hangouts) { location.updateGeofences(); LiveActivities.shared.sync(session) }
+                .onChange(of: phase) { if phase == .active { API.wake() } }  // wake the server before you need it
                 .task {  // a plan's Live Activity starts (and counts down) on its own schedule
+                    API.wake()
                     while !Task.isCancelled {
                         LiveActivities.shared.sync(session)
                         try? await Task.sleep(for: .seconds(30))

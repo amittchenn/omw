@@ -13,7 +13,8 @@ PROVIDERS = {
 PRIMARY = os.getenv("LLM_PROVIDER", "muse")
 # try the chosen provider first; if it fails (out of credits, down), fall back to the other one if it has a key
 ORDER = [PRIMARY] + [p for p in PROVIDERS if p != PRIMARY and PROVIDERS[p]["key"]]
-clients = {name: OpenAI(base_url=c["base_url"], api_key=c["key"] or "missing") for name, c in PROVIDERS.items()}
+# fail fast: a slow answer is worse than the phone's own quick read of the message (the app shows that first)
+clients = {name: OpenAI(base_url=c["base_url"], api_key=c["key"] or "missing", timeout=9, max_retries=0) for name, c in PROVIDERS.items()}
 
 
 def ask(prompt, system=None, with_source=False):
@@ -23,7 +24,9 @@ def ask(prompt, system=None, with_source=False):
     error = None
     for name in ORDER:
         try:
-            r = clients[name].chat.completions.create(model=PROVIDERS[name]["model"], messages=messages)
+            # short and steady: these answers are small JSON, so cap the length (much quicker) and don't wander
+            r = clients[name].chat.completions.create(model=PROVIDERS[name]["model"], messages=messages,
+                                                      max_tokens=350, temperature=0)
             text = r.choices[0].message.content
             return (text, PROVIDERS[name]["label"]) if with_source else text
         except Exception as e:

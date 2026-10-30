@@ -1,5 +1,9 @@
 // Plans: what's coming up and what you've done (the hangouts you're going to), and the + planner.
 import SwiftUI
+import CoreLocation
+#if canImport(LocationEssentials)
+import LocationEssentials  // where iOS 26 keeps coordinates and distances
+#endif
 
 struct PlansView: View {
     @Environment(Session.self) private var session
@@ -10,18 +14,7 @@ struct PlansView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    HStack {
-                        Text("Plans").font(.system(size: 34, weight: .black, design: .rounded))
-                        Spacer()
-                        Button { PlanLauncher.shared.open = true } label: {
-                            Image(systemName: "plus").font(.system(size: 20, weight: .bold))
-                                .frame(width: 42, height: 42)
-                                .background(Color.sun, in: Circle())
-                                .foregroundStyle(.black)
-                        }
-                        .buttonStyle(Pressable())
-                        .accessibilityLabel("New plan")
-                    }
+                    Text("Plans").font(.system(size: 34, weight: .black, design: .rounded))
 
                     if !session.invites.isEmpty {
                         group("Invites") {
@@ -60,6 +53,7 @@ struct PlansView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
+            .planButton()
             .toolbar(.hidden, for: .navigationBar)
             .withProfileRoutes()
         }

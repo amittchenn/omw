@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 import re
 from typing import Optional
 
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
@@ -491,8 +492,7 @@ def plan(req: PlanRequest):
     arrive_by = None
     if req.utc_offset_min is not None:
         arrive_by = datetime.fromisoformat(req.start_time).replace(tzinfo=timezone(timedelta(minutes=req.utc_offset_min)))
-    results = []
-    for uid in req.user_ids:
+    def one(uid):
         if uid in guests:
             # real friends have no lateness history yet, so the model starts them at the group average
             g = guests[uid]
@@ -520,8 +520,12 @@ def plan(req: PlanRequest):
                      learning=not habits,
                      alert_time=(start - timedelta(minutes=minutes + alert_buffer(p50, p90))).isoformat(timespec="minutes"))
             label = "Learning · Maps time for now" if not habits else f"Learned from {len(habits)} check-in{'s' * (len(habits) > 1)}"
-        results.append({**r, "name": name, "label": label, "home": home, "route": path,
-                        "travel_mode": mode, "travel_source": source, "traffic": drive or None})
+        return {**r, "name": name, "label": label, "home": home, "route": path,
+                "travel_mode": mode, "travel_source": source, "traffic": drive or None}
+
+    # everyone's trip at the same time (each one waits on a maps lookup), not one after another
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(req.user_ids)))) as pool:
+        results = list(pool.map(one, req.user_ids))
     return sorted(results, key=lambda r: r["alert_time"])
 
 
