@@ -13,6 +13,8 @@ struct DirectionsTarget: Identifiable {
     let name: String
     let coordinate: CLLocationCoordinate2D
     var mode: String = "driving"   // driving, walking, cycling or transit
+    var start: Date? = nil         // the plan's start, when these are directions to a hangout
+    var leaveBy: Date? = nil       // the plan's "leave by" for you (traffic + how late you usually run)
     var id: String { "\(coordinate.latitude),\(coordinate.longitude)" }
 }
 
@@ -23,6 +25,7 @@ struct DirectionsView: View {
     @State private var mode = "driving"
     @State private var route: MKRoute?
     @State private var transitMinutes: Double?
+    @State private var trafficMinutes: Double?   // the server's trip time (Google, with live traffic), like the plan uses
     @State private var failed = false
     @State private var position: MapCameraPosition = .userLocation(followsHeading: false, fallback: .automatic)
     @State private var step = 0
@@ -95,6 +98,18 @@ struct DirectionsView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(target.name).font(.headline).lineLimit(1)
                 Text(summary).font(.subheadline).foregroundStyle(.secondary)
+                // the first thing to do, so it's clear before you even tap Start
+                if let first = steps.first {
+                    // tap to see every turn
+                    Button { showSteps = true } label: {
+                        HStack(spacing: 4) {
+                            Label(first.instructions, systemImage: Self.symbol(for: first.instructions)).lineLimit(1)
+                            Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                        }
+                        .font(.caption.weight(.semibold)).foregroundStyle(Color.coral)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -122,6 +137,8 @@ struct DirectionsView: View {
         .foregroundStyle(.white)
         .padding(16)
         .background(Color(red: 0.11, green: 0.42, blue: 0.29), in: .rect(cornerRadius: 22))
+        .contentShape(.rect)
+        .onTapGesture { showSteps = true }  // tap the banner for every turn
         .padding(.horizontal, 12)
     }
 
@@ -143,23 +160,20 @@ struct DirectionsView: View {
             }
             HStack(spacing: 10) {
                 if going {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(arrival).font(.title3.weight(.bold))
-                        Text(summary).font(.footnote).foregroundStyle(.secondary)
-                    }
+                    arrivalLine
                     Spacer()
-                    Button("Steps") { showSteps = true }.buttonStyle(.bordered)
                     Button("End") { withAnimation { going = false }; speaker.stopSpeaking(at: .immediate) }
                         .buttonStyle(.borderedProminent).tint(.red)
                 } else {
-                    Button("Steps") { showSteps = true }.buttonStyle(.bordered).controlSize(.large).disabled(steps.isEmpty)
+                    arrivalLine
+                    Spacer(minLength: 8)
                     Button {
                         withAnimation { going = true }
                         step = 0
                         position = .userLocation(followsHeading: true, fallback: .automatic)
                         say(steps.first?.instructions)
                     } label: {
-                        Text(failed ? "No route found" : "Start").font(.headline).frame(maxWidth: .infinity, minHeight: 44)
+                        Text(failed ? "No route found" : "Start").font(.headline).frame(minWidth: 96, minHeight: 44)
                     }
                     .buttonStyle(.borderedProminent).tint(.freeGreen).controlSize(.large)
                     .disabled(route == nil)
@@ -182,7 +196,7 @@ struct DirectionsView: View {
                     }
                 }
             }
-            .navigationTitle("Steps")
+            .navigationTitle("Turns")
             .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -197,19 +211,47 @@ struct DirectionsView: View {
             return "\(Self.minutes(transitMinutes)) by transit" + (route.map { " · walking route shown, \(Self.minutes($0.expectedTravelTime / 60))" } ?? "")
         }
         guard let route else { return failed ? "No route found" : "Finding the way…" }
-        return "\(Self.minutes(seconds(route) / 60)) · \(Self.distance(route.distance))"
+        return "\(Self.minutes(tripMinutes ?? seconds(route) / 60)) · \(Self.distance(route.distance))"
     }
 
     /// how long the route takes (by bike: the walking route at about 15 km/h)
     private func seconds(_ route: MKRoute) -> TimeInterval { mode == "cycling" ? route.distance / 4.2 : route.expectedTravelTime }
 
-    private var arrival: String {
-        let secs = mode == "transit" ? (transitMinutes ?? 0) * 60 : route.map(seconds) ?? 0
-        return "Arrive \(Date.now.addingTimeInterval(secs).formatted(date: .omitted, time: .shortened))"
+    /// the trip, in minutes: the server's (live traffic, the same numbers your plan's leave time comes from), else
+    /// Apple's estimate
+    private var tripMinutes: Double? {
+        if let trafficMinutes { return trafficMinutes }
+        if mode == "transit" { return transitMinutes }
+        return route.map { seconds($0) / 60 }
+    }
+
+    /// when you'd get there leaving now
+    private var arriveAt: Date? { tripMinutes.map { Date.now.addingTimeInterval($0 * 60) } }
+
+    /// "There at 6:52 · 3 min early" (against the plan's start), and before you go, the plan's "Leave by"
+    private var arrivalLine: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if let arriveAt {
+                Text("There at \(arriveAt.formatted(date: .omitted, time: .shortened))").font(.title3.weight(.bold))
+                if let start = target.start {
+                    let late = Int((arriveAt.timeIntervalSince(start) / 60).rounded())
+                    Text(late <= 0 ? (late < -1 ? "\(-late) min early" : "On time") : "\(late) min late")
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(late <= Int(Session.lateAfterMinutes) ? Color.freeGreen : Color.orange)
+                }
+                if !going, let leave = target.leaveBy, leave > .now {
+                    Text("Your leave-by: \(leave.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                }
+            } else {
+                Text(failed ? "No route found" : "Finding the way…").font(.headline).foregroundStyle(.secondary)
+            }
+        }
     }
 
     private func load() async {
-        route = nil; transitMinutes = nil; failed = false; step = 0
+        route = nil; transitMinutes = nil; trafficMinutes = nil; failed = false; step = 0
+        Task { await loadTraffic() }
         let request = MKDirections.Request()
         request.source = .forCurrentLocation()
         request.destination = MKMapItem(placemark: MKPlacemark(coordinate: target.coordinate))
@@ -235,6 +277,23 @@ struct DirectionsView: View {
         } catch {
             failed = transitMinutes == nil
         }
+    }
+
+    /// the trip time from our server, with live traffic (Google), the same way the plan's leave times are worked out
+    private func loadTraffic() async {
+        guard let here = location.last?.coordinate else { return }
+        struct Req: Encodable {
+            let origin: [Double], venue: [Double], mode: String
+            let start_time: String?, utc_offset_min: Int?
+        }
+        struct Resp: Decodable { let minutes: Double? }
+        let local = DateFormatter()
+        local.locale = Locale(identifier: "en_US_POSIX")
+        local.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let req = Req(origin: [here.latitude, here.longitude], venue: [target.coordinate.latitude, target.coordinate.longitude], mode: mode,
+                      start_time: target.start.map(local.string), utc_offset_min: TimeZone.current.secondsFromGMT() / 60)
+        let asked = mode
+        if let got = try? await API.send("/directions", req, as: Resp.self), asked == mode { trafficMinutes = got.minutes }
     }
 
     /// moves on to the next step once you're close to where it starts

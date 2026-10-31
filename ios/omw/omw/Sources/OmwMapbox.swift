@@ -74,8 +74,8 @@ struct OmwRouteMap: View {
         MapboxMaps.Map(viewport: $viewport) {
             Puck2D(bearing: .heading)
             if line.count > 1 {
-                // the route as a real map line (a style layer, like Mapbox's own navigation), above the streets and
-                // under the place names: a light edge, then the coral line
+                // the route as a real map line (a style layer, like Mapbox's own navigation), on top of everything
+                // (3D buildings included, or they hide it when the map's tilted): a light edge, then the coral line
                 GeoJSONSource(id: "omw-route")
                     .data(.geometry(.lineString(LineString(line))))
                 LineLayer(id: "omw-route-edge", source: "omw-route")
@@ -84,13 +84,13 @@ struct OmwRouteMap: View {
                     .lineOpacity(0.9)
                     .lineCap(.round)
                     .lineJoin(.round)
-                    .slot(Slot.middle)
+                    .slot(Slot.top)
                 LineLayer(id: "omw-route-line", source: "omw-route")
                     .lineColor(StyleColor(UIColor(Color.coral)))
                     .lineWidth(7)
                     .lineCap(.round)
                     .lineJoin(.round)
-                    .slot(Slot.middle)
+                    .slot(Slot.top)
             }
             MapViewAnnotation(coordinate: target) {
                 Image(systemName: "mappin.circle.fill")
@@ -111,7 +111,7 @@ struct OmwRouteMap: View {
     private func frame() {
         withViewportAnimation(.default(maxDuration: 0.8)) {
             if following {
-                viewport = .followPuck(zoom: 17, bearing: .heading, pitch: 55)
+                viewport = .followPuck(zoom: 16.5, bearing: .heading, pitch: 35)  // tilted a little, so the way ahead shows
             } else if line.count > 1 {
                 viewport = .overview(geometry: LineString(line), geometryPadding: EdgeInsets(top: 150, leading: 40, bottom: 260, trailing: 40))
             }

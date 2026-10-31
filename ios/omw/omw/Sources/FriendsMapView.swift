@@ -461,6 +461,7 @@ struct PlaceCard: View {
     @State private var loaded = false
     @State private var street: String?
     @State private var photoRefs: [String]?   // Google's photos, once the first one has really loaded
+    @State private var gallery: GalleryStart?
     @State private var streetImage: UIImage?  // Apple's street view as a plain picture, when Google has none
     @State private var buzz: Int?  // places to eat and drink within a 5-minute walk
 
@@ -520,6 +521,9 @@ struct PlaceCard: View {
             })
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
+        .fullScreenCover(item: $gallery) { g in
+            PhotoGallery(title: place.name, photos: (photoRefs ?? []).map { Self.photoURL($0, 1600) }, start: g.index)
+        }
         .task(id: place.id) {
             loaded = false; info = nil; street = nil; streetImage = nil; photoRefs = nil; buzz = nil  // a new place: start clean
             info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
@@ -562,16 +566,30 @@ struct PlaceCard: View {
             .frame(height: 140)
             .overlay {
                 if let refs = photoRefs, !refs.isEmpty {
+                    // swipe along them; tap one to see them all full screen
                     ScrollView(.horizontal) {
                         HStack(spacing: 6) {
-                            ForEach(refs, id: \.self) { ref in
-                                RemoteImage(source: "\(API.base.absoluteString)/place-photo?ref=\(ref)&w=600")
-                                    .frame(width: refs.count == 1 ? 340 : 200, height: 140)
-                                    .clipShape(.rect(cornerRadius: 14))
+                            ForEach(Array(refs.enumerated()), id: \.element) { i, ref in
+                                Button { gallery = GalleryStart(index: i) } label: {
+                                    RemoteImage(source: Self.photoURL(ref, 600))
+                                        .frame(width: refs.count == 1 ? 340 : 200, height: 140)
+                                        .clipShape(.rect(cornerRadius: 14))
+                                }
+                                .buttonStyle(Pressable())
                             }
                         }
                     }
                     .scrollIndicators(.hidden)
+                    .overlay(alignment: .bottomTrailing) {
+                        if refs.count > 1 {
+                            Label("\(refs.count)", systemImage: "photo.on.rectangle")
+                                .font(.caption.weight(.bold))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .padding(8)
+                                .allowsHitTesting(false)
+                        }
+                    }
                 } else if let street {
                     // no photos: the real street outside it (Google Street View, like the photos, so it's always the
                     // same kind of picture)
@@ -592,6 +610,8 @@ struct PlaceCard: View {
             }
             .clipShape(.rect(cornerRadius: 14))
     }
+
+    static func photoURL(_ ref: String, _ width: Int) -> String { "\(API.base.absoluteString)/place-photo?ref=\(ref)&w=\(width)" }
 
     /// the map tab is on Mapbox (so the card should be too)
     private var usesMapbox: Bool {
@@ -790,4 +810,101 @@ struct FlyTarget: Equatable {
     let coordinate: CLLocationCoordinate2D
     let id = UUID()
     static func == (a: FlyTarget, b: FlyTarget) -> Bool { a.id == b.id }
+}
+
+struct GalleryStart: Identifiable {
+    let index: Int
+    var id: Int { index }
+}
+
+/// a place's photos full screen: swipe between them, pinch or double-tap to zoom, swipe down or ✕ to close
+struct PhotoGallery: View {
+    let title: String
+    let photos: [String]
+    @State var page: Int
+    @Environment(\.dismiss) private var dismiss
+    @State private var drop: CGFloat = 0
+
+    init(title: String, photos: [String], start: Int) {
+        self.title = title
+        self.photos = photos
+        _page = State(initialValue: start)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(1 - min(abs(drop) / 400, 0.6)).ignoresSafeArea()
+            TabView(selection: $page) {
+                ForEach(Array(photos.enumerated()), id: \.offset) { i, url in
+                    ZoomablePhoto(source: url).tag(i)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .offset(y: drop)
+            .simultaneousGesture(DragGesture(minimumDistance: 20)
+                .onChanged { v in if abs(v.translation.height) > abs(v.translation.width) { drop = v.translation.height } }
+                .onEnded { v in
+                    if abs(v.translation.height) > 140 { dismiss() } else { withAnimation(.snappy) { drop = 0 } }
+                })
+        }
+        .overlay(alignment: .top) {
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.headline).lineLimit(1)
+                    Text("\(page + 1) of \(photos.count)").font(.caption.weight(.semibold)).opacity(0.7)
+                }
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.headline)
+                        .frame(width: 38, height: 38)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Close")
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .opacity(drop == 0 ? 1 : 0.4)
+        }
+        .statusBarHidden()
+        .sensoryFeedback(.selection, trigger: page)
+    }
+}
+
+/// one photo you can pinch or double-tap to zoom into
+struct ZoomablePhoto: View {
+    let source: String
+    @State private var scale: CGFloat = 1
+    @State private var settled: CGFloat = 1
+
+    var body: some View {
+        RemoteImageFit(source: source)
+            .scaleEffect(scale)
+            .gesture(MagnifyGesture()
+                .onChanged { scale = max(1, min(settled * $0.magnification, 4)) }
+                .onEnded { _ in settled = scale; if scale < 1.05 { withAnimation(.snappy) { scale = 1; settled = 1 } } })
+            .onTapGesture(count: 2) {
+                withAnimation(.snappy) { scale = scale > 1 ? 1 : 2.2; settled = scale }
+            }
+    }
+}
+
+/// a photo shown whole (fit, not cropped), with a shimmer while it loads
+struct RemoteImageFit: View {
+    let source: String
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFit().transition(.opacity)
+            } else {
+                RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.06)).frame(height: 260).shimmer().padding(24)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: source) {
+            let loaded = await ImageLoader.load(source)
+            withAnimation(.easeOut(duration: 0.15)) { image = loaded }
+        }
+    }
 }

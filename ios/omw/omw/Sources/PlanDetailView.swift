@@ -201,7 +201,8 @@ struct PlanDetailView: View {
     /// directions right here in the app (Directions.swift), by how you're getting there
     private func directions(_ h: Hangout) {
         guard let venue = h.venue else { return }
-        route = DirectionsTarget(name: h.venueName.isEmpty ? h.title : h.venueName, coordinate: venue, mode: h.modes[session.uid ?? ""] ?? "driving")
+        route = DirectionsTarget(name: h.venueName.isEmpty ? h.title : h.venueName, coordinate: venue, mode: h.modes[session.uid ?? ""] ?? "driving",
+                                 start: h.start, leaveBy: h.alerts[session.uid ?? ""])
     }
 
     /// within 300 m of the spot: checked in (the same as arriving with "Always" on)

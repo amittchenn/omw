@@ -186,7 +186,7 @@ def search(q, lat, lng, here=None):
 
 
 def place_info(name, lat, lng):
-    """A place's card, like Google Maps': up to 6 photos, rating, reviews, price, open now, type, phone and website.
+    """A place's card, like Google Maps': up to 10 photos (all Google gives), rating, reviews, price, open now, type, phone and website.
     Found by name near the spot (taps on the map and Apple's search don't carry Google's id). Photos are given as
     names for /places/photo, so the Google key never leaves the server."""
     if not GOOGLE_KEY or not name.strip():
@@ -207,7 +207,7 @@ def place_info(name, lat, lng):
             "price": PRICE.get(p.get("priceLevel"), ""), "open": p.get("currentOpeningHours", {}).get("openNow"),
             "type": p.get("primaryTypeDisplayName", {}).get("text", ""), "phone": p.get("nationalPhoneNumber", ""),
             "website": p.get("websiteUri", ""), "maps": p.get("googleMapsUri", ""),
-            "photos": [ph["name"] for ph in (p.get("photos") or [])[:6] if ph.get("name")]}
+            "photos": [ph["name"] for ph in (p.get("photos") or [])[:10] if ph.get("name")]}
 
 
 def air_quality(lat, lng, when=None):
