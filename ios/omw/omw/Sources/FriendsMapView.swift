@@ -2,6 +2,7 @@
 // it) with a ring (and a ripple) for what they're up to, a warm yellow-to-coral glow where you all hang out, your saved
 // spots as yellow bookmarks, and what's up next flagged by Ticki with everyone's way in drawn as dashed coral lines.
 import SwiftUI
+import UIKit
 import MapKit
 import CoreLocation
 #if canImport(LocationEssentials)
@@ -70,7 +71,7 @@ struct FriendsMapView: View {
                         .padding(.horizontal, 10).padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else {
-                    friendBar.padding(.bottom, 24)
+                    friendBar.padding(.bottom, 36)  // room underneath for the map's logo and ⓘ, just above the tab bar
                 }
             }
             .animation(.snappy(duration: 0.3), value: place?.id)
@@ -456,6 +457,7 @@ struct PlaceCard: View {
     @State private var info: PlaceInfo?
     @State private var loaded = false
     @State private var street: String?
+    @State private var streetImage: UIImage?  // Apple's street view as a plain picture, when Google has none
     @State private var buzz: Int?  // places to eat and drink within a 5-minute walk
 
     var body: some View {
@@ -515,13 +517,19 @@ struct PlaceCard: View {
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
-            loaded = false; info = nil; street = nil; buzz = nil  // a new place: start clean
+            loaded = false; info = nil; street = nil; streetImage = nil; buzz = nil  // a new place: start clean
             info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
             if info?.photos?.isEmpty != false {
                 // is there Street View here? (the server answers 404 if not; phones cache the picture for a day)
                 let url = "\(API.base.absoluteString)/street-view?lat=\(place.lat)&lng=\(place.lng)"
                 if let u = URL(string: url), let (_, r) = try? await URLSession.shared.data(from: u),
                    (r as? HTTPURLResponse)?.statusCode == 200 { street = url }
+            }
+            if info?.photos?.isEmpty != false, street == nil,
+               let scene = try? await MKLookAroundSceneRequest(coordinate: place.coordinate).scene {
+                let options = MKLookAroundSnapshotter.Options()
+                options.size = CGSize(width: 640, height: 280)
+                streetImage = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot.image
             }
             loaded = true
             buzz = (try? await API.get("/buzz", ["lat": "\(place.lat)", "lng": "\(place.lng)"], as: Buzz.self))?.count
@@ -559,6 +567,9 @@ struct PlaceCard: View {
                     // no photos: the real street outside it (Google Street View, like the photos, so it's always the
                     // same kind of picture)
                     RemoteImage(source: street)
+                } else if let streetImage {
+                    // Google has nothing here: Apple's street view, taken as a plain picture (no badges, no buttons)
+                    Image(uiImage: streetImage).resizable().scaledToFill()
                 } else if loaded && usesMapbox {
                     miniMap  // nowhere to see it: the spot on omw!'s map
                 } else if loaded {

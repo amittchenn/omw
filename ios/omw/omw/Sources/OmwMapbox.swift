@@ -154,8 +154,8 @@ struct OmwMapbox: View {
         // the map runs edge to edge, under the tab bar too, so Mapbox's logo and ⓘ (which have to stay visible) are
         // lifted above the tab bar
         .ornamentOptions(OrnamentOptions(scaleBar: ScaleBarViewOptions(visibility: .hidden),
-                                         logo: LogoViewOptions(margins: CGPoint(x: 10, y: 96)),
-                                         attributionButton: AttributionButtonOptions(margins: CGPoint(x: 10, y: 96))))
+                                         logo: LogoViewOptions(margins: CGPoint(x: 12, y: 78)),
+                                         attributionButton: AttributionButtonOptions(margins: CGPoint(x: 12, y: 78))))
         .onMapTapGesture { context in onTap(context.coordinate) }
         // all the way up behind the search bar and down behind the tab bar, fading into omw!'s warm top edge
         .ignoresSafeArea()
