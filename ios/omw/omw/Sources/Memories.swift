@@ -1,14 +1,11 @@
-// Memories as a calendar: one month at a time (swipe or the arrows to move, Today to come back). Days show the group
-// photo from that day, a dot for a plan you went to (blue) or one coming up (yellow). Tap any day to see what happened
-// there underneath (its memories and plans, each one tappable), or to plan something on that day.
+// Memories as a calendar, week by week: scroll down through the weeks (next week and this one first, then back in
+// time). Each day shows the group photo from that day, or a dot for a plan you went to (blue) or one coming up
+// (yellow). Tap a day and what happened opens right under its week: its memories and plans, each one tappable.
 import SwiftUI
 
 struct MemoriesCalendar: View {
     @Environment(Session.self) private var session
-    @State private var month = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
-    @State private var selected = Calendar.current.startOfDay(for: .now)
-    @State private var planningDay: Date?
-    @State private var direction = 1  // which way the month slides
+    @State private var selected: Date?
 
     private struct Day {
         var posts: [Post] = []
@@ -29,94 +26,77 @@ struct MemoriesCalendar: View {
         return out
     }
 
+    /// the weeks to show, newest first: next week, this week, then back to your first memory (at least 8 weeks)
+    private func weeks(_ all: [Date: Day]) -> [Date] {
+        let cal = Calendar.current
+        guard let thisWeek = cal.dateInterval(of: .weekOfYear, for: .now)?.start else { return [] }
+        let oldest = all.keys.min().flatMap { cal.dateInterval(of: .weekOfYear, for: $0)?.start } ?? thisWeek
+        let back = max(8, (cal.dateComponents([.weekOfYear], from: oldest, to: thisWeek).weekOfYear ?? 0) + 1)
+        return (-1..<back).compactMap { cal.date(byAdding: .weekOfYear, value: -$0, to: thisWeek) }
+    }
+
     var body: some View {
         let all = days
-        VStack(alignment: .leading, spacing: 10) {
-            header
+        LazyVStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 0) {
                 ForEach(Array(Calendar.current.veryShortStandaloneWeekdaySymbols.rotated(by: Calendar.current.firstWeekday - 1).enumerated()), id: \.offset) { _, s in
                     Text(s).font(.caption2.weight(.semibold)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 }
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 7), spacing: 3) {
-                ForEach(Array(Self.cells(for: month).enumerated()), id: \.offset) { _, date in
-                    if let date { cell(date, all[date]) } else { Color.clear.aspectRatio(3 / 4, contentMode: .fit) }
+            ForEach(weeks(all), id: \.self) { week in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(Self.title(week)).font(.system(size: 15, weight: .heavy, design: .rounded))
+                    HStack(spacing: 4) {
+                        ForEach(0..<7, id: \.self) { i in
+                            if let date = Calendar.current.date(byAdding: .day, value: i, to: week) {
+                                cell(date, all[date])
+                            }
+                        }
+                    }
+                    // the day you tapped, opened right under its week
+                    if let selected, Calendar.current.isDate(selected, equalTo: week, toGranularity: .weekOfYear) {
+                        dayDetail(selected, all[selected] ?? Day())
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
             }
-            .id(month)
-            .transition(.asymmetric(insertion: .move(edge: direction > 0 ? .trailing : .leading).combined(with: .opacity),
-                                    removal: .move(edge: direction > 0 ? .leading : .trailing).combined(with: .opacity)))
-            .contentShape(.rect)
-            .gesture(DragGesture(minimumDistance: 20).onEnded { v in
-                guard abs(v.translation.width) > 50, abs(v.translation.width) > abs(v.translation.height) else { return }
-                move(v.translation.width < 0 ? 1 : -1)
-            })
-            dayDetail(all[selected] ?? Day())
-                .padding(.top, 6)
         }
         .padding(.horizontal, 12)
         .padding(.top, 14)
-        .clipped()
         .sensoryFeedback(.selection, trigger: selected)
-        .sheet(item: Binding(get: { planningDay.map(PlanDay.init) }, set: { if $0 == nil { planningDay = nil } })) { d in
-            PlanSheet(day: d.date).withOmw().presentationDetents([.large]).presentationDragIndicator(.visible)
-        }
     }
 
-    // ---------- the month ----------
-    private var header: some View {
-        HStack(spacing: 6) {
-            Text(month.formatted(.dateTime.month(.wide).year())).font(.headline)
-            Spacer()
-            if !Calendar.current.isDate(month, equalTo: .now, toGranularity: .month) || !Calendar.current.isDateInToday(selected) {
-                Button("Today") {
-                    let now = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
-                    direction = now > month ? 1 : -1
-                    withAnimation(.snappy) { month = now; selected = Calendar.current.startOfDay(for: .now) }
-                }
-                .font(.subheadline.weight(.semibold))
-            }
-            arrow("chevron.left") { move(-1) }
-            arrow("chevron.right") { move(1) }
-        }
-    }
-
-    private func arrow(_ symbol: String, _ run: @escaping () -> Void) -> some View {
-        Button(action: run) {
-            Image(systemName: symbol).font(.subheadline.weight(.bold))
-                .frame(width: 32, height: 32)
-                .background(Color.omwCard2, in: Circle())
-        }
-        .buttonStyle(Pressable())
-        .foregroundStyle(.primary)
-    }
-
-    private func move(_ by: Int) {
-        guard let next = Calendar.current.date(byAdding: .month, value: by, to: month) else { return }
-        direction = by
-        withAnimation(.snappy(duration: 0.3)) {
-            month = next
-            // keep a day picked in the month you're looking at: today if it's there, else the 1st
-            selected = Calendar.current.isDate(next, equalTo: .now, toGranularity: .month) ? Calendar.current.startOfDay(for: .now) : next
+    /// "This week", "Next week", "Last week", or "Oct 12 – 18"
+    private static func title(_ week: Date) -> String {
+        let cal = Calendar.current
+        guard let now = cal.dateInterval(of: .weekOfYear, for: .now)?.start else { return "" }
+        let n = cal.dateComponents([.weekOfYear], from: now, to: week).weekOfYear ?? 0
+        switch n {
+        case 0: return "This week"
+        case 1: return "Next week"
+        case -1: return "Last week"
+        default:
+            let end = cal.date(byAdding: .day, value: 6, to: week) ?? week
+            let sameMonth = cal.isDate(week, equalTo: end, toGranularity: .month)
+            return "\(week.formatted(.dateTime.month(.abbreviated).day())) – \(sameMonth ? end.formatted(.dateTime.day()) : end.formatted(.dateTime.month(.abbreviated).day()))"
         }
     }
 
     private func cell(_ date: Date, _ day: Day?) -> some View {
         let cal = Calendar.current
-        let n = cal.component(.day, from: date)
         let today = cal.isDateInToday(date)
-        let isSelected = cal.isDate(date, inSameDayAs: selected)
+        let isSelected = selected.map { cal.isDate(date, inSameDayAs: $0) } ?? false
         let photo = day?.photo ?? ""
         let ahead = day?.plans.contains { !$0.isOver } == true
         return Button {
-            withAnimation(.snappy(duration: 0.2)) { selected = date }
+            withAnimation(.snappy(duration: 0.25)) { selected = isSelected ? nil : date }  // tap again to close
         } label: {
-            Color.omwCard2
+            Color.omwCard
                 .aspectRatio(3 / 4, contentMode: .fit)
                 .overlay { if !photo.isEmpty { RemoteImage(source: photo) } }
                 .overlay(alignment: .topLeading) {
-                    Text("\(n)").font(.caption2.weight(.bold))
-                        .foregroundStyle(!photo.isEmpty ? Color.white : today ? Color.red : Color.primary)
+                    Text("\(cal.component(.day, from: date))").font(.caption2.weight(.bold))
+                        .foregroundStyle(!photo.isEmpty ? Color.white : today ? Color.coral : Color.secondary)
                         .shadow(color: !photo.isEmpty ? .black.opacity(0.5) : .clear, radius: 2)
                         .padding(4)
                 }
@@ -125,33 +105,30 @@ struct MemoriesCalendar: View {
                         Circle().fill(ahead ? Color.sun : Color.omwBlue).frame(width: 6, height: 6).padding(5)
                     }
                 }
-                .clipShape(.rect(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(isSelected ? Color.coral : .clear, lineWidth: 2.5))
-                .opacity(day == nil && !isSelected ? 0.6 : 1)
+                .clipShape(.rect(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(isSelected ? Color.coral : today ? Color.coral.opacity(0.5) : .clear,
+                                                                       lineWidth: isSelected ? 2.5 : 1.5))
         }
         .buttonStyle(Pressable())
+        .frame(maxWidth: .infinity)
         .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
     }
 
     // ---------- the day you tapped ----------
-    @ViewBuilder private func dayDetail(_ day: Day) -> some View {
+    private func dayDetail(_ date: Date, _ day: Day) -> some View {
         let cal = Calendar.current
-        VStack(alignment: .leading, spacing: 10) {
-            Text(cal.isDateInToday(selected) ? "Today" : selected.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                .font(.system(size: 17, weight: .heavy, design: .rounded))
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(cal.isDateInToday(date) ? "Today" : date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                .font(.subheadline.weight(.heavy))
             if !day.posts.isEmpty {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
                         ForEach(day.posts) { p in
                             NavigationLink(value: PostRoute(id: p.id)) {
                                 Color.omwCard2
-                                    .frame(width: 110, height: 146)
+                                    .frame(width: 96, height: 128)
                                     .overlay { RemoteImage(source: p.allPhotos.first ?? "") }
                                     .clipShape(.rect(cornerRadius: 12))
-                                    .overlay(alignment: .bottomLeading) {
-                                        Text(p.venueName.isEmpty ? p.title : p.venueName).font(.caption2.weight(.bold)).lineLimit(1)
-                                            .foregroundStyle(.white).shadow(color: .black.opacity(0.6), radius: 2).padding(6)
-                                    }
                             }
                             .buttonStyle(Pressable())
                         }
@@ -163,38 +140,13 @@ struct MemoriesCalendar: View {
                 NavigationLink(value: PlanRoute(id: h.id)) { PlanRow(hangout: h) }.buttonStyle(.plain)
             }
             if day.posts.isEmpty && day.plans.isEmpty {
-                Text(selected < cal.startOfDay(for: .now) ? "Nothing that day." : "Nothing planned yet.")
+                Text(date < cal.startOfDay(for: .now) ? "Nothing that day." : "Nothing planned yet.")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
-            if selected >= cal.startOfDay(for: .now) {
-                Button { planningDay = selected } label: {
-                    Label("Plan something \(cal.isDateInToday(selected) ? "today" : "on \(selected.formatted(.dateTime.weekday(.wide)))")",
-                          systemImage: "plus")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Color.sun, in: .rect(cornerRadius: 12))
-                        .foregroundStyle(.black)
-                }
-                .buttonStyle(Pressable())
-            }
         }
-        .padding(14)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.omwCard, in: .rect(cornerRadius: 16))
-    }
-
-    private struct PlanDay: Identifiable {
-        let date: Date
-        var id: Date { date }
-    }
-
-    /// the month's days in a 7-wide grid (nil = the blanks before the 1st)
-    private static func cells(for month: Date) -> [Date?] {
-        let cal = Calendar.current
-        guard let range = cal.range(of: .day, in: .month, for: month) else { return [] }
-        let lead = (cal.component(.weekday, from: month) - cal.firstWeekday + 7) % 7
-        let blanks: [Date?] = (0..<lead).map { _ in nil }
-        return blanks + range.compactMap { cal.date(byAdding: .day, value: $0 - 1, to: month) }
+        .background(Color.omwCard, in: .rect(cornerRadius: 14))
     }
 }
 

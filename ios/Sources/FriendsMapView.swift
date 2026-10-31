@@ -1,5 +1,6 @@
-// The Map tab, like Snap Map, on Apple Maps: your friends where they are (if they share it) as their pictures with a
-// ring for what they're up to, and you. Tap a friend for their card.
+// The Map tab, on Apple Maps in omw!'s colors: you with a rippling yellow halo, friends where they are (if they share
+// it) with a ring (and a ripple) for what they're up to, a warm yellow-to-coral glow where you all hang out, your saved
+// spots as yellow bookmarks, and what's up next flagged by Ticki with everyone's way in drawn as dashed coral lines.
 import SwiftUI
 import MapKit
 import CoreLocation
@@ -55,17 +56,30 @@ struct FriendsMapView: View {
         NavigationStack {
           MapReader { proxy in
             Map(position: $position) {
-                // a warm glow where your friends hang out (their posts and your plans), like Snap Map's heat
+                // a warm omw! glow where your friends hang out (their memories and your plans): yellow fading into coral
                 ForEach(heat) { h in
-                    MapCircle(center: h.coordinate, radius: 420).foregroundStyle(Color.orange.opacity(0.10))
-                    MapCircle(center: h.coordinate, radius: 220).foregroundStyle(Color.orange.opacity(0.16))
-                    MapCircle(center: h.coordinate, radius: 90).foregroundStyle(Color.pink.opacity(0.22))
+                    MapCircle(center: h.coordinate, radius: 460).foregroundStyle(Color.sun.opacity(0.10))
+                    MapCircle(center: h.coordinate, radius: 240).foregroundStyle(Color.sun.opacity(0.18))
+                    MapCircle(center: h.coordinate, radius: 100).foregroundStyle(Color.coral.opacity(0.26))
+                }
+                // what's up next: everyone heading in, as dashed coral lines from where they are to the spot, and the
+                // spot itself flagged with Ticki and how long till it starts
+                if let next = session.upNext, let venue = next.venue {
+                    ForEach(live.filter { next.attendees.contains($0.person.id) }) { item in
+                        MapPolyline(coordinates: [item.spot.coordinate, venue])
+                            .stroke(Color.coral.opacity(0.85), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [2, 7]))
+                    }
+                    Annotation(next.venueName, coordinate: venue, anchor: .bottom) {
+                        HangoutFlag(hangout: next)
+                    }
+                    .annotationTitles(.hidden)
                 }
                 // you, as your picture (like Snap Map's "Me")
                 UserAnnotation { _ in
                     VStack(spacing: 3) {
                         Avatar(session.me, size: 46)
-                            .overlay(Circle().strokeBorder(.white, lineWidth: 3))
+                            .overlay(Circle().strokeBorder(Color.sun, lineWidth: 3))
+                            .background(Pulse(color: .sun).frame(width: 46, height: 46))
                             .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
                         Text("Me").font(.caption.weight(.heavy))
                             .padding(.horizontal, 8).padding(.vertical, 2)
@@ -82,9 +96,9 @@ struct FriendsMapView: View {
                 ForEach(session.saved) { s in
                     Annotation(s.name, coordinate: s.coordinate) {
                         Image(systemName: "bookmark.fill")
-                            .font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                            .font(.system(size: 13, weight: .bold)).foregroundStyle(.black)
                             .frame(width: 30, height: 30)
-                            .background(Color.omwBlue, in: Circle())
+                            .background(Color.sun, in: Circle())
                             .overlay(Circle().strokeBorder(.white, lineWidth: 2))
                             .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
                             .onTapGesture { place = MapPlace(name: s.name, address: s.address, lat: s.lat, lng: s.lng) }
@@ -92,7 +106,7 @@ struct FriendsMapView: View {
                     .annotationTitles(.hidden)
                 }
                 if let place {
-                    Marker(place.name, systemImage: "mappin", coordinate: place.coordinate).tint(.red)
+                    Marker(place.name, systemImage: "mappin", coordinate: place.coordinate).tint(Color.coral)
                 }
                 ForEach(live) { item in
                     Annotation(item.person.firstName, coordinate: item.spot.coordinate, anchor: .bottom) {
@@ -103,6 +117,13 @@ struct FriendsMapView: View {
                 }
             }
             .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .including([.cafe, .restaurant, .bakery, .nightlife, .park, .museum, .movieTheater, .stadium, .university])))
+            // omw!'s warm edge: the top of the map fades into the app's cream / plum-ink behind the search bar
+            .overlay(alignment: .top) {
+                LinearGradient(colors: [Color.omwBG, Color.omwBG.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 150)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+            }
             // tap anywhere: the place there (a cafe, a park…), or the address, with Save / Plan here / Rate / Go
             .onTapGesture { point in
                 guard let c = proxy.convert(point, from: .local) else { return }
@@ -579,6 +600,7 @@ struct FriendPin: View {
         VStack(spacing: 3) {
             Avatar(person, size: 48, showStatus: true)
                 .background(Circle().fill(.background).padding(-2))
+                .background { if let c = person.status.color { Pulse(color: c).frame(width: 48, height: 48) } }
                 .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
             HStack(spacing: 4) {
                 Text(person.firstName).font(.caption.weight(.bold))
@@ -606,5 +628,44 @@ struct FriendCard: View {
         }
         .opensProfile(person.id)
         .padding(20)
+    }
+}
+
+/// a soft ring that keeps rippling out from a pin, so the map feels alive (you, and friends who are out or on their way)
+struct Pulse: View {
+    var color: Color
+    @State private var go = false
+
+    var body: some View {
+        Circle()
+            .fill(color.opacity(0.45))
+            .scaleEffect(go ? 2.1 : 1)
+            .opacity(go ? 0 : 0.9)
+            .onAppear { withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) { go = true } }
+            .allowsHitTesting(false)
+    }
+}
+
+/// the spot of the plan that's up next: Ticki on a little yellow flag with what it is and how long till it starts
+struct HangoutFlag: View {
+    let hangout: Hangout
+
+    var body: some View {
+        VStack(spacing: -4) {
+            HStack(spacing: 6) {
+                Ticki(mood: hangout.start.timeIntervalSinceNow < 30 * 60 ? .run : .idle).frame(width: 30, height: 30)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(hangout.venueName.isEmpty ? hangout.title : hangout.venueName).font(.caption.weight(.heavy)).lineLimit(1)
+                    Text(hangout.start, style: .relative).font(.caption2.weight(.bold)).monospacedDigit()
+                }
+                .foregroundStyle(.black)
+            }
+            .padding(.leading, 4).padding(.trailing, 10).padding(.vertical, 4)
+            .background(Color.sun, in: Capsule())
+            .overlay(Capsule().strokeBorder(.white, lineWidth: 2))
+            .frame(maxWidth: 180)
+            Image(systemName: "triangle.fill").font(.system(size: 12)).foregroundStyle(Color.sun).rotationEffect(.degrees(180))
+        }
+        .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
     }
 }

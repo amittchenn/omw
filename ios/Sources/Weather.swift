@@ -22,14 +22,23 @@ struct Forecast: Equatable {
         parts.queryItems = [
             .init(name: "latitude", value: String(format: "%.2f", spot.latitude)),
             .init(name: "longitude", value: String(format: "%.2f", spot.longitude)),
-            .init(name: "timezone", value: "auto"), .init(name: "forecast_days", value: "16"),
+            // hours in this phone's time zone, so they line up with the time you picked
+            .init(name: "timezone", value: TimeZone.current.identifier), .init(name: "forecast_days", value: "16"),
             .init(name: "hourly", value: "temperature_2m,precipitation_probability,weather_code"),
         ]
-        guard let url = parts.url, let got = try? await URLSession.shared.data(from: url),
-              let raw = try? JSONDecoder().decode(Raw.self, from: got.0) else { return nil }
+        guard let url = parts.url else { return nil }
+        // a second try if the first one fails (a flaky connection shouldn't mean no weather)
+        var raw: Raw?
+        for attempt in 0..<2 where raw == nil {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(1)) }
+            if let got = try? await URLSession.shared.data(from: url) { raw = try? JSONDecoder().decode(Raw.self, from: got.0) }
+        }
+        guard let raw else { return nil }
         let key = DateFormatter()
         key.locale = Locale(identifier: "en_US_POSIX")
         key.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        key.calendar = Calendar(identifier: .gregorian)
+        key.timeZone = .current
         let hour = Calendar.current.dateInterval(of: .hour, for: when)?.start ?? when
         var hours: [Hour] = []
         var center: Hour?
@@ -130,7 +139,9 @@ struct WeatherPanel: View {
                 .accessibilityHidden(true)
             }
         }
-        .task(id: "\(spot?.latitude ?? 0),\(spot?.longitude ?? 0),\(when.timeIntervalSince1970)") {
+        // keyed on the spot to about 1 km and the hour: your location moving a few meters (it updates all the time)
+        // used to restart the request before it ever finished, so the weather never showed up
+        .task(id: "\(String(format: "%.2f,%.2f", spot?.latitude ?? 0, spot?.longitude ?? 0)),\(Int(when.timeIntervalSince1970 / 3600))") {
             guard let spot else { forecast = nil; tried = true; return }
             try? await Task.sleep(for: .milliseconds(250))  // the time wheel spins through hours: wait till it stops
             if Task.isCancelled { return }
