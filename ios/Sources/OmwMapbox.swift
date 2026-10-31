@@ -215,8 +215,7 @@ struct OmwMapbox: View {
                                          logo: LogoViewOptions(margins: CGPoint(x: 12, y: 6)),
                                          attributionButton: AttributionButtonOptions(margins: CGPoint(x: 12, y: 6))))
         .onMapTapGesture { context in onTap(context.coordinate) }
-        // all the way up behind the search bar and down behind the tab bar, fading into omw!'s warm top edge
-        .ignoresSafeArea()
+        // fades into omw!'s warm top edge behind the search bar
         .overlay(alignment: .top) {
             LinearGradient(colors: [Color.omwBG, Color.omwBG.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
                 .frame(height: 150)

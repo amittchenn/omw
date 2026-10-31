@@ -57,9 +57,12 @@ struct FriendsMapView: View {
 
     var body: some View {
         NavigationStack {
-            mapLayer
-            // in the map's safe area, so Apple's own buttons and labels move out of their way
-            .safeAreaInset(edge: .top) { searchBar }
+            // the map fills the screen; the search bar sits in a fixed place on top of it (it used to ride on the map's
+            // safe area, which shifted it around whenever anything on the map changed)
+            ZStack(alignment: .top) {
+                mapLayer.ignoresSafeArea()
+                searchBar.frame(maxWidth: .infinity)
+            }
             // the friend bar floats over the map with room underneath, so Apple's "Maps · Legal" mark (which has to stay
             // visible) sits tucked along the bottom edge instead of hovering above the bar
             .overlay(alignment: .bottom) {
