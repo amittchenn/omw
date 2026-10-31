@@ -70,26 +70,27 @@ struct OmwRouteMap: View {
     let following: Bool
     @State private var viewport: Viewport = .followPuck(zoom: 15)
 
-    private struct Track: Identifiable {
-        let id: String
-        let points: [CLLocationCoordinate2D]
-    }
-
     var body: some View {
         MapboxMaps.Map(viewport: $viewport) {
             Puck2D(bearing: .heading)
             if line.count > 1 {
-                PolylineAnnotationGroup([Track(id: "edge", points: line)]) { p in
-                    PolylineAnnotation(lineCoordinates: p.points)
-                        .lineColor(StyleColor(UIColor.white))
-                        .lineWidth(11)
-                        .lineOpacity(0.9)
-                }
-                PolylineAnnotationGroup([Track(id: "route", points: line)]) { p in
-                    PolylineAnnotation(lineCoordinates: p.points)
-                        .lineColor(StyleColor(UIColor(Color.coral)))
-                        .lineWidth(7)
-                }
+                // the route as a real map line (a style layer, like Mapbox's own navigation), above the streets and
+                // under the place names: a light edge, then the coral line
+                GeoJSONSource(id: "omw-route")
+                    .data(.geometry(.lineString(LineString(line))))
+                LineLayer(id: "omw-route-edge", source: "omw-route")
+                    .lineColor(StyleColor(UIColor.white))
+                    .lineWidth(12)
+                    .lineOpacity(0.9)
+                    .lineCap(.round)
+                    .lineJoin(.round)
+                    .slot(.middle)
+                LineLayer(id: "omw-route-line", source: "omw-route")
+                    .lineColor(StyleColor(UIColor(Color.coral)))
+                    .lineWidth(7)
+                    .lineCap(.round)
+                    .lineJoin(.round)
+                    .slot(.middle)
             }
             MapViewAnnotation(coordinate: target) {
                 Image(systemName: "mappin.circle.fill")
@@ -157,12 +158,16 @@ struct OmwMapbox: View {
             }
             // what's up next: everyone's way in, and the spot flagged by Ticki
             if let next, let venue = next.venue {
-                PolylineAnnotationGroup(ways(next, venue)) { w in
-                    PolylineAnnotation(lineCoordinates: w.line)
-                        .lineColor(StyleColor(UIColor(Color.coral)))
-                        .lineWidth(4)
-                        .lineOpacity(0.85)
-                }
+                // everyone's way in: dashed coral lines (a style layer, so they draw above the streets)
+                GeoJSONSource(id: "omw-ways")
+                    .data(.featureCollection(FeatureCollection(features: ways(next, venue).map { Feature(geometry: .lineString(LineString($0.line))) })))
+                LineLayer(id: "omw-ways-line", source: "omw-ways")
+                    .lineColor(StyleColor(UIColor(Color.coral)))
+                    .lineWidth(4)
+                    .lineOpacity(0.9)
+                    .lineCap(.round)
+                    .lineDasharray([0.5, 2])
+                    .slot(.middle)
                 MapViewAnnotation(coordinate: venue) { HangoutFlag(hangout: next) }
                     .allowOverlap(true)
                     .variableAnchors([ViewAnnotationAnchorConfig(anchor: .bottom)])
