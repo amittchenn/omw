@@ -61,8 +61,9 @@ def place_name(lat, lng):
     if GOOGLE_KEY:
         try:  # a named place right there?
             data = _google("places:searchNearby", {
-                "locationRestriction": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": 60.0}},
-                "maxResultCount": 5, "rankPreference": "DISTANCE"},
+                # the best-known place right there (a hotel over an office suite in the same building)
+                "locationRestriction": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": 50.0}},
+                "maxResultCount": 5, "rankPreference": "POPULARITY"},
                 "places.id,places.displayName,places.formattedAddress,places.location,places.types")
             for p in data.get("places", []):
                 where = (p["location"]["latitude"], p["location"]["longitude"])

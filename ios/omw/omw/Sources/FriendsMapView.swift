@@ -135,6 +135,10 @@ extension FriendsMapView {
                           searching = false
                           Task { if let p = await MapPlace.at(c) { place = p } }
                       },
+                      onPoi: { name, c in
+                          searching = false
+                          place = MapPlace(name: name, address: "", lat: c.latitude, lng: c.longitude)
+                      },
                       onFriend: { selected = $0 }, onPhoto: { openPost = $0 },
                       onSaved: { s in place = MapPlace(name: s.name, address: s.address, lat: s.lat, lng: s.lng) },
                       onMe: { showMe = true })

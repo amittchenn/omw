@@ -130,6 +130,7 @@ struct OmwMapbox: View {
     let me: Person?
     let here: CLLocationCoordinate2D?
     var onTap: (CLLocationCoordinate2D) -> Void
+    var onPoi: (String, CLLocationCoordinate2D) -> Void   // a place's own label or icon on the map, tapped
     var onFriend: (Person) -> Void
     var onPhoto: (Post) -> Void
     var onSaved: (SavedPlace) -> Void
@@ -145,6 +146,12 @@ struct OmwMapbox: View {
 
     var body: some View {
         MapboxMaps.Map(viewport: $viewport) {
+            // tapping a place's label or icon opens exactly that place (by its name), not whatever's nearest
+            TapInteraction(.standardPoi) { poi, _ in
+                guard let name = poi.name, !name.isEmpty else { return false }
+                onPoi(name, poi.coordinate)
+                return true
+            }
             // a warm glow where your friends hang out
             ForEvery(heat) { h in
                 MapViewAnnotation(coordinate: h.coordinate) {
