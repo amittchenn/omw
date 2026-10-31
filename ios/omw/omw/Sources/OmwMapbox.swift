@@ -130,7 +130,16 @@ struct OmwMapbox: View {
             }
         }
         .mapStyle(Self.style())
+        .ornamentOptions(OrnamentOptions(scaleBar: ScaleBarViewOptions(visibility: .hidden)))
         .onMapTapGesture { context in onTap(context.coordinate) }
+        // all the way up behind the search bar (which only floats over it), fading into omw!'s warm top edge
+        .ignoresSafeArea(.container, edges: .top)
+        .overlay(alignment: .top) {
+            LinearGradient(colors: [Color.omwBG, Color.omwBG.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
+                .frame(height: 150)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+        }
         .onAppear { start() }
         .onChange(of: here?.latitude) { start() }
         .onChange(of: fly) {
