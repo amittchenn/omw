@@ -209,6 +209,21 @@ def place_info(name, lat, lng):
             "photos": [ph["name"] for ph in (p.get("photos") or [])[:6] if ph.get("name")]}
 
 
+def street_view(lat, lng, width=640, height=400):
+    """Google Street View of a spot (the picture when a place has no photos), or None when there's no imagery there.
+    Needs the Street View Static API turned on for the Google key."""
+    if not GOOGLE_KEY:
+        return None
+    where = {"location": f"{lat:.6f},{lng:.6f}", "radius": 60, "source": "outdoor", "key": GOOGLE_KEY}
+    meta = requests.get("https://maps.googleapis.com/maps/api/streetview/metadata", params=where, timeout=6).json()
+    if meta.get("status") != "OK":
+        return None
+    r = requests.get("https://maps.googleapis.com/maps/api/streetview",
+                     params={**where, "size": f"{width}x{height}", "fov": 80, "pitch": 5, "return_error_code": "true"}, timeout=8)
+    r.raise_for_status()
+    return r.content, r.headers.get("content-type", "image/jpeg")
+
+
 def place_photo(ref, width=800):
     """The picture itself (Google gives a short-lived link to it)."""
     r = requests.get(f"{GOOGLE}/{ref}/media", params={"maxWidthPx": width, "key": GOOGLE_KEY}, timeout=8)

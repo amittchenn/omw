@@ -454,8 +454,8 @@ struct PlaceCard: View {
     @State private var rating = false
     @State private var going: DirectionsTarget?
     @State private var info: PlaceInfo?
-    @State private var lookAround: MKLookAroundScene?
     @State private var loaded = false
+    @State private var street: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -507,10 +507,13 @@ struct PlaceCard: View {
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
-            loaded = false; info = nil; lookAround = nil  // a new place: start clean
+            loaded = false; info = nil; street = nil  // a new place: start clean
             info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
-            if info?.photos?.isEmpty != false, !usesMapbox {
-                lookAround = try? await MKLookAroundSceneRequest(coordinate: place.coordinate).scene  // Apple's street view instead
+            if info?.photos?.isEmpty != false {
+                // is there Street View here? (the server answers 404 if not; phones cache the picture for a day)
+                let url = "\(API.base.absoluteString)/street-view?lat=\(place.lat)&lng=\(place.lng)"
+                if let u = URL(string: url), let (_, r) = try? await URLSession.shared.data(from: u),
+                   (r as? HTTPURLResponse)?.statusCode == 200 { street = url }
             }
             loaded = true
         }
@@ -543,11 +546,12 @@ struct PlaceCard: View {
                         }
                     }
                     .scrollIndicators(.hidden)
-                } else if usesMapbox {
-                    // no photos: the spot itself, tilted in 3D in omw!'s colors (not Apple's street view)
-                    miniMap
-                } else if let lookAround {
-                    LookAroundPreview(initialScene: lookAround, allowsNavigation: false, badgePosition: .bottomTrailing)
+                } else if let street {
+                    // no photos: the real street outside it (Google Street View, like the photos, so it's always the
+                    // same kind of picture)
+                    RemoteImage(source: street)
+                } else if loaded && usesMapbox {
+                    miniMap  // nowhere to see it: the spot on omw!'s map
                 } else if loaded {
                     Map(initialPosition: .camera(MapCamera(centerCoordinate: place.coordinate, distance: 600, heading: 0, pitch: 45))) {
                         Marker(place.name, coordinate: place.coordinate).tint(.red)

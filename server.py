@@ -26,7 +26,7 @@ LatLng = Annotated[list[float], Field(min_length=2, max_length=2)]
 from avatar_ai import TooMany, make_avatar, ready as avatars_ready
 from calendar_feed import build_ics, hangouts_for_token
 from muse_features import fair_spot, plan_from_text
-from places import details, place_info, place_name, place_photo, search, search_places, suggest
+from places import details, place_info, place_name, place_photo, search, street_view, search_places, suggest
 from predictor import HISTORY, alert_buffer, learn_from, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
 import traffic
@@ -351,6 +351,20 @@ def place_photo_route(ref: Annotated[str, Query(max_length=400, pattern=r"^place
         data, kind = place_photo(ref, max(100, min(w, 1600)))
     except Exception:
         raise HTTPException(404, "No photo")
+    return Response(content=data, media_type=kind, headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/street-view")
+def street_view_route(lat: Annotated[float, Query(ge=-90, le=90)], lng: Annotated[float, Query(ge=-180, le=180)]):
+    """The street outside a spot (Google Street View), for place cards when the place has no photos. Like
+    /place-photo: through our server so the key stays here, not behind sign-in, cached by phones for a day."""
+    try:
+        got = street_view(round(lat, 5), round(lng, 5))
+    except Exception:
+        got = None
+    if not got:
+        raise HTTPException(404, "No street view here")
+    data, kind = got
     return Response(content=data, media_type=kind, headers={"Cache-Control": "public, max-age=86400"})
 
 

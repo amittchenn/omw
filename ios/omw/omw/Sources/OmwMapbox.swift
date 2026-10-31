@@ -45,7 +45,7 @@ struct OmwMiniMap: View {
     let coordinate: CLLocationCoordinate2D
 
     var body: some View {
-        MapboxMaps.Map(initialViewport: .camera(center: coordinate, zoom: 16.6, bearing: 25, pitch: 62)) {
+        MapboxMaps.Map(initialViewport: .camera(center: coordinate, zoom: 16.6, bearing: 0, pitch: 62)) {
             MapViewAnnotation(coordinate: coordinate) {
                 Image(systemName: "mappin.circle.fill")
                     .font(.system(size: 30)).foregroundStyle(.white, Color.coral)
@@ -151,10 +151,14 @@ struct OmwMapbox: View {
             }
         }
         .mapStyle(Self.style())
-        .ornamentOptions(OrnamentOptions(scaleBar: ScaleBarViewOptions(visibility: .hidden)))
+        // the map runs edge to edge, under the tab bar too, so Mapbox's logo and ⓘ (which have to stay visible) are
+        // lifted above the tab bar
+        .ornamentOptions(OrnamentOptions(scaleBar: ScaleBarViewOptions(visibility: .hidden),
+                                         logo: LogoViewOptions(margins: CGPoint(x: 10, y: 96)),
+                                         attributionButton: AttributionButtonOptions(margins: CGPoint(x: 10, y: 96))))
         .onMapTapGesture { context in onTap(context.coordinate) }
-        // all the way up behind the search bar (which only floats over it), fading into omw!'s warm top edge
-        .ignoresSafeArea(.container, edges: .top)
+        // all the way up behind the search bar and down behind the tab bar, fading into omw!'s warm top edge
+        .ignoresSafeArea()
         .overlay(alignment: .top) {
             LinearGradient(colors: [Color.omwBG, Color.omwBG.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
                 .frame(height: 150)
