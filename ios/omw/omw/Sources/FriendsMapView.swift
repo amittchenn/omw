@@ -19,6 +19,8 @@ struct FriendsMapView: View {
     @State private var place: MapPlace?
     @State private var showSaved = false
     @State private var showMe = false
+    @State private var flyTo: FlyTarget?           // where the Mapbox map should fly next
+    @State private var mapbox = MapboxSetup.shared
     @FocusState private var searching: Bool
     @Environment(LocationService.self) private var location
 
@@ -54,6 +56,94 @@ struct FriendsMapView: View {
 
     var body: some View {
         NavigationStack {
+            mapLayer
+            // in the map's safe area, so Apple's own buttons and labels move out of their way
+            .safeAreaInset(edge: .top) { searchBar }
+            // the friend bar floats over the map with room underneath, so Apple's "Maps · Legal" mark (which has to stay
+            // visible) sits tucked along the bottom edge instead of hovering above the bar
+            .overlay(alignment: .bottom) {
+                // a tapped place: our own card floating over the bottom of the map (always the same size and margins),
+                // in place of the friend bar. Swipe it down or tap ✕ to close.
+                if let p = place {
+                    PlaceCard(place: p) { withAnimation(.snappy(duration: 0.3)) { place = nil } }
+                        .id(p.id)
+                        .padding(.horizontal, 10).padding(.bottom, 8)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    friendBar.padding(.bottom, 24)
+                }
+            }
+            .animation(.snappy(duration: 0.3), value: place?.id)
+            .task(id: query) {
+                let q = query.trimmingCharacters(in: .whitespaces)
+                guard !q.isEmpty else { hits = []; return }
+                try? await Task.sleep(for: .milliseconds(200))
+                if Task.isCancelled { return }
+                let near = location.last?.coordinate ?? session.me?.home ?? CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+                hits = await API.suggestPlaces(q, near: (near.latitude, near.longitude))
+            }
+            .task { await mapbox.load() }
+            .onAppear {
+                location.apply()
+                // tilted, like Snap Map, once we know where you are
+                if let here = location.last?.coordinate {
+                    position = .camera(MapCamera(centerCoordinate: here, distance: 2200, heading: 0, pitch: 50))
+                }
+            }
+            .sheet(isPresented: $showSaved) {
+                SavedList { p in
+                    fly(to: p.coordinate)
+                    place = p
+                }
+                .withOmw()
+                .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $openPost) { post in
+                NavigationStack { PostDetailView(id: post.id).withProfileRoutes() }.withOmw()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showMe) {
+                NavigationStack { ProfileView(uid: session.uid ?? "").withProfileRoutes() }.withOmw()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(item: $selected) { f in
+                FriendCard(person: f).withOmw()
+                    .presentationDetents([.height(190)])
+                    .presentationDragIndicator(.visible)
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .omwBackground()
+        }
+    }
+}
+
+extension FriendsMapView {
+    /// the map itself: Mapbox in omw!'s colors once its token has arrived from the server (and the Mapbox package is
+    /// in the project), otherwise Apple Maps with omw!'s pins on top
+    @ViewBuilder var mapLayer: some View {
+        #if canImport(MapboxMaps)
+        if mapbox.token != nil {
+            OmwMapbox(fly: flyTo, heat: heat, live: live, photoSpots: photoSpots, saved: session.saved, place: place,
+                      next: session.upNext, me: session.me, here: location.last?.coordinate,
+                      onTap: { c in
+                          searching = false
+                          Task { if let p = await MapPlace.at(c) { place = p } }
+                      },
+                      onFriend: { selected = $0 }, onPhoto: { openPost = $0 },
+                      onSaved: { s in place = MapPlace(name: s.name, address: s.address, lat: s.lat, lng: s.lng) },
+                      onMe: { showMe = true })
+        } else {
+            appleMap
+        }
+        #else
+        appleMap
+        #endif
+    }
+
+    /// Apple Maps (the backup), with omw!'s pins, glow and plan flag on top
+    var appleMap: some View {
           MapReader { proxy in
             Map(position: $position) {
                 // a warm omw! glow where your friends hang out (their memories and your plans): yellow fading into coral
@@ -76,16 +166,7 @@ struct FriendsMapView: View {
                 }
                 // you, as your picture (like Snap Map's "Me")
                 UserAnnotation { _ in
-                    VStack(spacing: 3) {
-                        Avatar(session.me, size: 46)
-                            .overlay(Circle().strokeBorder(Color.sun, lineWidth: 3))
-                            .background(Pulse(color: .sun).frame(width: 46, height: 46))
-                            .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
-                        Text("Me").font(.caption.weight(.heavy))
-                            .padding(.horizontal, 8).padding(.vertical, 2)
-                            .background(Color.sun, in: Capsule()).foregroundStyle(.black)
-                    }
-                    .onTapGesture { showMe = true }  // you, like anyone else: your profile
+                    MePin(person: session.me).onTapGesture { showMe = true }  // you, like anyone else: your profile
                 }
                 ForEach(photoSpots) { spot in
                     Annotation(spot.post.venueName, coordinate: CLLocationCoordinate2D(latitude: spot.post.venue[0], longitude: spot.post.venue[1]), anchor: .bottom) {
@@ -132,67 +213,8 @@ struct FriendsMapView: View {
             }
           }
             .mapControls {
-                MapUserLocationButton()
-                MapCompass()
+                MapCompass()  // only shows up when the map's turned; our own "find me" sits under Saved
             }
-            // in the map's safe area, so Apple's own buttons and labels move out of their way
-            .safeAreaInset(edge: .top) { searchBar }
-            // the friend bar floats over the map with room underneath, so Apple's "Maps · Legal" mark (which has to stay
-            // visible) sits tucked along the bottom edge instead of hovering above the bar
-            .overlay(alignment: .bottom) {
-                // a tapped place: our own card floating over the bottom of the map (always the same size and margins),
-                // in place of the friend bar. Swipe it down or tap ✕ to close.
-                if let p = place {
-                    PlaceCard(place: p) { withAnimation(.snappy(duration: 0.3)) { place = nil } }
-                        .id(p.id)
-                        .padding(.horizontal, 10).padding(.bottom, 8)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    friendBar.padding(.bottom, 24)
-                }
-            }
-            .animation(.snappy(duration: 0.3), value: place?.id)
-            .task(id: query) {
-                let q = query.trimmingCharacters(in: .whitespaces)
-                guard !q.isEmpty else { hits = []; return }
-                try? await Task.sleep(for: .milliseconds(200))
-                if Task.isCancelled { return }
-                let near = location.last?.coordinate ?? session.me?.home ?? CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
-                hits = await API.suggestPlaces(q, near: (near.latitude, near.longitude))
-            }
-            .onAppear {
-                location.apply()
-                // tilted, like Snap Map, once we know where you are
-                if let here = location.last?.coordinate {
-                    position = .camera(MapCamera(centerCoordinate: here, distance: 2200, heading: 0, pitch: 50))
-                }
-            }
-            .sheet(isPresented: $showSaved) {
-                SavedList { p in
-                    fly(to: p.coordinate)
-                    place = p
-                }
-                .withOmw()
-                .presentationDetents([.medium, .large])
-            }
-            .sheet(item: $openPost) { post in
-                NavigationStack { PostDetailView(id: post.id).withProfileRoutes() }.withOmw()
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $showMe) {
-                NavigationStack { ProfileView(uid: session.uid ?? "").withProfileRoutes() }.withOmw()
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
-            .sheet(item: $selected) { f in
-                FriendCard(person: f).withOmw()
-                    .presentationDetents([.height(190)])
-                    .presentationDragIndicator(.visible)
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .omwBackground()
-        }
     }
 }
 
@@ -217,15 +239,17 @@ extension FriendsMapView {
                 .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
                 .frame(maxWidth: .infinity)
                 // your saved places (favourites), next to search like Google Maps' Saved
-                Button { showSaved = true } label: {
-                    Image(systemName: "bookmark.fill").font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.omwBlue)
-                        .frame(width: 46, height: 46)
-                        .background(.regularMaterial, in: Circle())
-                        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                roundButton("bookmark.fill", tint: .sun, label: "Saved places") { showSaved = true }
+            }
+            // find me: right under Saved, the same size and style, so the corner lines up
+            if hits.isEmpty || query.trimmingCharacters(in: .whitespaces).isEmpty {
+                HStack {
+                    Spacer()
+                    roundButton("location.fill", tint: .coral, label: "Show where I am") {
+                        if let here = location.last?.coordinate { fly(to: here) }
+                        else { withAnimation { position = .userLocation(followsHeading: false, fallback: .automatic) } }
+                    }
                 }
-                .buttonStyle(Pressable())
-                .accessibilityLabel("Saved places")
             }
 
             if !query.trimmingCharacters(in: .whitespaces).isEmpty && !hits.isEmpty && place == nil {
@@ -252,6 +276,19 @@ extension FriendsMapView {
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
+    }
+
+    /// a round map button: the same 46-point circle for Saved and Find me
+    private func roundButton(_ symbol: String, tint: Color, label: String, run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            Image(systemName: symbol).font(.system(size: 17, weight: .bold))
+                .foregroundStyle(tint)
+                .frame(width: 46, height: 46)
+                .background(.regularMaterial, in: Circle())
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
+        }
+        .buttonStyle(Pressable())
+        .accessibilityLabel(label)
     }
 
     func open(_ hit: PlaceHit) {
@@ -318,6 +355,7 @@ extension FriendsMapView {
     }
 
     func fly(to c: CLLocationCoordinate2D) {
+        flyTo = FlyTarget(coordinate: c)  // Mapbox
         withAnimation(.snappy(duration: 0.45)) {
             position = .camera(MapCamera(centerCoordinate: c, distance: 1400, heading: 0, pitch: 55))
         }
@@ -668,4 +706,28 @@ struct HangoutFlag: View {
         }
         .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
     }
+}
+
+/// you on the map: your picture in a yellow ring with a yellow ripple, and "Me"
+struct MePin: View {
+    let person: Person?
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Avatar(person, size: 46)
+                .overlay(Circle().strokeBorder(Color.sun, lineWidth: 3))
+                .background(Pulse(color: .sun).frame(width: 46, height: 46))
+                .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
+            Text("Me").font(.caption.weight(.heavy))
+                .padding(.horizontal, 8).padding(.vertical, 2)
+                .background(Color.sun, in: Capsule()).foregroundStyle(.black)
+        }
+    }
+}
+
+/// a place for the map to fly to (each one new, even to the same spot)
+struct FlyTarget: Equatable {
+    let coordinate: CLLocationCoordinate2D
+    let id = UUID()
+    static func == (a: FlyTarget, b: FlyTarget) -> Bool { a.id == b.id }
 }
