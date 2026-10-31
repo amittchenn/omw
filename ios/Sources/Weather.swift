@@ -82,11 +82,27 @@ struct Forecast: Equatable {
     }
 }
 
+/// Google's air quality for a spot and hour, through our server's /air (Universal AQI: 100 is the cleanest air)
+struct AirQuality: Decodable, Equatable {
+    let aqi: Int?
+    let category: String?
+    let color: String?
+
+    /// "Good air", "Moderate air"… from Google's category ("Good air quality" → "Good air")
+    var label: String { (category ?? "").replacingOccurrences(of: " air quality", with: " air").capitalized(with: nil) }
+    var poor: Bool { (aqi ?? 100) < 40 }
+    var tint: Color {
+        guard let hex = color, hex.count == 7, let v = Int(hex.dropFirst(), radix: 16) else { return .secondary }
+        return Color(red: Double((v >> 16) & 255) / 255, green: Double((v >> 8) & 255) / 255, blue: Double(v & 255) / 255)
+    }
+}
+
 /// the planner's weather panel
 struct WeatherPanel: View {
     let spot: CLLocationCoordinate2D?
     let when: Date
     @State private var forecast: Forecast?
+    @State private var air: AirQuality?
     @State private var tried = false
 
     var body: some View {
@@ -120,6 +136,14 @@ struct WeatherPanel: View {
                     Label("Rain's likely. Maybe somewhere indoors.", systemImage: "umbrella.fill")
                         .font(.footnote.weight(.semibold)).foregroundStyle(Color.omwBlue)
                 }
+                // the air there at that hour (Google), and a heads-up when it's poor
+                if let air, let aqi = air.aqi, !air.label.isEmpty {
+                    HStack(spacing: 6) {
+                        Circle().fill(air.tint).frame(width: 9, height: 9)
+                        Text("\(air.label) · AQI \(aqi)").font(.footnote.weight(.semibold))
+                        if air.poor { Text("Maybe somewhere indoors.").font(.footnote).foregroundStyle(.secondary) }
+                    }
+                }
             } else if tried {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(spot == nil ? "Pick a spot for the forecast" : "No forecast yet").font(.subheadline.weight(.semibold))
@@ -142,13 +166,15 @@ struct WeatherPanel: View {
         // keyed on the spot to about 1 km and the hour: your location moving a few meters (it updates all the time)
         // used to restart the request before it ever finished, so the weather never showed up
         .task(id: "\(String(format: "%.2f,%.2f", spot?.latitude ?? 0, spot?.longitude ?? 0)),\(Int(when.timeIntervalSince1970 / 3600))") {
+            air = nil
             guard let spot else { forecast = nil; tried = true; return }
             try? await Task.sleep(for: .milliseconds(250))  // the time wheel spins through hours: wait till it stops
             if Task.isCancelled { return }
-            let f = await Forecast.load(at: spot, for: when)
+            let got = await Forecast.load(at: spot, for: when)
             if Task.isCancelled { return }
-            forecast = f
+            forecast = got
             tried = true
+            air = try? await API.get("/air", ["lat": "\(spot.latitude)", "lng": "\(spot.longitude)", "time": When.string(when)], as: AirQuality.self)
         }
     }
 }

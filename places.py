@@ -6,6 +6,7 @@ Find places like Google Maps does, and name a clicked spot.
 If Google isn't set up (no key, or the Places API isn't turned on), it falls back to Mapbox + OpenStreetMap.
 """
 import math
+from datetime import datetime, timezone
 
 import requests
 
@@ -207,6 +208,48 @@ def place_info(name, lat, lng):
             "type": p.get("primaryTypeDisplayName", {}).get("text", ""), "phone": p.get("nationalPhoneNumber", ""),
             "website": p.get("websiteUri", ""), "maps": p.get("googleMapsUri", ""),
             "photos": [ph["name"] for ph in (p.get("photos") or [])[:6] if ph.get("name")]}
+
+
+def air_quality(lat, lng, when=None):
+    """Google's air quality at a spot, now or at an hour in the next 4 days: {aqi, category, color, pollutant}, or {}.
+    Needs the Air Quality API on the Google key."""
+    if not GOOGLE_KEY:
+        return {}
+    base = "https://airquality.googleapis.com/v1"
+    body = {"location": {"latitude": lat, "longitude": lng}, "universalAqi": True, "languageCode": "en"}
+    soon = when is None or abs((when - datetime.now(timezone.utc)).total_seconds()) < 2 * 3600
+    if soon:
+        r = requests.post(f"{base}/currentConditions:lookup", params={"key": GOOGLE_KEY}, json=body, timeout=6)
+        r.raise_for_status()
+        indexes = r.json().get("indexes") or []
+    else:
+        hour = when.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        r = requests.post(f"{base}/forecast:lookup", params={"key": GOOGLE_KEY},
+                          json={**body, "dateTime": hour.isoformat().replace("+00:00", "Z")}, timeout=6)
+        r.raise_for_status()
+        hours = r.json().get("hourlyForecasts") or []
+        indexes = (hours[0].get("indexes") if hours else None) or []
+    if not indexes:
+        return {}
+    i = indexes[0]
+    c = i.get("color") or {}
+    return {"aqi": i.get("aqi"), "category": i.get("category", ""), "pollutant": i.get("dominantPollutant", ""),
+            "color": "#%02X%02X%02X" % tuple(round(255 * c.get(k, 0)) for k in ("red", "green", "blue"))}
+
+
+def area_buzz(lat, lng, radius=450):
+    """How lively the area around a spot is (Google's Places Aggregate API): how many restaurants, cafés and bars
+    are open for business within a 5-minute walk. {count, radius} or {}."""
+    if not GOOGLE_KEY:
+        return {}
+    body = {"insights": ["INSIGHT_COUNT"],
+            "filter": {"locationFilter": {"circle": {"latLng": {"latitude": lat, "longitude": lng}, "radius": radius}},
+                       "typeFilter": {"includedTypes": ["restaurant", "cafe", "bar", "bakery", "coffee_shop"]},
+                       "operatingStatus": ["OPERATING_STATUS_OPERATIONAL"]}}
+    r = requests.post("https://areainsights.googleapis.com/v1:computeInsights", headers={"X-Goog-Api-Key": GOOGLE_KEY},
+                      json=body, timeout=6)
+    r.raise_for_status()
+    return {"count": int(r.json().get("count", 0)), "radius": radius}
 
 
 def street_view(lat, lng, width=640, height=400):

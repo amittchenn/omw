@@ -26,7 +26,7 @@ LatLng = Annotated[list[float], Field(min_length=2, max_length=2)]
 from avatar_ai import TooMany, make_avatar, ready as avatars_ready
 from calendar_feed import build_ics, hangouts_for_token
 from muse_features import fair_spot, plan_from_text
-from places import details, place_info, place_name, place_photo, search, street_view, search_places, suggest
+from places import air_quality, area_buzz, details, place_info, place_name, place_photo, search, street_view, search_places, suggest
 from predictor import HISTORY, alert_buffer, learn_from, predict_departure
 from schedule import clean_blocks, demo_busy, find_times, parse_schedule
 import traffic
@@ -352,6 +352,27 @@ def place_photo_route(ref: Annotated[str, Query(max_length=400, pattern=r"^place
     except Exception:
         raise HTTPException(404, "No photo")
     return Response(content=data, media_type=kind, headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/air")
+def air(lat: Annotated[float, Query(ge=-90, le=90)], lng: Annotated[float, Query(ge=-180, le=180)], time: Optional[str] = None):
+    """Air quality at a spot, now or at the plan's hour (the planner shows it next to the weather)."""
+    try:
+        when = datetime.fromisoformat(time.replace("Z", "+00:00")) if time else None
+        return air_quality(round(lat, 3), round(lng, 3), when)
+    except Exception as e:
+        print(f"[air] failed: {e}")
+        return {}
+
+
+@app.get("/buzz")
+def buzz(lat: Annotated[float, Query(ge=-90, le=90)], lng: Annotated[float, Query(ge=-180, le=180)]):
+    """How lively the area around a spot is: places to eat and drink within a 5-minute walk (place cards)."""
+    try:
+        return area_buzz(round(lat, 4), round(lng, 4))
+    except Exception as e:
+        print(f"[buzz] failed: {e}")
+        return {}
 
 
 @app.get("/street-view")

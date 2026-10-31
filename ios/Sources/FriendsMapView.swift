@@ -456,6 +456,7 @@ struct PlaceCard: View {
     @State private var info: PlaceInfo?
     @State private var loaded = false
     @State private var street: String?
+    @State private var buzz: Int?  // places to eat and drink within a 5-minute walk
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -465,6 +466,13 @@ struct PlaceCard: View {
                 facts
                 if !place.address.isEmpty {
                     Text(place.address).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+                // how lively it is around here (Google's count of places to eat and drink within a 5-minute walk)
+                if let buzz, buzz > 0 {
+                    Label(buzz >= 25 ? "Lively area · \(buzz) spots to eat & drink nearby" : buzz >= 8 ? "\(buzz) spots to eat & drink nearby" : "Quiet area",
+                          systemImage: buzz >= 25 ? "flame.fill" : "fork.knife")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(buzz >= 25 ? Color.coral : Color.secondary)
                 }
             }
             HStack(spacing: 10) {
@@ -507,7 +515,7 @@ struct PlaceCard: View {
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
-            loaded = false; info = nil; street = nil  // a new place: start clean
+            loaded = false; info = nil; street = nil; buzz = nil  // a new place: start clean
             info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
             if info?.photos?.isEmpty != false {
                 // is there Street View here? (the server answers 404 if not; phones cache the picture for a day)
@@ -516,6 +524,7 @@ struct PlaceCard: View {
                    (r as? HTTPURLResponse)?.statusCode == 200 { street = url }
             }
             loaded = true
+            buzz = (try? await API.get("/buzz", ["lat": "\(place.lat)", "lng": "\(place.lng)"], as: Buzz.self))?.count
         }
         .sheet(isPresented: $planning) {
             PlanSheet(start: place.hit).withOmw().presentationDetents([.large]).presentationDragIndicator(.visible)
@@ -616,6 +625,9 @@ struct PlaceCard: View {
         .accessibilityLabel(label)
     }
 }
+
+/// how many places to eat and drink are around a spot (/buzz)
+struct Buzz: Decodable { let count: Int? }
 
 struct PhotoSpot: Identifiable {
     let post: Post
