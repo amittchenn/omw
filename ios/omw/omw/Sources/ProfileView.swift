@@ -205,24 +205,24 @@ struct ProfileView: View {
             }
             .padding(.top, 40)
         } else {
-            // memories as rounded cards, two across, each with where it was (not Instagram's edge-to-edge grid)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
+            // memories as rounded cards, three across with gaps, each with where or when it was (not Instagram's
+            // edge-to-edge grid)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(posts) { post in
                     NavigationLink(value: PostRoute(id: post.id)) {
                         Color.omwCard2
-                            .aspectRatio(4 / 5, contentMode: .fit)
+                            .aspectRatio(3 / 4, contentMode: .fit)
                             .overlay { RemoteImage(source: post.allPhotos.first ?? "") }
+                            .clipped()
                             .overlay(alignment: .bottomLeading) {
-                                VStack(alignment: .leading, spacing: 0) {
-                                    Text(post.venueName.isEmpty ? post.title : post.venueName).font(.caption.weight(.heavy)).lineLimit(1)
-                                    Text(post.at.formatted(.dateTime.month(.abbreviated).day())).font(.caption2.weight(.semibold)).opacity(0.85)
-                                }
-                                .foregroundStyle(.white)
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom))
+                                // one small tag: the place, or the date if there isn't one
+                                Text(post.venueName.isEmpty ? post.at.formatted(.dateTime.month(.abbreviated).day()) : post.venueName)
+                                    .font(.caption2.weight(.heavy)).lineLimit(1)
+                                    .padding(.horizontal, 7).padding(.vertical, 3)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .padding(6)
                             }
-                            .clipShape(.rect(cornerRadius: 16))
+                            .clipShape(.rect(cornerRadius: 14))
                             .contentShape(Rectangle())
                             .overlay(alignment: .topTrailing) {
                                 if post.allPhotos.count > 1 {
@@ -266,15 +266,20 @@ struct SettingsView: View {
                 }
                 Section("Privacy") {
                     // the switch asks first, like Instagram ("Switch to private account?")
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle(isOn: Binding(get: { !session.isPublic }, set: { privacyAsk = $0 })) {
-                            Label("Private account", systemImage: "lock")
+                    // the explanation sits right under the title, lined up with it (not under the icon)
+                    Toggle(isOn: Binding(get: { !session.isPublic }, set: { privacyAsk = $0 })) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Private account")
+                                Text(session.isPublic ? "People can find you by name and in Quick Add."
+                                                      : "People can only find you by your exact @username.")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "lock")
                         }
-                        .tint(.green)
-                        Text(session.isPublic ? "People can find you by name and in Quick Add."
-                                              : "People can only find you by your exact @username.")
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
+                    .tint(.green)
                     // where you are: chosen in the iPhone's Settings, like any Apple app
                     Button {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
