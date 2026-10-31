@@ -60,6 +60,64 @@ struct OmwMiniMap: View {
     }
 }
 
+/// directions on omw!'s map: the route as a thick coral line (with a light edge so it reads on any street), the
+/// spot's pin, and you as the blue dot. Before you start it shows the whole way; once you start, it follows you,
+/// turned the way you're facing.
+struct OmwRouteMap: View {
+    let line: [CLLocationCoordinate2D]
+    let target: CLLocationCoordinate2D
+    let name: String
+    let following: Bool
+    @State private var viewport: Viewport = .followPuck(zoom: 15)
+
+    private struct Track: Identifiable {
+        let id: String
+        let points: [CLLocationCoordinate2D]
+    }
+
+    var body: some View {
+        MapboxMaps.Map(viewport: $viewport) {
+            Puck2D(bearing: .heading)
+            if line.count > 1 {
+                PolylineAnnotationGroup([Track(id: "edge", points: line)]) { p in
+                    PolylineAnnotation(lineCoordinates: p.points)
+                        .lineColor(StyleColor(UIColor.white))
+                        .lineWidth(11)
+                        .lineOpacity(0.9)
+                }
+                PolylineAnnotationGroup([Track(id: "route", points: line)]) { p in
+                    PolylineAnnotation(lineCoordinates: p.points)
+                        .lineColor(StyleColor(UIColor(Color.coral)))
+                        .lineWidth(7)
+                }
+            }
+            MapViewAnnotation(coordinate: target) {
+                Image(systemName: "mappin.circle.fill")
+                    .font(.system(size: 34)).foregroundStyle(.white, Color.coral)
+                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+            }
+            .allowOverlap(true)
+            .variableAnchors([ViewAnnotationAnchorConfig(anchor: .bottom)])
+        }
+        .mapStyle(OmwMapbox.style())
+        .ornamentOptions(OrnamentOptions(scaleBar: ScaleBarViewOptions(visibility: .hidden)))
+        .onAppear { frame() }
+        .onChange(of: line.count) { frame() }
+        .onChange(of: following) { frame() }
+    }
+
+    /// the whole route with room for the cards over the map, or following you once you've started
+    private func frame() {
+        withViewportAnimation(.default(maxDuration: 0.8)) {
+            if following {
+                viewport = .followPuck(zoom: 17, bearing: .heading, pitch: 55)
+            } else if line.count > 1 {
+                viewport = .overview(geometry: LineString(line), geometryPadding: EdgeInsets(top: 150, leading: 40, bottom: 260, trailing: 40))
+            }
+        }
+    }
+}
+
 struct OmwMapbox: View {
     let fly: FlyTarget?
     let heat: [HeatSpot]
@@ -154,8 +212,8 @@ struct OmwMapbox: View {
         // the map runs edge to edge, under the tab bar too, so Mapbox's logo and ⓘ (which have to stay visible) are
         // lifted above the tab bar
         .ornamentOptions(OrnamentOptions(scaleBar: ScaleBarViewOptions(visibility: .hidden),
-                                         logo: LogoViewOptions(margins: CGPoint(x: 12, y: 78)),
-                                         attributionButton: AttributionButtonOptions(margins: CGPoint(x: 12, y: 78))))
+                                         logo: LogoViewOptions(margins: CGPoint(x: 12, y: 6)),
+                                         attributionButton: AttributionButtonOptions(margins: CGPoint(x: 12, y: 6))))
         .onMapTapGesture { context in onTap(context.coordinate) }
         // all the way up behind the search bar and down behind the tab bar, fading into omw!'s warm top edge
         .ignoresSafeArea()

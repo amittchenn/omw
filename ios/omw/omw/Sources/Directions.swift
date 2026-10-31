@@ -36,22 +36,53 @@ struct DirectionsView: View {
                                 Way(id: "cycling", symbol: "bicycle"), Way(id: "transit", symbol: "tram.fill")]
 
     var body: some View {
-        Map(position: $position) {
-            UserAnnotation()
-            if let route {
-                MapPolyline(route.polyline).stroke(Color.omwBlue, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+        // the map fills the screen; the top card and the bottom panel float over it with even margins
+        ZStack {
+            mapLayer.ignoresSafeArea()
+            VStack(spacing: 0) {
+                if going { nextTurn } else { header }
+                Spacer(minLength: 0)
+                footer
             }
-            Marker(target.name, systemImage: "mappin", coordinate: target.coordinate).tint(.red)
+            .frame(maxWidth: .infinity)
         }
-        .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .excludingAll))
-        .mapControls { MapCompass(); MapUserLocationButton() }
-        .safeAreaInset(edge: .top) { if going { nextTurn } else { header } }
-        .safeAreaInset(edge: .bottom) { footer }
         .task(id: mode) { await load() }
         .onAppear { mode = target.mode }
         .onChange(of: location.last?.coordinate.latitude) { follow() }
         .sheet(isPresented: $showSteps) { stepList.presentationDetents([.medium, .large]) }
         .sensoryFeedback(.impact, trigger: step)
+    }
+
+    /// the route's points, for the Mapbox map
+    private var line: [CLLocationCoordinate2D] {
+        guard let p = route?.polyline, p.pointCount > 1 else { return [] }
+        let pts = p.points()
+        return (0..<p.pointCount).map { pts[$0].coordinate }
+    }
+
+    /// omw!'s Mapbox map when it's set up (the same warm map as the Map tab), else Apple Maps
+    @ViewBuilder private var mapLayer: some View {
+        #if canImport(MapboxMaps)
+        if MapboxSetup.shared.token != nil {
+            OmwRouteMap(line: line, target: target.coordinate, name: target.name, following: going)
+        } else {
+            appleMap
+        }
+        #else
+        appleMap
+        #endif
+    }
+
+    private var appleMap: some View {
+        Map(position: $position) {
+            UserAnnotation()
+            if let route {
+                MapPolyline(route.polyline).stroke(Color.coral, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+            }
+            Marker(target.name, systemImage: "mappin", coordinate: target.coordinate).tint(Color.coral)
+        }
+        .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .excludingAll))
+        .mapControls { MapCompass() }
     }
 
     // ---------- top ----------

@@ -64,18 +64,22 @@ enum ImageLoader {
 struct RemoteImage: View {
     let source: String
     @State private var image: UIImage?
+    @State private var loading = false
 
     var body: some View {
         Color.clear
             .overlay {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFill().transition(.opacity)
+                } else if loading {
+                    Color.clear.shimmer()  // on its way: a soft shimmer, not an empty box
                 }
             }
             .clipped()
             .task(id: source.count ^ source.hashValue) {
+                loading = true
                 let loaded = await ImageLoader.load(source)
-                withAnimation(.easeOut(duration: 0.15)) { image = loaded }
+                withAnimation(.easeOut(duration: 0.15)) { image = loaded; loading = false }
             }
     }
 }

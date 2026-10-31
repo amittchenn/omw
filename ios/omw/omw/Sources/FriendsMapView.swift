@@ -457,6 +457,7 @@ struct PlaceCard: View {
     @State private var info: PlaceInfo?
     @State private var loaded = false
     @State private var street: String?
+    @State private var photoRefs: [String]?   // Google's photos, once the first one has really loaded
     @State private var streetImage: UIImage?  // Apple's street view as a plain picture, when Google has none
     @State private var buzz: Int?  // places to eat and drink within a 5-minute walk
 
@@ -517,15 +518,20 @@ struct PlaceCard: View {
         .sensoryFeedback(.selection, trigger: session.saved.count)
         .fullScreenCover(item: $going) { DirectionsView(target: $0).withOmw() }
         .task(id: place.id) {
-            loaded = false; info = nil; street = nil; streetImage = nil; buzz = nil  // a new place: start clean
+            loaded = false; info = nil; street = nil; streetImage = nil; photoRefs = nil; buzz = nil  // a new place: start clean
             info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
-            if info?.photos?.isEmpty != false {
+            // Google's photos only if the first one actually comes through (else the street view, below)
+            if let refs = info?.photos, let first = refs.first,
+               await ImageLoader.load("\(API.base.absoluteString)/place-photo?ref=\(first)&w=600") != nil {
+                photoRefs = refs
+            }
+            if photoRefs == nil {
                 // is there Street View here? (the server answers 404 if not; phones cache the picture for a day)
                 let url = "\(API.base.absoluteString)/street-view?lat=\(place.lat)&lng=\(place.lng)"
                 if let u = URL(string: url), let (_, r) = try? await URLSession.shared.data(from: u),
                    (r as? HTTPURLResponse)?.statusCode == 200 { street = url }
             }
-            if info?.photos?.isEmpty != false, street == nil,
+            if photoRefs == nil, street == nil,
                let scene = try? await MKLookAroundSceneRequest(coordinate: place.coordinate).scene {
                 let options = MKLookAroundSnapshotter.Options()
                 options.size = CGSize(width: 640, height: 280)
@@ -552,7 +558,7 @@ struct PlaceCard: View {
             .frame(maxWidth: .infinity)
             .frame(height: 140)
             .overlay {
-                if let refs = info?.photos, !refs.isEmpty {
+                if let refs = photoRefs, !refs.isEmpty {
                     ScrollView(.horizontal) {
                         HStack(spacing: 6) {
                             ForEach(refs, id: \.self) { ref in
