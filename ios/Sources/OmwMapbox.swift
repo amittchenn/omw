@@ -39,6 +39,27 @@ final class MapboxSetup {
 }
 
 #if canImport(MapboxMaps)
+/// a place's spot on its own: a small, tilted 3D look at it in omw!'s colors, with a coral pin (the place card's
+/// picture when there are no photos)
+struct OmwMiniMap: View {
+    let coordinate: CLLocationCoordinate2D
+
+    var body: some View {
+        MapboxMaps.Map(initialViewport: .camera(center: coordinate, zoom: 16.6, bearing: 25, pitch: 62)) {
+            MapViewAnnotation(coordinate: coordinate) {
+                Image(systemName: "mappin.circle.fill")
+                    .font(.system(size: 30)).foregroundStyle(.white, Color.coral)
+                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+            }
+            .allowOverlap(true)
+            .variableAnchors([ViewAnnotationAnchorConfig(anchor: .bottom)])
+        }
+        .mapStyle(OmwMapbox.style())
+        .ornamentOptions(OrnamentOptions(scaleBar: ScaleBarViewOptions(visibility: .hidden)))
+        .allowsHitTesting(false)
+    }
+}
+
 struct OmwMapbox: View {
     let fly: FlyTarget?
     let heat: [HeatSpot]

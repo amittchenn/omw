@@ -509,7 +509,7 @@ struct PlaceCard: View {
         .task(id: place.id) {
             loaded = false; info = nil; lookAround = nil  // a new place: start clean
             info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
-            if info?.photos?.isEmpty != false {
+            if info?.photos?.isEmpty != false, !usesMapbox {
                 lookAround = try? await MKLookAroundSceneRequest(coordinate: place.coordinate).scene  // Apple's street view instead
             }
             loaded = true
@@ -543,6 +543,9 @@ struct PlaceCard: View {
                         }
                     }
                     .scrollIndicators(.hidden)
+                } else if usesMapbox {
+                    // no photos: the spot itself, tilted in 3D in omw!'s colors (not Apple's street view)
+                    miniMap
                 } else if let lookAround {
                     LookAroundPreview(initialScene: lookAround, allowsNavigation: false, badgePosition: .bottomTrailing)
                 } else if loaded {
@@ -555,6 +558,23 @@ struct PlaceCard: View {
                 }
             }
             .clipShape(.rect(cornerRadius: 14))
+    }
+
+    /// the map tab is on Mapbox (so the card should be too)
+    private var usesMapbox: Bool {
+        #if canImport(MapboxMaps)
+        MapboxSetup.shared.token != nil
+        #else
+        false
+        #endif
+    }
+
+    @ViewBuilder private var miniMap: some View {
+        #if canImport(MapboxMaps)
+        OmwMiniMap(coordinate: place.coordinate)
+        #else
+        EmptyView()
+        #endif
     }
 
     /// ★ 4.5 (1,203) · $$ · Café · Open now
