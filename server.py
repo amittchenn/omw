@@ -334,10 +334,12 @@ def places_details(id: str, session: Optional[str] = None):
 
 
 @app.get("/places/info")
-def places_info(name: Annotated[str, Query(max_length=120)], lat: float, lng: float):
-    """A place's card: photos, rating, price, open now (the iPhone app's place card, like Google Maps')."""
+def places_info(name: Annotated[str, Query(max_length=120)], lat: float, lng: float,
+                id: Annotated[Optional[str], Query(max_length=200, pattern=r"^[A-Za-z0-9_-]+$")] = None):
+    """A place's card: photos, rating, price, open now (the iPhone app's place card, like Google Maps'). With Google's
+    id when the app has it (taps on the map go through /place-name)."""
     try:
-        return place_info(name, lat, lng)
+        return place_info(name, lat, lng, id)
     except Exception as e:
         print(f"[places] info failed: {e}")
         return {}

@@ -63,12 +63,12 @@ def place_name(lat, lng):
             data = _google("places:searchNearby", {
                 "locationRestriction": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": 60.0}},
                 "maxResultCount": 5, "rankPreference": "DISTANCE"},
-                "places.displayName,places.formattedAddress,places.location,places.types")
+                "places.id,places.displayName,places.formattedAddress,places.location,places.types")
             for p in data.get("places", []):
                 where = (p["location"]["latitude"], p["location"]["longitude"])
                 if _meters((lat, lng), where) <= 60 and p.get("displayName", {}).get("text"):
                     return {"name": p["displayName"]["text"], "address": p.get("formattedAddress", ""), "lat": where[0], "lng": where[1],
-                            "kind": "place"}
+                            "kind": "place", "id": p.get("id", "")}
         except Exception as e:
             print(f"[places] Google nearby failed: {e}")
         try:  # no place: the street address
@@ -185,23 +185,43 @@ def search(q, lat, lng, here=None):
     return _fallback(q, lat, lng, here)
 
 
-def place_info(name, lat, lng):
-    """A place's card, like Google Maps': up to 10 photos (all Google gives), rating, reviews, price, open now, type, phone and website.
-    Found by name near the spot (taps on the map and Apple's search don't carry Google's id). Photos are given as
-    names for /places/photo, so the Google key never leaves the server."""
-    if not GOOGLE_KEY or not name.strip():
+def _same_name(a, b):
+    """Is this the place that was asked for? ("Tin Drum" and "Tin Drum Asian Kitchen" yes; an office and the theater
+    next door no)"""
+    norm = lambda s: [w for w in "".join(ch.lower() if ch.isalnum() else " " for ch in s).split() if w not in ("the", "a", "of", "and", "sf")]
+    x, y = norm(a), norm(b)
+    if not x or not y:
+        return False
+    joined_x, joined_y = " ".join(x), " ".join(y)
+    if joined_x in joined_y or joined_y in joined_x:
+        return True
+    return len(set(x) & set(y)) / min(len(set(x)), len(set(y))) >= 0.6
+
+
+def place_info(name, lat, lng, place_id=None):
+    """A place's card, like Google Maps': up to 10 photos (all Google gives), rating, reviews, price, open now, type,
+    phone and website. By Google's id when the tap came from Google (/place-name), else found by name near the spot,
+    and only if it's really that place (same name, within 150 m), so a card never shows the theater next door's photos.
+    Photos are given as names for /places/photo, so the Google key never leaves the server."""
+    if not GOOGLE_KEY or not (name.strip() or place_id):
         return {}
-    fields = ",".join("places." + f for f in ["id", "displayName", "location", "rating", "userRatingCount", "priceLevel",
-                                              "currentOpeningHours.openNow", "primaryTypeDisplayName", "photos",
-                                              "nationalPhoneNumber", "websiteUri", "googleMapsUri"])
-    data = _google("places:searchText", {"textQuery": name[:100], "pageSize": 1,
-                                          "locationBias": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": 300}}}, fields)
-    found = data.get("places") or []
-    if not found:
-        return {}
-    p = found[0]
-    loc = p.get("location") or {}
-    if _meters((lat, lng), (loc.get("latitude", lat), loc.get("longitude", lng))) > 600:  # not the place you tapped
+    wanted = ["id", "displayName", "location", "rating", "userRatingCount", "priceLevel", "currentOpeningHours.openNow",
+              "primaryTypeDisplayName", "photos", "nationalPhoneNumber", "websiteUri", "googleMapsUri"]
+    if place_id:
+        p = _google(f"places/{place_id}", None, ",".join(wanted)) or {}
+    else:
+        data = _google("places:searchText", {"textQuery": name[:100], "pageSize": 1,
+                                              "locationBias": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": 150}}},
+                       ",".join("places." + f for f in wanted))
+        found = data.get("places") or []
+        if not found:
+            return {}
+        p = found[0]
+        loc = p.get("location") or {}
+        if _meters((lat, lng), (loc.get("latitude", lat), loc.get("longitude", lng))) > 150 \
+                or not _same_name(name, p.get("displayName", {}).get("text", "")):
+            return {}  # not the place you tapped
+    if not p:
         return {}
     return {"name": p.get("displayName", {}).get("text", name), "rating": p.get("rating"), "reviews": p.get("userRatingCount"),
             "price": PRICE.get(p.get("priceLevel"), ""), "open": p.get("currentOpeningHours", {}).get("openNow"),

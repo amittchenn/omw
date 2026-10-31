@@ -376,6 +376,16 @@ struct HeatSpot: Identifiable {
 extension MapPlace {
     /// what's at a spot you tapped: the nearest place within ~60 m, else the street address
     static func at(_ c: CLLocationCoordinate2D) async -> MapPlace? {
+        // Google first (through our server): the place right there, by its real name, with its id, so the name, the
+        // photos and the rating on the card are all the same place
+        struct Here: Decodable { let name: String?; let address: String?; let lat: Double?; let lng: Double?; let kind: String?; let id: String? }
+        if let g = try? await API.get("/place-name", ["lat": "\(c.latitude)", "lng": "\(c.longitude)"], as: Here.self),
+           g.kind == "place", let name = g.name, !name.isEmpty {
+            let short = (g.address ?? "").split(separator: ",").prefix(2).map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: ", ")
+            return MapPlace(name: name, address: short, lat: g.lat ?? c.latitude, lng: g.lng ?? c.longitude,
+                            googleId: (g.id?.isEmpty == false) ? g.id : nil)
+        }
+        // nothing named there on Google: Apple's points of interest, then the street address
         let request = MKLocalPointsOfInterestRequest(center: c, radius: 60)
         if let items = try? await MKLocalSearch(request: request).start().mapItems, !items.isEmpty {
             let here = CLLocation(latitude: c.latitude, longitude: c.longitude)
@@ -433,6 +443,7 @@ struct MapPlace: Identifiable, Equatable {
     var address: String
     var lat: Double
     var lng: Double
+    var googleId: String? = nil  // Google's id for it, so the card's photos and rating are that exact place
     var id: String { String(format: "%.5f,%.5f", lat, lng) }
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lng) }
     var hit: PlaceHit { PlaceHit(kind: "place", id: nil, name: name, address: address, lat: lat, lng: lng) }
@@ -526,7 +537,9 @@ struct PlaceCard: View {
         }
         .task(id: place.id) {
             loaded = false; info = nil; street = nil; streetImage = nil; photoRefs = nil; buzz = nil  // a new place: start clean
-            info = try? await API.get("/places/info", ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"], as: PlaceInfo.self)
+            var ask = ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"]
+            if let id = place.googleId { ask["id"] = id }
+            info = try? await API.get("/places/info", ask, as: PlaceInfo.self)
             // Google's photos only if the first one actually comes through (else the street view, below)
             if let refs = info?.photos, let first = refs.first,
                await ImageLoader.load("\(API.base.absoluteString)/place-photo?ref=\(first)&w=600") != nil {
