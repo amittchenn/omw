@@ -60,6 +60,7 @@ struct AlbumPicker: View {
                 }
             }
             .navigationTitle("New post")
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -87,7 +88,7 @@ struct AlbumPicker: View {
     private var library: some View {
         VStack(spacing: 0) {
             // the one you're looking at, big
-            Color(.secondarySystemBackground)
+            Color.omwCard
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
                     if let focus = focus ?? album.assets.first {
@@ -109,7 +110,7 @@ struct AlbumPicker: View {
                 LazyVGrid(columns: columns, spacing: 1.5) {
                     ForEach(album.assets, id: \.localIdentifier) { asset in
                         Button { tap(asset) } label: {
-                            Color(.secondarySystemFill)
+                            Color.omwCard2
                                 .aspectRatio(1, contentMode: .fit)
                                 .overlay { AssetImage(asset: asset, manager: album.images, size: 300) }
                                 .clipped()

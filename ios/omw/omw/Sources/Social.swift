@@ -108,7 +108,7 @@ struct UpNextCard: View {
                     HStack(spacing: -8) {
                         ForEach(others.prefix(5), id: \.self) { u in
                             Avatar(session.person(u), fallback: hangout.names[u] ?? "", size: 26)
-                                .overlay(Circle().stroke(Color(.secondarySystemBackground), lineWidth: 2))
+                                .overlay(Circle().stroke(Color.omwCard, lineWidth: 2))
                         }
                     }
                     Text(others.isEmpty ? "Just you so far" : others.prefix(2).map { session.person($0)?.firstName ?? hangout.names[$0] ?? "Friend" }
@@ -131,7 +131,7 @@ struct UpNextCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.trailing, 64)  // room under Ticki
             .padding(16)
-            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+            .background(Color.omwCard, in: .rect(cornerRadius: 20))
             .contentShape(.rect)
           }
           .buttonStyle(.plain)
@@ -203,7 +203,7 @@ struct BoardCard: View {
                         HStack(spacing: 10) {
                             Text("\(i + 1)").font(.subheadline.weight(.heavy))
                                 .frame(width: 24, height: 24)
-                                .background(i == 0 ? Color.sun : Color(.tertiarySystemFill), in: Circle())
+                                .background(i == 0 ? Color.sun : Color.omwCard2, in: Circle())
                                 .foregroundStyle(.black)
                             Avatar(session.person(s.id), fallback: s.name, size: 30)
                             Text(s.id == session.uid ? "You" : session.person(s.id)?.firstName ?? s.name).font(.subheadline.weight(.semibold))
@@ -214,7 +214,7 @@ struct BoardCard: View {
                     }
                 }
                 .padding(16)
-                .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+                .background(Color.omwCard, in: .rect(cornerRadius: 20))
             }
             .buttonStyle(.plain)
         }
@@ -261,6 +261,7 @@ struct BoardView: View {
             }
         }
         .navigationTitle("On-time board")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -327,6 +328,7 @@ struct FriendsListView: View {
             }
         }
         .navigationTitle("Friends")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
         .task(id: uid) {
             guard !mine else { return }

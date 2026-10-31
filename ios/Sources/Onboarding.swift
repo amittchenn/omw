@@ -49,6 +49,7 @@ struct TickiTour: View {
             .buttonStyle(Pressable())
             .padding(.horizontal, 20).padding(.bottom, 12)
         }
+        .background(Color.omwBG.ignoresSafeArea())
         .sensoryFeedback(.selection, trigger: page)
     }
 }

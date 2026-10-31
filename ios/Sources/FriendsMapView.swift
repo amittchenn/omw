@@ -170,6 +170,7 @@ struct FriendsMapView: View {
                     .presentationDragIndicator(.visible)
             }
             .toolbar(.hidden, for: .navigationBar)
+            .omwBackground()
         }
     }
 }
@@ -357,6 +358,7 @@ struct SavedList: View {
             }
             .overlay { if session.saved.isEmpty { ContentUnavailableView("Nothing saved yet", systemImage: "bookmark", description: Text("Tap a place on the map, then Save.")) } }
             .navigationTitle("Saved")
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -410,7 +412,7 @@ struct PlaceCard: View {
                 Button { planning = true } label: {
                     Label("Plan here", systemImage: "calendar.badge.plus").font(.headline).frame(maxWidth: .infinity, minHeight: 46)
                 }
-                .buttonStyle(.borderedProminent).tint(Color.primary).foregroundStyle(Color(.systemBackground))
+                .buttonStyle(.borderedProminent).tint(Color.sun).foregroundStyle(.black)
                 action(session.isSaved(lat: place.lat, lng: place.lng) ? "bookmark.fill" : "bookmark", "Save") {
                     session.toggleSaved(name: place.name, address: place.address, lat: place.lat, lng: place.lng)
                 }
@@ -424,7 +426,7 @@ struct PlaceCard: View {
         // every place card the same: as wide as the screen allows, just as tall as it needs, solid (not glass over a
         // busy map), with a ✕ and a swipe down to close
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Color(.systemBackground), in: .rect(cornerRadius: 26))
+        .background(Color.omwBG, in: .rect(cornerRadius: 26))
         .overlay(alignment: .topTrailing) {
             Button(action: close) {
                 Image(systemName: "xmark").font(.footnote.weight(.bold))
@@ -467,7 +469,7 @@ struct PlaceCard: View {
     /// street, or a little map of the spot. Whatever's inside sits in an overlay of a fixed box, so it can never push
     /// the card wider or taller.
     private var photos: some View {
-        Color(.secondarySystemFill)
+        Color.omwCard2
             .frame(maxWidth: .infinity)
             .frame(height: 140)
             .overlay {
@@ -524,7 +526,7 @@ struct PlaceCard: View {
         Button(action: run) {
             Image(systemName: symbol).font(.system(size: 18, weight: .semibold))
                 .frame(width: 46, height: 46)
-                .background(Color(.secondarySystemFill), in: Circle())
+                .background(Color.omwCard2, in: Circle())
         }
         .buttonStyle(Pressable())
         .foregroundStyle(.primary)

@@ -252,6 +252,7 @@ struct ChatsView: View {
         .listStyle(.plain)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
         .navigationTitle("Chats")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -368,6 +369,7 @@ struct NewChatSheet: View {
             .listStyle(.plain)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
             .navigationTitle(picked.count > 1 ? "New group" : "New message")
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -555,7 +557,7 @@ struct ConversationView: View {
                     Text(m.text)
                         .padding(.horizontal, 13).padding(.vertical, 8)
                         .foregroundStyle(mine ? Color.white : Color.primary)
-                        .background(mine ? Color.omwBlue : Color(.secondarySystemBackground), in: .rect(cornerRadius: 19))
+                        .background(mine ? Color.omwBlue : Color.omwCard, in: .rect(cornerRadius: 19))
                         .textSelection(.enabled)
                 }
                 if !mine { Spacer(minLength: 60) }
@@ -570,7 +572,7 @@ struct ConversationView: View {
                 .lineLimit(1...5)
                 .focused($typing)
                 .padding(.horizontal, 14).padding(.vertical, 9)
-                .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+                .background(Color.omwCard, in: .rect(cornerRadius: 20))
             if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button(action: send) {
                     Image(systemName: "arrow.up.circle.fill").font(.system(size: 34)).foregroundStyle(Color.omwBlue)
@@ -644,6 +646,7 @@ struct GroupInfoView: View {
                 }
             }
             .navigationTitle("Group info")
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { name = c.title }
             .confirmationDialog("Leave \(session.chatTitle(c))?", isPresented: $leaving, titleVisibility: .visible) {

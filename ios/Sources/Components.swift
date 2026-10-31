@@ -3,6 +3,15 @@ import SwiftUI
 import UIKit
 
 extension Color {
+    // omw!'s own palette, warm instead of Instagram's black, white and grey: cream by day, deep plum-ink by night,
+    // cards a step lighter, omw! yellow for the main buttons and Ticki's coral for highlights
+    static let omwBG = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.075, green: 0.067, blue: 0.105, alpha: 1)
+                                                                       : UIColor(red: 1.0, green: 0.97, blue: 0.925, alpha: 1) })
+    static let omwCard = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.133, green: 0.118, blue: 0.173, alpha: 1)
+                                                                         : UIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1) })
+    static let omwCard2 = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.18, green: 0.16, blue: 0.23, alpha: 1)
+                                                                          : UIColor(red: 0.98, green: 0.93, blue: 0.86, alpha: 1) })
+    static let coral = Color(red: 0.95, green: 0.41, blue: 0.29)   // Ticki
     static let sun = Color(red: 1, green: 0.902, blue: 0)          // omw! yellow, #FFE600
     static let omwBlue = Color(red: 0.118, green: 0.533, blue: 1)  // #1E88FF
     static let freeGreen = Color(red: 0.2, green: 0.78, blue: 0.47)
@@ -80,7 +89,7 @@ struct Avatar: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(photo.isEmpty ? Color.sun.opacity(0.35) : Color(.secondarySystemFill))
+            Circle().fill(photo.isEmpty ? Color.sun.opacity(0.35) : Color.omwCard2)
             if photo.isEmpty {
                 // no picture: their first letter (never drawn under a picture, so it can't show through)
                 Text(String(name.prefix(1)).uppercased())
@@ -113,10 +122,10 @@ struct PlaceholderRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Circle().fill(Color(.secondarySystemFill)).frame(width: size, height: size)
+            Circle().fill(Color.omwCard2).frame(width: size, height: size)
             VStack(alignment: .leading, spacing: 7) {
-                Capsule().fill(Color(.secondarySystemFill)).frame(width: 120, height: 11)
-                Capsule().fill(Color(.tertiarySystemFill)).frame(width: 76, height: 9)
+                Capsule().fill(Color.omwCard2).frame(width: 120, height: 11)
+                Capsule().fill(Color.omwCard2).frame(width: 76, height: 9)
             }
             Spacer(minLength: 0)
         }
@@ -153,7 +162,7 @@ extension View {
     func softField() -> some View {
         padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .background(Color(.secondarySystemFill), in: .rect(cornerRadius: 16))
+            .background(Color.omwCard2, in: .rect(cornerRadius: 16))
     }
 }
 
@@ -161,6 +170,14 @@ extension View {
 struct ProfileRoute: Hashable { let uid: String }
 struct PostRoute: Hashable { let id: String }
 struct PlanRoute: Hashable { let id: String }
+
+// ---------- the warm background on every screen ----------
+extension View {
+    /// a screen's background: omw!'s cream / plum-ink instead of plain white / black (lists and forms too)
+    func omwBackground() -> some View {
+        scrollContentBackground(.hidden).background(Color.omwBG.ignoresSafeArea())
+    }
+}
 
 // ---------- tap anyone to see their profile ----------
 extension EnvironmentValues {

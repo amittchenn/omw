@@ -80,6 +80,7 @@ struct ComposeView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("New post")
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(sharing) }
@@ -163,6 +164,7 @@ struct PlacePicker: View {
             hits = await API.suggestPlaces(text, near: (here?.latitude ?? 37.7749, here?.longitude ?? -122.4194))
         }
         .navigationTitle("Add location")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -211,6 +213,7 @@ struct TagPicker: View {
         .overlay { if session.friends.isEmpty { ContentUnavailableView("No friends yet", systemImage: "person.2", description: Text("Add friends to tag them.")) } }
         .searchable(text: $query, prompt: "Search friends")
         .navigationTitle("Tag people")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 }

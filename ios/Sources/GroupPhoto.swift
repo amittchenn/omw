@@ -87,7 +87,7 @@ struct GroupPhotoSection: View {
                         HStack(spacing: 10) {
                             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                                 Button { camera = true } label: { Label("Take photo", systemImage: "camera.fill").frame(maxWidth: .infinity, minHeight: 44) }
-                                    .buttonStyle(.borderedProminent).tint(Color.primary).foregroundStyle(Color(.systemBackground))
+                                    .buttonStyle(.borderedProminent).tint(Color.sun).foregroundStyle(.black)
                             }
                             PhotosPicker(selection: $item, matching: .images) {
                                 Label("Upload", systemImage: "photo").frame(maxWidth: .infinity, minHeight: 44)

@@ -267,7 +267,7 @@ struct RankSheet: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: 120)
-            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 16))
+            .background(Color.omwCard, in: .rect(cornerRadius: 16))
         }
         .buttonStyle(Pressable())
         .foregroundStyle(.primary)
@@ -338,6 +338,7 @@ struct RatePlaceSheet: View {
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search any place")
             .navigationTitle("Rate a place")
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
             .task(id: query) {
                 let q = query.trimmingCharacters(in: .whitespaces)

@@ -66,7 +66,7 @@ struct ProfileView: View {
                     }
                 }
                 .padding(.vertical, 12)
-                .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
+                .background(Color.omwCard, in: .rect(cornerRadius: 18))
                 buttons
             }
             .padding(.horizontal, 16)
@@ -75,17 +75,18 @@ struct ProfileView: View {
             if mine {
                 tabs
                 switch tab {
-                case .posts: grid.padding(.top, 1.5)  // edge to edge, like Instagram
+                case .posts: grid.padding(.horizontal, 12).padding(.top, 10)
                 case .places: PlacesList()
                 case .memories: MemoriesCalendar()
                 }
             } else {
                 Divider()
-                grid.padding(.top, 1.5)
+                grid.padding(.horizontal, 12).padding(.top, 10)
             }
         }
         .scrollIndicators(.hidden)
         .navigationTitle(mine ? (person?.handle ?? "") : "")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if mine {
@@ -120,7 +121,7 @@ struct ProfileView: View {
                         .foregroundStyle(tab == t ? Color.primary : Color.secondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .overlay(alignment: .bottom) {
-                            Rectangle().fill(tab == t ? Color.primary : Color.clear).frame(height: 2)
+                            Capsule().fill(tab == t ? Color.coral : Color.clear).frame(height: 3)
                         }
                         .contentShape(Rectangle())
                 }
@@ -189,7 +190,7 @@ struct ProfileView: View {
         }
         .font(.subheadline.weight(.semibold))
         .frame(maxWidth: .infinity, minHeight: 36)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 9))
+        .background(Color.omwCard, in: .rect(cornerRadius: 9))
     }
 
     @ViewBuilder private var grid: some View {
@@ -200,17 +201,28 @@ struct ProfileView: View {
             } description: {
                 if mine { Text("Make a plan, show up on time, and snap the group photo when everyone's there.") }
             } actions: {
-                if mine { Button("Make a plan") { PlanLauncher.shared.open = true }.buttonStyle(.borderedProminent).tint(Color.primary) }
+                if mine { Button("Make a plan") { PlanLauncher.shared.open = true }.buttonStyle(.borderedProminent).tint(Color.sun).foregroundStyle(.black) }
             }
             .padding(.top, 40)
         } else {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1.5), count: 3), spacing: 1.5) {
+            // memories as rounded cards, two across, each with where it was (not Instagram's edge-to-edge grid)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
                 ForEach(posts) { post in
                     NavigationLink(value: PostRoute(id: post.id)) {
-                        Color(.secondarySystemFill)
-                            .aspectRatio(3 / 4, contentMode: .fit)  // portrait tiles, like the web app
+                        Color.omwCard2
+                            .aspectRatio(4 / 5, contentMode: .fit)
                             .overlay { RemoteImage(source: post.allPhotos.first ?? "") }
-                            .clipped()
+                            .overlay(alignment: .bottomLeading) {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(post.venueName.isEmpty ? post.title : post.venueName).font(.caption.weight(.heavy)).lineLimit(1)
+                                    Text(post.at.formatted(.dateTime.month(.abbreviated).day())).font(.caption2.weight(.semibold)).opacity(0.85)
+                                }
+                                .foregroundStyle(.white)
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom))
+                            }
+                            .clipShape(.rect(cornerRadius: 16))
                             .contentShape(Rectangle())
                             .overlay(alignment: .topTrailing) {
                                 if post.allPhotos.count > 1 {
@@ -300,6 +312,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .confirmationDialog(privacyAsk == true ? "Switch to a private account?" : "Switch to a public account?",
@@ -379,6 +392,7 @@ struct BlockedList: View {
             }
         }
         .navigationTitle("Blocked")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
         .task { session.cards(session.me?.blocked ?? []) { cards = $0 } }
     }
@@ -393,7 +407,7 @@ struct OnTimeRing<Content: View>: View {
         content
             .padding(7)
             .overlay {
-                Circle().stroke(Color(.tertiarySystemFill), lineWidth: 5)
+                Circle().stroke(Color.omwCard2, lineWidth: 5)
                 if let percent {
                     Circle()
                         .trim(from: 0, to: CGFloat(percent) / 100)
@@ -430,6 +444,7 @@ struct PastHangoutsView: View {
             }
         }
         .navigationTitle(uid == session.uid ? "Hangouts" : "With \(name)")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 }

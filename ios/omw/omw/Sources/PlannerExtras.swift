@@ -125,12 +125,12 @@ struct FairSpotFinder: View {
                 }
                 ForEach(0..<2, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: 8) {
-                        Capsule().fill(Color(.secondarySystemFill)).frame(width: 150, height: 12)
-                        Capsule().fill(Color(.tertiarySystemFill)).frame(width: 220, height: 9)
+                        Capsule().fill(Color.omwCard2).frame(width: 150, height: 12)
+                        Capsule().fill(Color.omwCard2).frame(width: 220, height: 9)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(Color(.tertiarySystemFill).opacity(0.5), in: .rect(cornerRadius: 14))
+                    .background(Color.omwCard2.opacity(0.5), in: .rect(cornerRadius: 14))
                     .shimmer()
                 }
             }
@@ -164,8 +164,7 @@ struct FairSpotFinder: View {
                     answer = nil; query = ""
                 }
                 .font(.caption.weight(.bold))
-                .buttonStyle(.borderedProminent).tint(best ? Color.primary : Color.secondary)
-                .foregroundStyle(Color(.systemBackground))
+                .buttonStyle(.borderedProminent).tint(best ? Color.sun : Color.secondary).foregroundStyle(best ? Color.black : Color.white)
             }
             let facts = [c.rating.map { String(format: "★ %.1f", $0) }, c.price, c.type, c.open == true ? "Open now" : c.open == false ? "Closed now" : nil]
                 .compactMap { $0 }.filter { !$0.isEmpty }
@@ -177,14 +176,14 @@ struct FairSpotFinder: View {
                         Text("\(p.name) \(m) min")
                             .font(.caption.weight(.semibold))
                             .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(m == c.worst && c.spread > 5 ? Color.orange.opacity(0.2) : Color(.tertiarySystemFill), in: Capsule())
+                            .background(m == c.worst && c.spread > 5 ? Color.orange.opacity(0.2) : Color.omwCard2, in: Capsule())
                     }
                 }
             }
             .scrollIndicators(.hidden)
         }
         .padding(12)
-        .background(best ? Color.sun.opacity(0.15) : Color(.tertiarySystemFill).opacity(0.5), in: .rect(cornerRadius: 14))
+        .background(best ? Color.sun.opacity(0.15) : Color.omwCard2.opacity(0.5), in: .rect(cornerRadius: 14))
     }
 
     private func find() {

@@ -103,8 +103,8 @@ struct DirectionsView: View {
                         Button { mode = m.id } label: {
                             Image(systemName: m.symbol).font(.headline)
                                 .frame(maxWidth: .infinity, minHeight: 40)
-                                .background(mode == m.id ? Color.primary : Color(.tertiarySystemFill), in: Capsule())
-                                .foregroundStyle(mode == m.id ? Color(.systemBackground) : Color.primary)
+                                .background(mode == m.id ? Color.sun : Color.omwCard2, in: Capsule())
+                                .foregroundStyle(mode == m.id ? Color.black : Color.primary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -152,6 +152,7 @@ struct DirectionsView: View {
                 }
             }
             .navigationTitle("Steps")
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
         }
     }

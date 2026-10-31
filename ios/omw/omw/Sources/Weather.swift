@@ -104,7 +104,7 @@ struct WeatherPanel: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
-                        .background(on ? Color(.tertiarySystemFill) : .clear, in: .rect(cornerRadius: 12))
+                        .background(on ? Color.omwCard2 : .clear, in: .rect(cornerRadius: 12))
                     }
                 }
                 if h.rain >= 50 {
@@ -120,10 +120,10 @@ struct WeatherPanel: View {
             } else {
                 // the shape of the forecast while it comes in
                 HStack(spacing: 12) {
-                    Circle().fill(Color(.secondarySystemFill)).frame(width: 34, height: 34)
+                    Circle().fill(Color.omwCard2).frame(width: 34, height: 34)
                     VStack(alignment: .leading, spacing: 7) {
-                        Capsule().fill(Color(.secondarySystemFill)).frame(width: 90, height: 12)
-                        Capsule().fill(Color(.tertiarySystemFill)).frame(width: 140, height: 9)
+                        Capsule().fill(Color.omwCard2).frame(width: 90, height: 12)
+                        Capsule().fill(Color.omwCard2).frame(width: 140, height: 9)
                     }
                 }
                 .shimmer()

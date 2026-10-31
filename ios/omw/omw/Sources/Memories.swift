@@ -85,7 +85,7 @@ struct MemoriesCalendar: View {
         Button(action: run) {
             Image(systemName: symbol).font(.subheadline.weight(.bold))
                 .frame(width: 32, height: 32)
-                .background(Color(.secondarySystemFill), in: Circle())
+                .background(Color.omwCard2, in: Circle())
         }
         .buttonStyle(Pressable())
         .foregroundStyle(.primary)
@@ -111,7 +111,7 @@ struct MemoriesCalendar: View {
         return Button {
             withAnimation(.snappy(duration: 0.2)) { selected = date }
         } label: {
-            Color(.secondarySystemFill)
+            Color.omwCard2
                 .aspectRatio(3 / 4, contentMode: .fit)
                 .overlay { if !photo.isEmpty { RemoteImage(source: photo) } }
                 .overlay(alignment: .topLeading) {
@@ -126,7 +126,7 @@ struct MemoriesCalendar: View {
                     }
                 }
                 .clipShape(.rect(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(isSelected ? Color.primary : .clear, lineWidth: 2))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(isSelected ? Color.coral : .clear, lineWidth: 2.5))
                 .opacity(day == nil && !isSelected ? 0.6 : 1)
         }
         .buttonStyle(Pressable())
@@ -144,7 +144,7 @@ struct MemoriesCalendar: View {
                     HStack(spacing: 8) {
                         ForEach(day.posts) { p in
                             NavigationLink(value: PostRoute(id: p.id)) {
-                                Color(.secondarySystemFill)
+                                Color.omwCard2
                                     .frame(width: 110, height: 146)
                                     .overlay { RemoteImage(source: p.allPhotos.first ?? "") }
                                     .clipShape(.rect(cornerRadius: 12))
@@ -180,7 +180,7 @@ struct MemoriesCalendar: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 16))
+        .background(Color.omwCard, in: .rect(cornerRadius: 16))
     }
 
     private struct PlanDay: Identifiable {

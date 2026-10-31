@@ -54,6 +54,7 @@ struct PlansView: View {
                 .padding(.bottom, 24)
             }
             .toolbar(.hidden, for: .navigationBar)
+            .omwBackground()
             .withProfileRoutes()
         }
     }
@@ -82,7 +83,7 @@ struct PlansView: View {
             .buttonStyle(.plain)
             HStack(spacing: 10) {
                 Button { answer(h, going: true) } label: { Text("Going").frame(maxWidth: .infinity, minHeight: 42) }
-                    .buttonStyle(.borderedProminent).tint(Color.primary).foregroundStyle(Color(.systemBackground))
+                    .buttonStyle(.borderedProminent).tint(Color.sun).foregroundStyle(.black)
                 Button { answer(h, going: false) } label: { Text("Can't").frame(maxWidth: .infinity, minHeight: 42) }
                     .buttonStyle(.bordered).tint(Color.primary)
             }
@@ -127,14 +128,14 @@ struct UpcomingCard: View {
                     HStack(spacing: -8) {
                         ForEach(hangout.attendees.prefix(4), id: \.self) { u in
                             Avatar(session.person(u), fallback: hangout.names[u] ?? "", size: 24)
-                                .overlay(Circle().stroke(Color(.secondarySystemBackground), lineWidth: 2))
+                                .overlay(Circle().stroke(Color.omwCard, lineWidth: 2))
                         }
                     }
                     if let leave = hangout.alerts[uid], hangout.arrivals[uid] == nil {
                         Text("Leave \(leave.formatted(date: .omitted, time: .shortened))")
                             .font(.caption.weight(.bold))
                             .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(Color(.tertiarySystemFill), in: Capsule())
+                            .background(Color.omwCard2, in: Capsule())
                     }
                 }
                 .padding(.top, 2)
@@ -142,7 +143,7 @@ struct UpcomingCard: View {
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
+        .background(Color.omwCard, in: .rect(cornerRadius: 20))
     }
 }
 
@@ -158,7 +159,7 @@ struct PlanRow: View {
                 Text(hangout.start.formatted(.dateTime.day())).font(.title3.weight(.bold))
             }
             .frame(width: 46, height: 50)
-            .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 10))
+            .background(Color.omwCard2, in: .rect(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 3) {
                 Text(hangout.title).font(.headline).lineLimit(1)
                 Text([hangout.start.formatted(.dateTime.weekday(.abbreviated).hour().minute()), hangout.venueName]

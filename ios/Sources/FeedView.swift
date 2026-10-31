@@ -1,5 +1,5 @@
-// The home screen, like Instagram: your friends along the top (with who's out, on their way or free),
-// then their posts. Likes, double-tap to like, and comments in a sheet.
+// The home screen: omw! and how the night's going, who's around (status pills), what's up next, then everyone's
+// memories as ticket stubs from their hangouts (who showed up when, high-fives, comments).
 import SwiftUI
 
 struct FeedView: View {
@@ -19,8 +19,7 @@ struct FeedView: View {
                         BoardCard()
                     }
                     .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-                    Divider()
+                    .padding(.bottom, 6)
                     if session.posts.isEmpty {
                         VStack(spacing: 8) {
                             Ticki(mood: .wave, lines: ["Hi, I'm Ticki!", "Add friends to fill this up", "Then make a plan with the ＋"]).frame(width: 130, height: 130)
@@ -36,6 +35,7 @@ struct FeedView: View {
             }
             .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)  // our own header, like Instagram's (the bar's glass buttons squash the logo)
+            .omwBackground()
             // swipe in from the very right edge for Chats, like Instagram. Only a thin strip at the screen's edge listens,
             // so scrolling the friends row or a memory's photos never opens it.
             .overlay(alignment: .trailing) { edgeSwipe(left: false) }
@@ -54,10 +54,13 @@ extension FeedView {
     /// omw! on the left; add friends and chats on the right, as plain icons. (No "new post": what you share on omw! is
     /// the group photo from a hangout, so the feed is everyone's memories.)
     var header: some View {
-        HStack(spacing: 2) {
-            Text("omw\(Text("!").foregroundStyle(Color.sun))")
-                .font(.system(size: 30, weight: .black, design: .rounded))
-                .tracking(-1)
+        HStack(alignment: .center, spacing: 2) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("omw\(Text("!").foregroundStyle(Color.sun))")
+                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .tracking(-1)
+                Text(pulse).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+            }
             Spacer()
             NavigationLink { AddFriendsView() } label: { HeaderIcon(symbol: "person.badge.plus", count: session.incoming.count, dot: true) }
                 .accessibilityLabel("Add friends")
@@ -66,6 +69,17 @@ extension FeedView {
         }
         .buttonStyle(.plain)
         .padding(.leading, 16).padding(.trailing, 8).padding(.vertical, 2)
+    }
+
+    /// a live line under the logo: "Saturday night · 2 friends free"
+    private var pulse: String {
+        let hour = Calendar.current.component(.hour, from: .now)
+        let part = hour < 5 ? "late night" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : "night"
+        let day = Date.now.formatted(.dateTime.weekday(.wide))
+        let free = session.friends.filter { $0.status == .free }.count
+        let out = session.friends.filter { $0.status == .out || $0.status == .onTheWay }.count
+        let what = free > 0 ? "\(free) free" : out > 0 ? "\(out) out" : "quiet so far"
+        return "\(day) \(part) · \(what)"
     }
 
     /// a thin, invisible strip at the right screen edge that turns a swipe inward into Chats
@@ -106,35 +120,38 @@ struct HeaderIcon: View {
     }
 }
 
-/// Friends across the top, like stories: a colored ring when they're out (yellow), on their way (blue) or free (green).
-/// Like Instagram's notes, a little bubble over a picture says until when they're free; tap yours to set it.
+/// Who's around, as a strip of status pills (not story circles): you first ("Free?" or "Free till 9", tap to set it),
+/// then friends who are out, on their way or free first (with what they're up to), then everyone else, and Add.
 struct FriendsRow: View {
     @Environment(Session.self) private var session
     @State private var askingFree = false
 
+    private var sorted: [Person] {
+        func rank(_ p: Person) -> Int { switch p.status { case .free: 0; case .onTheWay: 1; case .out: 2; case .none: 3 } }
+        return session.friends.sorted { (rank($0), $0.firstName) < (rank($1), $1.firstName) }
+    }
+
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(spacing: 8) {
                 if let me = session.me {
                     Button { askingFree = true } label: {
-                        bubble(me, name: "You", note: me.status == .free ? me.freeUntil.map(Self.till) : "Free?", free: me.status == .free)
+                        pill(me, name: "You", text: me.status == .free ? (me.freeUntil.map { "Free \(Self.till($0))" } ?? "Free") : "Free?",
+                             tint: me.status == .free ? .freeGreen : nil, mine: true)
                     }
                     .accessibilityLabel(me.status == .free ? "Change when you're free" : "Let friends know you're free")
                 }
-                ForEach(session.friends) { f in
+                ForEach(sorted) { f in
                     NavigationLink(value: ProfileRoute(uid: f.id)) {
-                        bubble(f, name: f.firstName, note: f.status == .free ? f.freeUntil.map(Self.till) : nil, free: true,
-                               status: f.status == .free ? "" : f.status.label)
+                        pill(f, name: f.firstName, text: status(f), tint: f.status.color)
                     }
                 }
                 NavigationLink { AddFriendsView() } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: "person.badge.plus").font(.title2)
-                            .frame(width: 62, height: 62).background(Color(.secondarySystemBackground), in: Circle())
-                        Text("Add friends").font(.caption.weight(.semibold))
-                    }
-                    .padding(.top, 20).frame(width: 74)
+                    Image(systemName: "plus").font(.subheadline.weight(.bold))
+                        .frame(width: 40, height: 40)
+                        .background(Color.omwCard, in: Circle())
                 }
+                .accessibilityLabel("Add friends")
             }
             .padding(.horizontal, 14)
         }
@@ -144,6 +161,32 @@ struct FriendsRow: View {
             FreeSheet().withOmw()
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    private func status(_ f: Person) -> String? {
+        switch f.status {
+        case .free: f.freeUntil.map { "Free \(Self.till($0))" } ?? "Free"
+        case .none: nil
+        default: f.status.label
+        }
+    }
+
+    /// a face and a name, and what they're up to in their color: one pill
+    private func pill(_ person: Person, name: String, text: String?, tint: Color?, mine: Bool = false) -> some View {
+        HStack(spacing: 8) {
+            Avatar(person, size: 30)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(name).font(.subheadline.weight(.bold)).lineLimit(1)
+                if let text {
+                    Text(text).font(.caption.weight(.semibold)).lineLimit(1)
+                        .foregroundStyle(tint ?? .secondary)
+                }
+            }
+        }
+        .padding(.leading, 5).padding(.trailing, 14)
+        .frame(height: 40)
+        .background(Color.omwCard, in: Capsule())
+        .overlay(Capsule().strokeBorder(tint?.opacity(0.7) ?? (mine ? Color.sun.opacity(0.8) : .clear), lineWidth: 1.5))
     }
 
     private var freeTitle: String {
@@ -157,68 +200,49 @@ struct FriendsRow: View {
         return "till \(h == 0 ? 12 : h)\(m == 0 ? "" : String(format: ":%02d", m))"
     }
 
-    private func bubble(_ person: Person, name: String, note: String?, free: Bool, status: String = "") -> some View {
-        VStack(spacing: 4) {
-            Avatar(person, size: 62, showStatus: true)
-                .overlay(alignment: .top) {
-                    if let note {
-                        Text(note)
-                            .font(.caption2.weight(.heavy)).lineLimit(1)
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .foregroundStyle(free && note != "Free?" ? Color.freeGreen : Color.secondary)
-                            .background(.regularMaterial, in: Capsule())
-                            .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
-                            .offset(y: -16)
-                    }
-                }
-            Text(name).font(.caption.weight(.semibold)).lineLimit(1)
-            Text(status.isEmpty ? " " : status).font(.caption2.weight(.semibold))
-                .foregroundStyle(person.status.color ?? .secondary).lineLimit(1)
-        }
-        .padding(.top, 20)
-        .frame(width: 74)
-    }
 }
 
-/// One post, like Instagram: who and where, the photos (swipe if there are several), like and comment,
-/// the caption and the last comments.
+/// A memory, as a ticket stub from the hangout (not an Instagram post): what and where on top, the group photo with
+/// a stamp ("ALL ON TIME" or who was late), who showed up in the order they arrived, a perforated tear line, then
+/// high-fives (double-tap the photo too), comments and the place's stars.
 struct PostCard: View {
     let post: Post
     var onComments: () -> Void
     @Environment(Session.self) private var session
     @State private var page = 0
-    @State private var bigHeart = false
+    @State private var bigClap = false
     @State private var rating = false
 
     private var liked: Bool { session.uid.map { post.likes.contains($0) } ?? false }
-
-    /// a group photo says who was late (the latest one), or that everyone was on time
-    private var lateBadge: (text: String, ok: Bool)? {
-        guard let worst = post.late.max(by: { $0.value < $1.value }) else { return nil }
-        if worst.value <= Session.lateAfterMinutes { return ("⚡ All on time", true) }
-        let who = worst.key == session.uid ? "You" : session.person(worst.key)?.firstName ?? post.names[worst.key]?.split(separator: " ").first.map(String.init) ?? "Someone"
-        let m = worst.value < 60 ? "\(Int(worst.value.rounded())) min" : "\(Int((worst.value / 60).rounded())) h"
-        return ("\(who) \(m) late", false)
-    }
     private var mine: Bool { post.by == session.uid }
 
+    /// the stamp: everyone on time, or the latest one
+    private var stamp: (text: String, ok: Bool)? {
+        guard let worst = post.late.max(by: { $0.value < $1.value }) else { return nil }
+        if worst.value <= Session.lateAfterMinutes { return ("ALL ON TIME", true) }
+        let m = worst.value < 60 ? "+\(Int(worst.value.rounded())) MIN" : "+\(Int((worst.value / 60).rounded())) H"
+        return ("\(first(worst.key).uppercased()) \(m)", false)
+    }
+
+    private func first(_ uid: String) -> String {
+        uid == session.uid ? "You" : session.person(uid)?.firstName ?? post.names[uid]?.split(separator: " ").first.map(String.init) ?? "Friend"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            header
-            photos
-            actions
-            VStack(alignment: .leading, spacing: 6) {
-                if !post.caption.isEmpty {
-                    Text(line(session.handle(post.by, in: post), post.caption)).font(.subheadline)
-                } else if post.isGroupPhoto, !post.title.isEmpty {
-                    Text(post.title).font(.subheadline.weight(.semibold))
-                }
-                commentsPreview
-                Text(When.ago(post.at)).font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            top
+            photos.padding(.horizontal, 10)
+            if !post.late.isEmpty { arrivals }
+            if !post.caption.isEmpty {
+                Text(line(session.handle(post.by, in: post), post.caption)).font(.subheadline).padding(.horizontal, 16)
             }
-            .padding(.horizontal, 14)
+            TearLine()
+            bottom
+            commentsPreview.padding(.horizontal, 16)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
+        .background(Color.omwCard, in: .rect(cornerRadius: 24))
+        .padding(.horizontal, 12).padding(.vertical, 7)
         .onAppear { session.watchComments(post.id) }
         .sheet(isPresented: $rating) {
             RankSheet(place: RankedPlace(name: post.venueName, address: post.address, venue: post.venue), post: post.id)
@@ -226,47 +250,46 @@ struct PostCard: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            NavigationLink(value: ProfileRoute(uid: post.by)) {
-                Avatar(session.person(post.by), fallback: post.byName, size: 36)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                NavigationLink(value: ProfileRoute(uid: post.by)) {
-                    Text(session.handle(post.by, in: post)).font(.subheadline.weight(.semibold))
-                }
-                if !post.venueName.isEmpty {
-                    HStack(spacing: 6) {
-                        Text(post.venueName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        if let s = post.averageRating {
-                            Label(String(format: "%.1f", s / 2), systemImage: "star.fill").font(.caption2.weight(.bold)).labelStyle(.titleAndIcon)
-                                .padding(.horizontal, 6).padding(.vertical, 1)
-                                .background(Color.freeGreen.opacity(0.2), in: Capsule())
-                        }
-                        if let late = lateBadge { Text(late.text).font(.caption2.weight(.bold)).foregroundStyle(late.ok ? Color.freeGreen : Color.orange) }
+    // ---------- the stub: what, where, when ----------
+    private var top: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(post.title.isEmpty ? (post.venueName.isEmpty ? "A hangout" : post.venueName) : post.title)
+                    .font(.system(size: 19, weight: .heavy, design: .rounded)).lineLimit(2)
+                HStack(spacing: 6) {
+                    Text([post.title.contains(post.venueName) ? "" : post.venueName, post.at.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())]
+                        .filter { !$0.isEmpty }.joined(separator: " · "))
+                        .lineLimit(1)
+                    if let s = post.averageRating {
+                        Label(String(format: "%.1f", s / 2), systemImage: "star.fill").labelStyle(.titleAndIcon).foregroundStyle(Color.sun)
                     }
                 }
+                .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             }
-            Spacer()
-            Menu {
-                if mine {
-                    Button("Delete memory", systemImage: "trash", role: .destructive) { session.deletePost(post) }
-                } else {
-                    Button("Hide", systemImage: "eye.slash") { withAnimation(.snappy(duration: 0.25)) { session.hide(post) } }
-                    Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) { session.report(post) }
-                    Button("Block \(session.handle(post.by, in: post))", systemImage: "hand.raised", role: .destructive) { session.block(post.by) }
-                }
-                if !post.venueName.isEmpty {
-                    Button("Rate \(post.venueName)", systemImage: "star") { rating = true }
-                }
-            } label: {
-                Image(systemName: "ellipsis").frame(width: 36, height: 36)
-            }
+            Spacer(minLength: 0)
+            menu
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
     }
 
+    private var menu: some View {
+        Menu {
+            if mine {
+                Button("Delete memory", systemImage: "trash", role: .destructive) { session.deletePost(post) }
+            } else {
+                Button("Hide", systemImage: "eye.slash") { withAnimation(.snappy(duration: 0.25)) { session.hide(post) } }
+                Button("Report", systemImage: "exclamationmark.bubble", role: .destructive) { session.report(post) }
+                Button("Block \(session.handle(post.by, in: post))", systemImage: "hand.raised", role: .destructive) { session.block(post.by) }
+            }
+            if !post.venueName.isEmpty {
+                Button("Rate \(post.venueName)", systemImage: "star") { rating = true }
+            }
+        } label: {
+            Image(systemName: "ellipsis").font(.headline).frame(width: 32, height: 32).foregroundStyle(.secondary)
+        }
+    }
+
+    // ---------- the photo, with its stamp ----------
     private var photos: some View {
         TabView(selection: $page) {
             ForEach(Array(post.allPhotos.enumerated()), id: \.offset) { i, photo in
@@ -275,50 +298,92 @@ struct PostCard: View {
         }
         .tabViewStyle(.page(indexDisplayMode: post.allPhotos.count > 1 ? .always : .never))
         .aspectRatio(4 / 5, contentMode: .fit)
-        .background(Color(.secondarySystemBackground))
+        .background(Color.omwCard2)
+        .clipShape(.rect(cornerRadius: 18))
+        .overlay(alignment: .topTrailing) {
+            if let stamp {
+                Text(stamp.text)
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .tracking(1)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .foregroundStyle(stamp.ok ? Color.freeGreen : Color.orange)
+                    .background(.ultraThinMaterial, in: .rect(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(stamp.ok ? Color.freeGreen : Color.orange, lineWidth: 2))
+                    .rotationEffect(.degrees(-8))
+                    .padding(14)
+            }
+        }
         .overlay {
-            Image(systemName: "heart.fill")
-                .font(.system(size: 96))
-                .foregroundStyle(.white)
+            Image(systemName: "hands.clap.fill")
+                .font(.system(size: 90))
+                .foregroundStyle(Color.sun)
                 .shadow(radius: 12)
-                .scaleEffect(bigHeart ? 1 : 0.4)
-                .opacity(bigHeart ? 1 : 0)
+                .scaleEffect(bigClap ? 1 : 0.4)
+                .opacity(bigClap ? 1 : 0)
                 .allowsHitTesting(false)
         }
-        .onTapGesture(count: 2) {  // double-tap to like, like Instagram
+        .onTapGesture(count: 2) {  // double-tap for a high five
             if !liked { session.toggleLike(post) }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) { bigHeart = true }
-            Task { try? await Task.sleep(for: .milliseconds(650)); withAnimation(.easeOut(duration: 0.2)) { bigHeart = false } }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) { bigClap = true }
+            Task { try? await Task.sleep(for: .milliseconds(650)); withAnimation(.easeOut(duration: 0.2)) { bigClap = false } }
         }
     }
 
-    private var actions: some View {
+    // ---------- who showed up, in the order they arrived ----------
+    private var arrivals: some View {
+        let order = post.members.sorted { (post.late[$0] ?? .infinity) < (post.late[$1] ?? .infinity) }
+        return ScrollView(.horizontal) {
+            HStack(spacing: 14) {
+                ForEach(order, id: \.self) { u in
+                    let late = post.late[u]
+                    VStack(spacing: 3) {
+                        Avatar(session.person(u), fallback: post.names[u] ?? "", size: 30)
+                        Text(first(u)).font(.caption2.weight(.semibold)).lineLimit(1)
+                        Text(late.map { $0 <= Session.lateAfterMinutes ? "on time" : "+\(Int($0.rounded()))m" } ?? "–")
+                            .font(.caption2.weight(.heavy))
+                            .foregroundStyle(late.map { $0 <= Session.lateAfterMinutes ? Color.freeGreen : Color.orange } ?? Color.secondary)
+                    }
+                    .frame(minWidth: 44)
+                    .opensProfile(u)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    // ---------- high-fives, comments, stars, who took it ----------
+    private var bottom: some View {
         let comments = session.comments[post.id]?.count ?? 0
-        return HStack(spacing: 16) {
+        return HStack(spacing: 18) {
             Button { session.toggleLike(post) } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: liked ? "heart.fill" : "heart")
-                        .foregroundStyle(liked ? Color.red : Color.primary)
+                    Image(systemName: liked ? "hands.clap.fill" : "hands.clap")
+                        .foregroundStyle(liked ? Color.sun : Color.primary)
                         .contentTransition(.symbolEffect(.replace))
                     if !post.likes.isEmpty { Text("\(post.likes.count)").font(.subheadline.weight(.bold)) }
                 }
             }
+            .accessibilityLabel(liked ? "Take back your high five" : "High five")
             .sensoryFeedback(.impact(weight: .light), trigger: liked)
             Button(action: onComments) {
                 HStack(spacing: 5) {
-                    Image(systemName: "message")
+                    Image(systemName: "bubble.left")
                     if comments > 0 { Text("\(comments)").font(.subheadline.weight(.bold)) }
                 }
             }
-            Spacer()
             if !post.venueName.isEmpty {
                 Button { rating = true } label: { Image(systemName: "star") }
                     .accessibilityLabel("Rate \(post.venueName)")
             }
+            Spacer()
+            NavigationLink(value: ProfileRoute(uid: post.by)) {
+                Text("📸 \(first(post.by)) · \(When.ago(post.at))").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            }
         }
-        .font(.system(size: 22, weight: .medium))
+        .font(.system(size: 20, weight: .medium))
         .buttonStyle(.plain)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
     }
 
     @ViewBuilder private var commentsPreview: some View {
@@ -331,6 +396,22 @@ struct PostCard: View {
             Text(line(session.handle(c.from, name: c.name), c.text)).font(.subheadline).lineLimit(2)
                 .onTapGesture(perform: onComments)
         }
+    }
+}
+
+/// a ticket's perforated tear line: a dashed rule with a notch cut into each side
+struct TearLine: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            Circle().fill(Color.omwBG).frame(width: 18, height: 18).offset(x: -9)
+            Line().stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5, 5])).foregroundStyle(Color(.separator)).frame(height: 1)
+            Circle().fill(Color.omwBG).frame(width: 18, height: 18).offset(x: 9)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private struct Line: Shape {
+        func path(in r: CGRect) -> Path { var p = Path(); p.move(to: CGPoint(x: 0, y: r.midY)); p.addLine(to: CGPoint(x: r.maxX, y: r.midY)); return p }
     }
 }
 
@@ -356,6 +437,7 @@ struct PostDetailView: View {
             }
         }
         .navigationTitle("Memory")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $commentsFor) { post in
             CommentsSheet(post: post).withOmw().presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
@@ -371,6 +453,7 @@ struct ComingSoon: View {
     var body: some View {
         ContentUnavailableView(title, systemImage: symbol, description: Text("Coming to the new app soon. It works in the current omw! app for now."))
             .navigationTitle(title)
+            .omwBackground()
             .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -422,7 +505,7 @@ struct FreeSheet: View {
         Button(action: action) {
             Text(title).font(.headline)
                 .frame(maxWidth: .infinity, minHeight: 52)
-                .background(Color(.secondarySystemFill), in: .rect(cornerRadius: 16))
+                .background(Color.omwCard2, in: .rect(cornerRadius: 16))
         }
         .buttonStyle(Pressable())
         .foregroundStyle(.primary)

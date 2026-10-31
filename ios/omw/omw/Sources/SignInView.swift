@@ -195,8 +195,8 @@ struct EmailSignIn: View {
                 Text(busy ? "One moment…" : creating ? "Create account" : "Sign in")
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 54)
-                    .background(Color.primary, in: .rect(cornerRadius: 16))
-                    .foregroundStyle(Color(.systemBackground))
+                    .background(Color.sun, in: .rect(cornerRadius: 16))
+                    .foregroundStyle(.black)
             }
             .buttonStyle(Pressable())
             .disabled(busy)
@@ -289,7 +289,7 @@ private struct SignInField: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(.horizontal, 16).frame(height: 52)
-            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 14))
+            .background(Color.omwCard, in: .rect(cornerRadius: 14))
     }
 }
 

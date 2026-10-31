@@ -28,7 +28,7 @@ struct OmwApp: App {
             RootView()
                 .environment(session)
                 .environment(location)
-                .tint(Color.primary)
+                .tint(Color.coral)  // omw!'s accent: Ticki's coral (links, the selected tab, switches' focus)
                 .onOpenURL { url in
                     // the Live Activity: omw://hangout/<id>
                     if url.scheme == "omw", url.host == "hangout", let id = url.pathComponents.dropFirst().first {

@@ -85,6 +85,7 @@ struct AddFriendsView: View {
         }
         .task { session.quickAdd { quick = $0 } }
         .navigationTitle("Add friends")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -138,6 +139,6 @@ struct FriendButton: View {
     private func label(_ text: String) -> some View {
         Text(text).font(.subheadline.weight(.semibold))
             .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(Color(.secondarySystemFill), in: Capsule())
+            .background(Color.omwCard2, in: Capsule())
     }
 }

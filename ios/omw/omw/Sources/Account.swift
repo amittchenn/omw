@@ -245,6 +245,7 @@ struct EditProfileView: View {
             }
         }
         .navigationTitle("Edit profile")
+        .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

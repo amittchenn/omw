@@ -100,8 +100,8 @@ struct PlanSheet: View {
                                         Label(t.name, systemImage: t.symbol)
                                             .font(.subheadline.weight(.bold))
                                             .padding(.horizontal, 14).frame(height: 40)
-                                            .background(type == t ? Color.primary : Color(.secondarySystemFill), in: Capsule())
-                                            .foregroundStyle(type == t ? Color(.systemBackground) : Color.primary)
+                                            .background(type == t ? Color.sun : Color.omwCard2, in: Capsule())
+                                            .foregroundStyle(type == t ? Color.black : Color.primary)
                                     }
                                     .buttonStyle(.plain)
                                     .contextMenu {
@@ -151,8 +151,8 @@ struct PlanSheet: View {
                                         .labelStyle(.iconOnly)
                                         .font(.system(size: 17, weight: .semibold))
                                         .frame(maxWidth: .infinity, minHeight: 42)
-                                        .background(mode == m ? Color.primary : Color(.secondarySystemFill), in: Capsule())
-                                        .foregroundStyle(mode == m ? Color(.systemBackground) : Color.primary)
+                                        .background(mode == m ? Color.sun : Color.omwCard2, in: Capsule())
+                                        .foregroundStyle(mode == m ? Color.black : Color.primary)
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(Travel.name(m))
@@ -204,8 +204,8 @@ struct PlanSheet: View {
                                         Text(day.formatted(.dateTime.day())).font(.headline)
                                     }
                                     .frame(width: 52, height: 56)
-                                    .background(cal.isDate(day, inSameDayAs: when) ? Color.primary : Color(.secondarySystemFill), in: .rect(cornerRadius: 14))
-                                    .foregroundStyle(cal.isDate(day, inSameDayAs: when) ? Color(.systemBackground) : Color.primary)
+                                    .background(cal.isDate(day, inSameDayAs: when) ? Color.sun : Color.omwCard2, in: .rect(cornerRadius: 14))
+                                    .foregroundStyle(cal.isDate(day, inSameDayAs: when) ? Color.black : Color.primary)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -241,6 +241,7 @@ struct PlanSheet: View {
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
+            .omwBackground()
             .onAppear { API.wake() }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -253,8 +254,8 @@ struct PlanSheet: View {
                         .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.primary)
-                .foregroundStyle(Color(.systemBackground))
+                .tint(Color.sun)
+                .foregroundStyle(.black)
                 .disabled(place?.lat == nil || working)
                 .padding(.horizontal, 16).padding(.bottom, 8)
                 .background(.bar)
@@ -419,8 +420,8 @@ struct PlanSheet: View {
             Text(label)
                 .font(.subheadline.weight(.bold))
                 .padding(.horizontal, 14).frame(height: 38)
-                .background(on ? Color.primary : Color(.secondarySystemFill), in: Capsule())
-                .foregroundStyle(on ? Color(.systemBackground) : Color.primary)
+                .background(on ? Color.sun : Color.omwCard2, in: Capsule())
+                .foregroundStyle(on ? Color.black : Color.primary)
         }
         .buttonStyle(.plain)
     }
