@@ -140,21 +140,20 @@ struct PlaceholderRow: View {
 
 /// a soft light sweeping across, over and over, so a placeholder looks alive (and the wait feels short)
 struct Shimmer: ViewModifier {
-    @State private var phase: CGFloat = -1
-
+    // driven by the clock (no forever-repeating animation that could leak into the layout around it)
     @ViewBuilder func body(content: Content) -> some View {
         content
             .overlay {
-                GeometryReader { g in
-                    LinearGradient(colors: [.clear, .white.opacity(0.28), .clear], startPoint: .leading, endPoint: .trailing)
-                        .frame(width: max(g.size.width * 0.5, 80))
-                        .offset(x: phase * (g.size.width + 80))
+                TimelineView(.animation) { t in
+                    let phase = (t.date.timeIntervalSinceReferenceDate / 1.0).truncatingRemainder(dividingBy: 1) * 2 - 1
+                    GeometryReader { g in
+                        LinearGradient(colors: [.clear, .white.opacity(0.28), .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: max(g.size.width * 0.5, 80))
+                            .offset(x: phase * (g.size.width + 80))
+                    }
                 }
                 .mask { content }
                 .allowsHitTesting(false)
-            }
-            .onAppear {
-                withAnimation(.linear(duration: 1.0).repeatForever(autoreverses: false)) { phase = 1 }
             }
     }
 }

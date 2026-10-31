@@ -728,15 +728,19 @@ struct FriendCard: View {
 /// a soft ring that keeps rippling out from a pin, so the map feels alive (you, and friends who are out or on their way)
 struct Pulse: View {
     var color: Color
-    @State private var go = false
 
+    // driven by the clock, not a forever-repeating animation: those leak into whatever is laid out at the same
+    // moment and made the map's search bar bob up and down
     var body: some View {
-        Circle()
-            .fill(color.opacity(0.45))
-            .scaleEffect(go ? 2.1 : 1)
-            .opacity(go ? 0 : 0.9)
-            .onAppear { withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) { go = true } }
-            .allowsHitTesting(false)
+        TimelineView(.animation) { t in
+            let p = (t.date.timeIntervalSinceReferenceDate / 1.8).truncatingRemainder(dividingBy: 1)
+            let eased = 1 - pow(1 - p, 2)
+            Circle()
+                .fill(color.opacity(0.45))
+                .scaleEffect(1 + 1.1 * eased)
+                .opacity(0.9 * (1 - p))
+        }
+        .allowsHitTesting(false)
     }
 }
 
