@@ -84,13 +84,13 @@ struct OmwRouteMap: View {
                     .lineOpacity(0.9)
                     .lineCap(.round)
                     .lineJoin(.round)
-                    .slot(.middle)
+                    .slot(Slot.middle)
                 LineLayer(id: "omw-route-line", source: "omw-route")
                     .lineColor(StyleColor(UIColor(Color.coral)))
                     .lineWidth(7)
                     .lineCap(.round)
                     .lineJoin(.round)
-                    .slot(.middle)
+                    .slot(Slot.middle)
             }
             MapViewAnnotation(coordinate: target) {
                 Image(systemName: "mappin.circle.fill")
@@ -158,7 +158,7 @@ struct OmwMapbox: View {
             }
             // what's up next: everyone's way in, and the spot flagged by Ticki
             if let next, let venue = next.venue {
-                // everyone's way in: dashed coral lines (a style layer, so they draw above the streets)
+                // everyone's way in: coral lines (a style layer, so they draw above the streets)
                 GeoJSONSource(id: "omw-ways")
                     .data(.featureCollection(FeatureCollection(features: ways(next, venue).map { Feature(geometry: .lineString(LineString($0.line))) })))
                 LineLayer(id: "omw-ways-line", source: "omw-ways")
@@ -166,8 +166,7 @@ struct OmwMapbox: View {
                     .lineWidth(4)
                     .lineOpacity(0.9)
                     .lineCap(.round)
-                    .lineDasharray([0.5, 2])
-                    .slot(.middle)
+                    .slot(Slot.middle)
                 MapViewAnnotation(coordinate: venue) { HangoutFlag(hangout: next) }
                     .allowOverlap(true)
                     .variableAnchors([ViewAnnotationAnchorConfig(anchor: .bottom)])
