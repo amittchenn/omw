@@ -83,7 +83,7 @@ struct DirectionsView: View {
                 if wreck {
                     // the Wreck's way onto campus, in gold with a darker edge so it holds up on the map
                     MapPolyline(route.polyline).stroke(Wreck.goldDeep, style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
-                    MapPolyline(route.polyline).stroke(Wreck.gold, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                    MapPolyline(route.polyline).stroke(Wreck.goldBright, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
                 } else {
                     MapPolyline(route.polyline).stroke(Color.coral, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
                 }
@@ -112,7 +112,7 @@ struct DirectionsView: View {
                             Label(first.instructions, systemImage: Self.symbol(for: first.instructions)).lineLimit(1)
                             Image(systemName: "chevron.down").font(.caption2.weight(.bold))
                         }
-                        .font(.caption.weight(.semibold)).foregroundStyle(Color.coral)
+                        .font(.caption.weight(.semibold)).foregroundStyle(wreck ? Color.wreckGold : Color.coral)
                     }
                     .buttonStyle(.plain)
                 }
@@ -313,7 +313,7 @@ struct DirectionsView: View {
         guard going, let here = location.last else { return }
         while steps.indices.contains(step + 1), let d = distanceToStep(steps[step + 1]), d < 60 { step += 1; say(steps[step].instructions) }
         if CLLocation(latitude: target.coordinate.latitude, longitude: target.coordinate.longitude).distance(from: here) < 40 {
-            say("You've arrived at \(target.name)")
+            say(wreck ? "The Ramblin' Wreck has arrived at \(target.name). Go Jackets!" : "You've arrived at \(target.name)")
             going = false
         }
     }
