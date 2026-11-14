@@ -20,41 +20,86 @@ enum Wreck {
 
     static let enRoute = "Ramblin' Wreck en route 🐝"
     static let name = "Ramblin' Wreck"
+    static let short = "In the Wreck 🐝"  // where the full line won't fit (the feed's pills)
 }
 
-/// a tiny gold vintage roadster, drawn (no image files): sized to sit where an SF Symbol would
+extension Color {
+    /// the Wreck's gold, for words: a deeper gold on cream by day, old gold on plum by night
+    static let wreckGold = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.80, green: 0.73, blue: 0.47, alpha: 1)
+                                                                          : UIColor(red: 0.52, green: 0.44, blue: 0.18, alpha: 1) })
+}
+
+/// a tiny gold 1930s coupe, drawn (no image files): sized to sit where an SF Symbol would
 struct WreckIcon: View {
     var size: CGFloat = 18
     private static let gold = Color(red: 0.70, green: 0.64, blue: 0.41)       // old gold
-    private static let goldDark = Color(red: 0.52, green: 0.46, blue: 0.27)
-    private static let tyre = Color(red: 0.12, green: 0.12, blue: 0.16)
+    private static let goldDeep = Color(red: 0.55, green: 0.49, blue: 0.29)
+    private static let glass = Color(red: 0.16, green: 0.19, blue: 0.27)
+    private static let tyre = Color(red: 0.11, green: 0.11, blue: 0.14)
 
     var body: some View {
         Canvas { ctx, box in
-            // drawn on a 26 × 16 grid, scaled to fit
-            let k = min(box.width / 26, box.height / 16)
-            ctx.translateBy(x: (box.width - 26 * k) / 2, y: (box.height - 16 * k) / 2)
+            // a 1930s coupe, side on, facing right, drawn on a 32 × 18 grid
+            let k = min(box.width / 32, box.height / 18)
+            ctx.translateBy(x: (box.width - 32 * k) / 2, y: (box.height - 18 * k) / 2)
             ctx.scaleBy(x: k, y: k)
-            func rr(_ r: CGRect, _ c: CGFloat) -> Path { Path(roundedRect: r, cornerRadius: c) }
-            // the open cab and its folded top
-            ctx.fill(rr(CGRect(x: 4, y: 3, width: 8, height: 6), 1.5), with: .color(Self.goldDark))
-            ctx.fill(rr(CGRect(x: 3, y: 2.2, width: 10, height: 1.6), 0.8), with: .color(Self.tyre))
-            // the long hood out front, and the tall radiator
-            ctx.fill(rr(CGRect(x: 11, y: 6, width: 11, height: 4), 1.2), with: .color(Self.gold))
-            ctx.fill(rr(CGRect(x: 21.5, y: 4.2, width: 2.6, height: 6.6), 0.8), with: .color(Self.goldDark))
-            // the body, low and long, with a white pinstripe
-            ctx.fill(rr(CGRect(x: 1.5, y: 8, width: 22, height: 4), 1.6), with: .color(Self.gold))
-            ctx.fill(Path(CGRect(x: 3, y: 9.4, width: 18, height: 0.7)), with: .color(.white.opacity(0.9)))
-            // the headlamp
-            ctx.fill(Path(ellipseIn: CGRect(x: 23.4, y: 6.4, width: 2.2, height: 2.2)), with: .color(.white))
-            // big spoked wheels
-            for x in [6.0, 18.5] {
-                ctx.fill(Path(ellipseIn: CGRect(x: x - 3.4, y: 9.4, width: 6.8, height: 6.8)), with: .color(Self.tyre))
-                ctx.fill(Path(ellipseIn: CGRect(x: x - 1.6, y: 11.2, width: 3.2, height: 3.2)), with: .color(Self.gold))
-                ctx.fill(Path(ellipseIn: CGRect(x: x - 0.6, y: 12.2, width: 1.2, height: 1.2)), with: .color(Self.tyre))
+            // the cab: upright with a rounded roof
+            var cab = Path()
+            cab.move(to: CGPoint(x: 6.2, y: 9))
+            cab.addLine(to: CGPoint(x: 7, y: 3.6))
+            cab.addQuadCurve(to: CGPoint(x: 9, y: 2), control: CGPoint(x: 7.3, y: 2))
+            cab.addLine(to: CGPoint(x: 16.2, y: 2))
+            cab.addQuadCurve(to: CGPoint(x: 17.8, y: 3.4), control: CGPoint(x: 17.6, y: 2))
+            cab.addLine(to: CGPoint(x: 18.6, y: 9))
+            cab.closeSubpath()
+            ctx.fill(cab, with: .color(Self.goldDeep))
+            // its side window
+            var glass = Path()
+            glass.move(to: CGPoint(x: 9.6, y: 7.2))
+            glass.addLine(to: CGPoint(x: 9.9, y: 4.6))
+            glass.addQuadCurve(to: CGPoint(x: 10.9, y: 3.6), control: CGPoint(x: 10, y: 3.6))
+            glass.addLine(to: CGPoint(x: 15.6, y: 3.6))
+            glass.addQuadCurve(to: CGPoint(x: 16.4, y: 4.4), control: CGPoint(x: 16.3, y: 3.6))
+            glass.addLine(to: CGPoint(x: 16.8, y: 7.2))
+            glass.closeSubpath()
+            ctx.fill(glass, with: .color(Self.glass))
+            // the body: rounded rumble-seat tail, long hood out to the radiator
+            var body = Path()
+            body.move(to: CGPoint(x: 2.2, y: 12.4))
+            body.addLine(to: CGPoint(x: 2.2, y: 10.4))
+            body.addQuadCurve(to: CGPoint(x: 6.4, y: 7.4), control: CGPoint(x: 2.4, y: 7.4))
+            body.addLine(to: CGPoint(x: 18.6, y: 7.4))
+            body.addLine(to: CGPoint(x: 26.8, y: 6.4))
+            body.addLine(to: CGPoint(x: 27.4, y: 12.4))
+            body.closeSubpath()
+            ctx.fill(body, with: .color(Self.gold))
+            // the tall radiator shell
+            ctx.fill(Path(roundedRect: CGRect(x: 26.4, y: 5, width: 2.4, height: 7.4), cornerRadius: 0.9), with: .color(Self.goldDeep))
+            // the white pinstripe down the side
+            ctx.fill(Path(CGRect(x: 3.4, y: 9.4, width: 23, height: 0.7)), with: .color(.white.opacity(0.95)))
+            // sweeping fenders and the running board between them
+            var fenders = Path()
+            fenders.move(to: CGPoint(x: 2.6, y: 13.6))
+            fenders.addQuadCurve(to: CGPoint(x: 8, y: 9.2), control: CGPoint(x: 3.2, y: 9.2))
+            fenders.addQuadCurve(to: CGPoint(x: 12.4, y: 12.6), control: CGPoint(x: 11.8, y: 9.4))
+            fenders.addLine(to: CGPoint(x: 20.6, y: 12.6))
+            fenders.addQuadCurve(to: CGPoint(x: 25, y: 9.2), control: CGPoint(x: 21.2, y: 9.4))
+            fenders.addQuadCurve(to: CGPoint(x: 30.6, y: 13.2), control: CGPoint(x: 30, y: 9.4))
+            fenders.addLine(to: CGPoint(x: 30.6, y: 13.9))
+            fenders.addLine(to: CGPoint(x: 2.6, y: 13.9))
+            fenders.closeSubpath()
+            ctx.fill(fenders, with: .color(Self.goldDeep))
+            // the headlamp, perched on the fender
+            ctx.fill(Path(ellipseIn: CGRect(x: 27.9, y: 7.2, width: 2.6, height: 2.6)), with: .color(Self.goldDeep))
+            ctx.fill(Path(ellipseIn: CGRect(x: 28.55, y: 7.85, width: 1.3, height: 1.3)), with: .color(.white))
+            // whitewall wheels with gold hubs
+            for x in [8.0, 25.0] {
+                ctx.fill(Path(ellipseIn: CGRect(x: x - 3.7, y: 10.6, width: 7.4, height: 7.4)), with: .color(Self.tyre))
+                ctx.stroke(Path(ellipseIn: CGRect(x: x - 2.35, y: 11.95, width: 4.7, height: 4.7)), with: .color(.white), lineWidth: 0.9)
+                ctx.fill(Path(ellipseIn: CGRect(x: x - 1.3, y: 13, width: 2.6, height: 2.6)), with: .color(Self.gold))
             }
         }
-        .frame(width: size * 26 / 16, height: size)
+        .frame(width: size * 32 / 18, height: size)
         .accessibilityLabel(Wreck.name)
     }
 }
@@ -85,7 +130,12 @@ extension Session {
     }
 
     /// what a friend is up to, in words ("On the way", or the Wreck)
-    func statusLabel(_ p: Person) -> String {
-        inTheWreck(p) ? Wreck.enRoute : p.status.label
+    func statusLabel(_ p: Person, short: Bool = false) -> String {
+        inTheWreck(p) ? (short ? Wreck.short : Wreck.enRoute) : p.status.label
+    }
+
+    /// the colour for those words: gold in the Wreck, the status colour otherwise
+    func statusColor(_ p: Person) -> Color? {
+        inTheWreck(p) ? .wreckGold : p.status.textColor
     }
 }

@@ -891,7 +891,7 @@ struct FriendCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(person.name).font(.title3.weight(.bold))
                 Text(person.status == .none ? "@\(person.handle)" : session.statusLabel(person))
-                    .foregroundStyle(person.status.textColor ?? .secondary).font(.subheadline.weight(.semibold))
+                    .foregroundStyle(session.statusColor(person) ?? .secondary).font(.subheadline.weight(.semibold))
             }
             Spacer()
             Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)

@@ -125,7 +125,7 @@ struct UpNextCard: View {
                     if wreck && leave < .now {
                         // Wreck mode, and it's time: you're off
                         Label { Text(Wreck.enRoute).bold() } icon: { WreckIcon(size: 16) }
-                            .font(.subheadline).foregroundStyle(.primary)
+                            .font(.subheadline).foregroundStyle(Color.wreckGold)
                     } else {
                         Label {
                             Text("Leave by \(Text(leave.formatted(date: .omitted, time: .shortened)).bold())\(hangout.travel[uid].map { " · \(Self.trip($0)) trip" } ?? "")")

@@ -195,7 +195,7 @@ struct PlanDetailView: View {
             if h.attendees.contains(u) {
                 // on their way right now (their dot is on the map)
                 if u != session.uid, onTheWay.contains(where: { $0.id == u }) {
-                    return (Wreck.on(mode: h.modes[u], to: h.venue) ? Wreck.enRoute : "On the way", .omwBlue)
+                    return Wreck.on(mode: h.modes[u], to: h.venue) ? (Wreck.enRoute, .wreckGold) : ("On the way", .omwBlue)
                 }
                 if let leave = h.alerts[u] { return ("Going · leaves \(leave.formatted(date: .omitted, time: .shortened))", .secondary) }
                 return ("Going", .secondary)
