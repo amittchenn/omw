@@ -15,9 +15,17 @@ struct FriendsMapView: View {
     @State private var position: MapCameraPosition = .userLocation(followsHeading: false, fallback: .automatic)
     @State private var selected: Person?
     @State private var openPost: Post?
+    @State private var openPlan: PlanRef?
     @State private var query = ""
     @State private var hits: [PlaceHit] = []
     @State private var place: MapPlace?
+    @State private var poi: MapFeature?            // the place label you tapped on Apple's map (its own name, exactly)
+    @State private var poiAt = Date.distantPast    // when, so the plain tap that came with it doesn't also count
+    @State private var pinAt = Date.distantPast    // the same for our own pins (a friend, a memory, a saved place, you)
+    @State private var droppedAt = Date.distantPast
+    @State private var lookup: Task<Void, Never>?  // the address being looked up for what you tapped (the newest wins)
+    @State private var camera: MapCamera?
+    @State private var mapSize: CGSize = .zero
     @State private var showSaved = false
     @State private var showMe = false
     @State private var flyTo: FlyTarget?           // where the Mapbox map should fly next
@@ -74,7 +82,7 @@ struct FriendsMapView: View {
                 // a tapped place: our own card floating over the bottom of the map (always the same size and margins),
                 // in place of the friend bar. Swipe it down or tap ✕ to close.
                 if let p = place {
-                    PlaceCard(place: p) { withAnimation(.snappy(duration: 0.3)) { place = nil } }
+                    PlaceCard(place: p) { closePlace() }
                         .id(p.id)
                         .padding(.horizontal, 10).padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -83,6 +91,8 @@ struct FriendsMapView: View {
                 }
             }
             .animation(.snappy(duration: 0.3), value: place?.id)
+            .sensoryFeedback(.selection, trigger: place?.id)
+            .onChange(of: somethingOpen) { _, open in if open { dropStray() } }
             .task(id: query) {
                 let q = query.trimmingCharacters(in: .whitespaces)
                 guard !q.isEmpty else { hits = []; return }
@@ -102,6 +112,7 @@ struct FriendsMapView: View {
             .sheet(isPresented: $showSaved) {
                 SavedList { p in
                     fly(to: p.coordinate)
+                    poi = nil
                     place = p
                 }
                 .withOmw()
@@ -109,6 +120,11 @@ struct FriendsMapView: View {
             }
             .sheet(item: $openPost) { post in
                 NavigationStack { PostDetailView(id: post.id).withProfileRoutes() }.withOmw()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(item: $openPlan) { ref in
+                NavigationStack { PlanDetailView(id: ref.id).withProfileRoutes() }.withOmw()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
@@ -158,7 +174,7 @@ extension FriendsMapView {
     /// Apple Maps (the backup), with omw!'s pins, glow and plan flag on top
     var appleMap: some View {
           MapReader { proxy in
-            Map(position: $position) {
+            Map(position: $position, selection: $poi) {
                 // a warm omw! glow where your friends hang out (their memories and your plans): yellow fading into coral
                 ForEach(heat) { h in
                     MapCircle(center: h.coordinate, radius: 460).foregroundStyle(Color.sun.opacity(0.10))
@@ -174,17 +190,18 @@ extension FriendsMapView {
                     }
                     Annotation(next.venueName, coordinate: venue, anchor: .bottom) {
                         HangoutFlag(hangout: next)
+                            .onTapGesture { ownPin(); openPlan = PlanRef(id: next.id) }  // the plan itself
                     }
                     .annotationTitles(.hidden)
                 }
                 // you, as your picture (like Snap Map's "Me")
                 UserAnnotation { _ in
-                    MePin(person: session.me).onTapGesture { showMe = true }  // you, like anyone else: your profile
+                    MePin(person: session.me).onTapGesture { ownPin(); showMe = true }  // you, like anyone else: your profile
                 }
                 // a memory at the same spot as what's up next would sit on top of its flag: the flag wins there
                 ForEach(photoSpots.filter { !isUpNextSpot($0) }) { spot in
                     Annotation(spot.post.venueName, coordinate: CLLocationCoordinate2D(latitude: spot.post.venue[0], longitude: spot.post.venue[1]), anchor: .bottom) {
-                        PhotoPin(spot: spot).onTapGesture { openPost = spot.post }
+                        PhotoPin(spot: spot).onTapGesture { ownPin(); openPost = spot.post }
                     }
                     .annotationTitles(.hidden)
                 }
@@ -196,17 +213,18 @@ extension FriendsMapView {
                             .background(Color.sun, in: Circle())
                             .overlay(Circle().strokeBorder(.white, lineWidth: 2))
                             .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-                            .onTapGesture { place = MapPlace(name: s.name, address: s.address, lat: s.lat, lng: s.lng) }
+                            .onTapGesture { ownPin(); poi = nil; place = MapPlace(name: s.name, address: s.address, lat: s.lat, lng: s.lng) }
                     }
                     .annotationTitles(.hidden)
                 }
-                if let place {
-                    Marker(place.name, systemImage: "mappin", coordinate: place.coordinate).tint(Color.coral)
+                // a label you tapped is already lifted by the map itself; anything else (a dropped pin, a search) gets ours
+                if let place, poi == nil {
+                    Marker(place.name, systemImage: place.isPin ? "mappin" : "mappin.circle.fill", coordinate: place.coordinate).tint(Color.coral)
                 }
                 ForEach(live) { item in
                     Annotation(item.person.firstName, coordinate: item.spot.coordinate, anchor: .bottom) {
                         FriendPin(person: item.person, minutesAgo: Int(Date.now.timeIntervalSince(item.spot.at) / 60))
-                            .onTapGesture { selected = item.person }
+                            .onTapGesture { ownPin(); selected = item.person }
                     }
                     .annotationTitles(.hidden)
                 }
@@ -219,12 +237,18 @@ extension FriendsMapView {
                     .ignoresSafeArea(edges: .top)
                     .allowsHitTesting(false)
             }
-            // tap anywhere: the place there (a cafe, a park…), or the address, with Save / Plan here / Rate / Go
-            .onTapGesture { point in
-                guard let c = proxy.convert(point, from: .local) else { return }
-                searching = false
-                Task { if let p = await MapPlace.at(c) { place = p } }
+            // like Apple and Google Maps: a place's label opens exactly that place; a tap on nothing in particular
+            // closes the card if one is open, or else drops a pin there with its street address
+            .mapFeatureSelectionDisabled { $0.kind == .territory }
+            .onChange(of: poi) { _, f in
+                guard let f else { return }
+                poiAt = .now
+                open(f, proxy)
             }
+            // alongside the map's own tap (which is what selects a label), not instead of it
+            .simultaneousGesture(SpatialTapGesture().onEnded { tapped($0.location, proxy) })
+            .onMapCameraChange(frequency: .onEnd) { camera = $0.camera }
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { mapSize = $0 }
           }
             .mapControls {
                 MapCompass()  // only shows up when the map's turned; our own "find me" sits under Saved
@@ -315,6 +339,7 @@ extension FriendsMapView {
             withAnimation(.snappy(duration: 0.4)) {
                 position = .region(MKCoordinateRegion(center: p.coordinate, latitudinalMeters: 900, longitudinalMeters: 900))
             }
+            poi = nil
             place = p
         }
     }
@@ -368,6 +393,81 @@ extension FriendsMapView {
         .buttonStyle(Pressable())
     }
 
+    /// one of our own pins was tapped: that's what you meant, so a pin dropped by the same tap goes away
+    func ownPin() {
+        pinAt = .now
+        dropStray()
+    }
+
+    /// a pin dropped a moment ago by a tap that was really meant for something else
+    func dropStray() {
+        if place?.isPin == true, Date.now.timeIntervalSince(droppedAt) < 1.5 { closePlace() }
+    }
+
+    /// a plan, a memory, a friend or your profile is open over the map
+    var somethingOpen: Bool { openPlan != nil || openPost != nil || selected != nil || showMe }
+
+    func closePlace() {
+        lookup?.cancel()
+        withAnimation(.snappy(duration: 0.3)) { place = nil; poi = nil }
+    }
+
+    /// a plain tap on the map. A tap on a place's label also selects it a moment later (that wins, so wait a beat)
+    func tapped(_ point: CGPoint, _ proxy: MapProxy) {
+        searching = false
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            if Date.now.timeIntervalSince(poiAt) < 0.8 || Date.now.timeIntervalSince(pinAt) < 0.8 || somethingOpen { return }
+            if place != nil { closePlace(); return }  // tapping away closes the card
+            guard let c = proxy.convert(point, from: .local) else { return }
+            dropPin(at: c, proxy)
+        }
+    }
+
+    /// a place's label: the card opens at once with its own name; the address follows from Apple
+    func open(_ f: MapFeature, _ proxy: MapProxy) {
+        lookup?.cancel()
+        let p = MapPlace(name: f.title ?? "Place", address: "", lat: f.coordinate.latitude, lng: f.coordinate.longitude)
+        place = p
+        reveal(p.coordinate, proxy)
+        lookup = Task {
+            guard let item = try? await MKMapItemRequest(feature: f).mapItem, !Task.isCancelled, place?.id == p.id else { return }
+            let pm = item.placemark
+            let street = [pm.subThoroughfare, pm.thoroughfare].compactMap { $0 }.joined(separator: " ")
+            place?.address = [street.isEmpty ? nil : street, pm.locality].compactMap { $0 }.joined(separator: ", ")
+        }
+    }
+
+    /// somewhere with no label: a pin right there (straight away), named by its street address once Apple has it,
+    /// never snapped to whichever business happens to be nearest
+    func dropPin(at c: CLLocationCoordinate2D, _ proxy: MapProxy) {
+        lookup?.cancel()
+        droppedAt = .now
+        let p = MapPlace(name: MapPlace.finding, address: "", lat: c.latitude, lng: c.longitude, isPin: true)
+        place = p
+        reveal(c, proxy)
+        lookup = Task {
+            let named = await MapPlace.describe(c)
+            guard !Task.isCancelled, place?.id == p.id else { return }
+            place?.name = named.name
+            place?.address = named.address
+        }
+    }
+
+    /// keep what you tapped in view: if the card (bottom half) or the search bar would cover it, slide the map
+    func reveal(_ c: CLLocationCoordinate2D, _ proxy: MapProxy) {
+        guard mapSize.height > 0, let pt = proxy.convert(c, to: .local) else { return }
+        let h = mapSize.height
+        guard pt.y > h * 0.48 || pt.y < 150 else { return }
+        let centre = CGPoint(x: mapSize.width / 2, y: h / 2 + (pt.y - h * 0.32))
+        guard let to = proxy.convert(centre, from: .local) else { return }
+        let cam = camera
+        withAnimation(.snappy(duration: 0.45)) {
+            position = .camera(MapCamera(centerCoordinate: to, distance: cam?.distance ?? 1400,
+                                         heading: cam?.heading ?? 0, pitch: cam?.pitch ?? 0))
+        }
+    }
+
     func fly(to c: CLLocationCoordinate2D) {
         flyTo = FlyTarget(coordinate: c)  // Mapbox
         withAnimation(.snappy(duration: 0.45)) {
@@ -406,9 +506,35 @@ extension MapPlace {
                                 lat: p.coordinate.latitude, lng: p.coordinate.longitude)
             }
         }
-        let placemark = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: c.latitude, longitude: c.longitude)).first
-        let street = [placemark?.subThoroughfare, placemark?.thoroughfare].compactMap { $0 }.joined(separator: " ")
-        return MapPlace(name: street.isEmpty ? "Dropped pin" : street, address: placemark?.locality ?? "", lat: c.latitude, lng: c.longitude)
+        let named = await describe(c)
+        return MapPlace(name: named.name, address: named.address, lat: c.latitude, lng: c.longitude, isPin: true)
+    }
+}
+
+extension MapPlace {
+    /// a name for a spot with no label, like Apple Maps gives a dropped pin: its street address; else the park or
+    /// landmark it's in ("Golden Gate Park"); else the street, the neighbourhood or the city; and only if Apple can't
+    /// say anything at all (or keeps refusing), its coordinates. Never just "Dropped pin".
+    static func describe(_ c: CLLocationCoordinate2D) async -> (name: String, address: String) {
+        let here = CLLocation(latitude: c.latitude, longitude: c.longitude)
+        var pm = try? await CLGeocoder().reverseGeocodeLocation(here).first
+        if pm == nil, !Task.isCancelled {  // Apple throttles a burst of lookups: one more try a moment later
+            try? await Task.sleep(for: .seconds(1.2))
+            pm = try? await CLGeocoder().reverseGeocodeLocation(here).first
+        }
+        let city = [pm?.locality, pm?.administrativeArea].compactMap { $0 }.joined(separator: ", ")
+        if let pm {
+            let street = [pm.subThoroughfare, pm.thoroughfare].compactMap { $0 }.joined(separator: " ")
+            if pm.subThoroughfare != nil, !street.isEmpty { return (street, city) }
+            if let area = pm.areasOfInterest?.first, !area.isEmpty { return (area, [pm.subLocality, pm.locality].compactMap { $0 }.joined(separator: ", ")) }
+            if let road = pm.thoroughfare { return (road, [pm.subLocality, pm.locality].compactMap { $0 }.joined(separator: ", ")) }
+            if let hood = pm.subLocality { return (hood, city) }
+            if let name = pm.name, !name.isEmpty { return (name, city) }
+            if let town = pm.locality { return (town, pm.administrativeArea ?? "") }
+        }
+        let lat = String(format: "%.4f° %@", abs(c.latitude), c.latitude >= 0 ? "N" : "S")
+        let lng = String(format: "%.4f° %@", abs(c.longitude), c.longitude >= 0 ? "E" : "W")
+        return ("Pinned spot", "\(lat), \(lng)")
     }
 }
 
@@ -454,6 +580,9 @@ struct MapPlace: Identifiable, Equatable {
     var lat: Double
     var lng: Double
     var googleId: String? = nil  // Google's id for it, so the card's photos and rating are that exact place
+    var isPin = false            // a spot dropped on the map, not a named place: no Google details or ratings
+    static let finding = "Finding address…"
+    var resolving: Bool { isPin && name == Self.finding }  // a pin whose address is still on its way
     var id: String { String(format: "%.5f,%.5f", lat, lng) }
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lng) }
     var hit: PlaceHit { PlaceHit(kind: "place", id: nil, name: name, address: address, lat: lat, lng: lng) }
@@ -491,6 +620,7 @@ struct PlaceCard: View {
             photos
             VStack(alignment: .leading, spacing: 4) {
                 Text(place.name).font(.title3.weight(.bold)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(place.resolving ? Color.secondary : Color.primary)
                 facts
                 if !place.address.isEmpty {
                     Text(place.address).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
@@ -511,11 +641,12 @@ struct PlaceCard: View {
                 action(session.isSaved(lat: place.lat, lng: place.lng) ? "bookmark.fill" : "bookmark", "Save") {
                     session.toggleSaved(name: place.name, address: place.address, lat: place.lat, lng: place.lng)
                 }
-                action("star", "Rate") { rating = true }
+                if !place.isPin { action("star", "Rate") { rating = true } }
                 action("arrow.triangle.turn.up.right.diamond", "Go") {
                     going = DirectionsTarget(name: place.name, coordinate: place.coordinate, mode: session.me?.travelMode ?? "driving")
                 }
             }
+            .disabled(place.resolving)  // a moment, so nothing gets saved or planned as "Finding address…"
         }
         .padding(14)
         // every place card the same: as wide as the screen allows, just as tall as it needs, solid (not glass over a
@@ -549,7 +680,8 @@ struct PlaceCard: View {
             loaded = false; info = nil; street = nil; streetImage = nil; photoRefs = nil; buzz = nil  // a new place: start clean
             var ask = ["name": place.name, "lat": "\(place.lat)", "lng": "\(place.lng)"]
             if let id = place.googleId { ask["id"] = id }
-            info = try? await API.get("/places/info", ask, as: PlaceInfo.self)
+            // a dropped pin isn't a business: asking Google by name would match a random one nearby
+            if !place.isPin { info = try? await API.get("/places/info", ask, as: PlaceInfo.self) }
             // Google's photos only if the first one actually comes through (else the street view, below)
             if let refs = info?.photos, let first = refs.first,
                await ImageLoader.load("\(API.base.absoluteString)/place-photo?ref=\(first)&w=600") != nil {
@@ -624,7 +756,7 @@ struct PlaceCard: View {
                     miniMap  // nowhere to see it: the spot on omw!'s map
                 } else if loaded {
                     Map(initialPosition: .camera(MapCamera(centerCoordinate: place.coordinate, distance: 600, heading: 0, pitch: 45))) {
-                        Marker(place.name, coordinate: place.coordinate).tint(.red)
+                        Marker(place.name, coordinate: place.coordinate).tint(Color.coral)  // the same pin as on the big map
                     }
                     .allowsHitTesting(false)
                 } else {
@@ -941,3 +1073,6 @@ struct RemoteImageFit: View {
         }
     }
 }
+
+/// a plan opened from its flag on the map
+struct PlanRef: Identifiable { let id: String }

@@ -96,24 +96,7 @@ struct PlanSheet: View {
                     block("What") {
                         ScrollView(.horizontal) {
                             HStack(spacing: 8) {
-                                ForEach(HangoutType.all + (session.me?.categories ?? [])) { t in
-                                    Button { type = t; results = nil } label: {
-                                        Label(t.name, systemImage: t.symbol)
-                                            .font(.subheadline.weight(.bold))
-                                            .padding(.horizontal, 14).frame(height: 40)
-                                            .background(type == t ? Color.sun : Color.omwCard2, in: Capsule())
-                                            .foregroundStyle(type == t ? Color.black : Color.primary)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .contextMenu {
-                                        if t.id.hasPrefix("c_") {
-                                            Button("Delete", systemImage: "trash", role: .destructive) {
-                                                session.removeCategory(t.id)
-                                                if type == t { type = HangoutType.all[0] }
-                                            }
-                                        }
-                                    }
-                                }
+                                ForEach(allTypes) { t in typeChip(t) }
                                 Button { naming = true } label: {
                                     Label("New", systemImage: "plus")
                                         .font(.subheadline.weight(.bold))
@@ -302,6 +285,29 @@ struct PlanSheet: View {
     }
 
     /// a section like the web app's planner: a line, a bold label, then what's in it
+    private var allTypes: [HangoutType] { HangoutType.all + (session.me?.categories ?? []) }
+
+    /// one "What" choice; your own ones can be deleted with a long press
+    private func typeChip(_ t: HangoutType) -> some View {
+        let on = type == t
+        return Button { type = t; results = nil } label: {
+            Label(t.name, systemImage: t.symbol)
+                .font(.subheadline.weight(.bold))
+                .padding(.horizontal, 14).frame(height: 40)
+                .background(on ? Color.sun : Color.omwCard2, in: Capsule())
+                .foregroundStyle(on ? Color.black : Color.primary)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if t.id.hasPrefix("c_") {
+                Button("Delete", systemImage: "trash", role: .destructive) {
+                    session.removeCategory(t.id)
+                    if type == t { type = HangoutType.all[0] }
+                }
+            }
+        }
+    }
+
     private func block<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Divider().padding(.bottom, 4)
