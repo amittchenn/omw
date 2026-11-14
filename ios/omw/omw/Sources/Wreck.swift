@@ -37,6 +37,10 @@ struct WreckIcon: View {
     var size: CGFloat = 18
     /// picked as the way there: it pops a little wheelie
     var selected = false
+    /// grows with the text around it (as an SF Symbol would), unless it sits in a fixed-size button
+    var scales = true
+    @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
+    private var h: CGFloat { scales ? size * min(textScale, 1.8) : size }
     @State private var hops = 0
     @Environment(\.accessibilityReduceMotion) private var still
     private static let gold = Color(red: 0.70, green: 0.64, blue: 0.41)       // old gold
@@ -106,7 +110,7 @@ struct WreckIcon: View {
                 ctx.fill(Path(ellipseIn: CGRect(x: x - 1.3, y: 13, width: 2.6, height: 2.6)), with: .color(Self.gold))
             }
         }
-        .frame(width: size * 32 / 18, height: size)
+        .frame(width: h * 32 / 18, height: h)
         .keyframeAnimator(initialValue: Hop(), trigger: hops) { car, hop in
             // nose up on the back wheel, then settle
             car.rotationEffect(.degrees(hop.tilt), anchor: UnitPoint(x: 0.25, y: 0.95)).offset(y: hop.lift)
@@ -134,10 +138,11 @@ struct ModeIcon: View {
     var to: CLLocationCoordinate2D?
     var size: CGFloat = 18
     var selected = false
+    var scales = true
 
     var body: some View {
         if Wreck.on(mode: mode, to: to) {
-            WreckIcon(size: size, selected: selected)
+            WreckIcon(size: size, selected: selected, scales: scales)
         } else {
             Image(systemName: Travel.symbol(mode))
         }

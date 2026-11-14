@@ -68,6 +68,8 @@ struct PlanSheet: View {
     @State private var sent = false
     @State private var problem: String?
     @State private var modeFor: [String: String] = [:]  // how someone gets there for this plan (else their usual way)
+    /// where the plan is, once a spot's picked (for Wreck mode)
+    private var spot: CLLocationCoordinate2D? { place.flatMap { p in p.lat.flatMap { la in p.lng.map { CLLocationCoordinate2D(latitude: la, longitude: $0) } } } }
     @State private var naming = false
     @State private var newType = ""
 
@@ -132,7 +134,7 @@ struct PlanSheet: View {
                             ForEach(Travel.modes, id: \.self) { m in
                                 Button { modeFor[id] = m; results = nil } label: {
                                     Label { Text(Travel.name(m)) } icon: {
-                                        ModeIcon(mode: m, to: place.flatMap { p in p.lat.flatMap { la in p.lng.map { CLLocationCoordinate2D(latitude: la, longitude: $0) } } }, size: 21, selected: mode == m)
+                                        ModeIcon(mode: m, to: spot, size: 21, selected: mode == m, scales: false)
                                     }
                                         .labelStyle(.iconOnly)
                                         .font(.system(size: 17, weight: .semibold))
@@ -141,7 +143,8 @@ struct PlanSheet: View {
                                         .foregroundStyle(mode == m ? Color.black : Color.primary)
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel(Travel.name(m))
+                                .accessibilityLabel(Wreck.on(mode: m, to: spot) ? Wreck.name : Travel.name(m))
+                                .accessibilityAddTraits(mode == m ? .isSelected : [])
                             }
                         }
                     }

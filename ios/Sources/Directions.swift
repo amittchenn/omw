@@ -164,6 +164,8 @@ struct DirectionsView: View {
                                 .foregroundStyle(mode == m.id ? Color.black : Color.primary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(Wreck.on(mode: m.id, to: target.coordinate) ? Wreck.name : Travel.name(m.id))
+                        .accessibilityAddTraits(mode == m.id ? .isSelected : [])
                     }
                 }
             }
