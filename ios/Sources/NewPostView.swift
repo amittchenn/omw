@@ -151,9 +151,11 @@ struct PlacePicker: View {
                         if let address = hit.address, !address.isEmpty { Text(address).font(.footnote).foregroundStyle(.secondary) }
                     }
                 }
+                .listRowBackground(Color.clear)
             }
         }
         .listStyle(.plain)
+        .omwBackground()  // the app's background, not the system's grey
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search places")
         .task(id: query) {
             let text = query.trimmingCharacters(in: .whitespaces)

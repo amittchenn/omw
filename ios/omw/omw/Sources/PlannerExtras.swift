@@ -291,9 +291,13 @@ struct MuseBar: View {
         if words.contains("tonight") || words.contains("today") { day = .now }
         if words.contains("tomorrow") || words.contains("tmr") || words.contains("tmrw") { day = cal.date(byAdding: .day, value: 1, to: .now) }
         let weekdays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+        var namedDay = false
         for w in words {
             if let i = weekdays.firstIndex(where: { w.hasPrefix($0) && w.count <= 9 }) {
-                day = cal.nextDate(after: .now, matching: DateComponents(weekday: i + 1), matchingPolicy: .nextTime)
+                namedDay = true
+                // "sat" on a Saturday means today (if the time's still ahead), not a week from now
+                day = cal.component(.weekday, from: .now) == i + 1
+                    ? .now : cal.nextDate(after: .now, matching: DateComponents(weekday: i + 1), matchingPolicy: .nextTime)
             }
         }
         var hour: Int?, minute = 0
@@ -311,7 +315,8 @@ struct MuseBar: View {
         if day != nil || hour != nil {
             let base = day ?? .now
             var start = cal.date(bySettingHour: hour ?? 19, minute: minute, second: 0, of: base) ?? base
-            if start < .now { start = cal.date(byAdding: .day, value: 1, to: start) ?? start }
+            // already past: the same time next day, or next week when you named the day ("sat 3pm" at 4pm Saturday)
+            if start < .now { start = cal.date(byAdding: .day, value: namedDay ? 7 : 1, to: start) ?? start }
             when = When.local.string(from: start)
         }
         return MuseAnswer(who: who, type: type, when: when, place: nil, place_options: nil, place_query: nil, summary: "Got it", note: nil)
