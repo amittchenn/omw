@@ -33,6 +33,11 @@ struct FriendsMapView: View {
     }
 
     /// friends' photos where they took them, like Snap Map: the newest at each place, with how many there are
+    private func isUpNextSpot(_ spot: PhotoSpot) -> Bool {
+        guard let venue = session.upNext?.venue else { return false }
+        return abs(spot.post.venue[0] - venue.latitude) < 0.0008 && abs(spot.post.venue[1] - venue.longitude) < 0.0008  // ~80 m
+    }
+
     private var photoSpots: [PhotoSpot] {
         var by: [String: [Post]] = [:]
         for p in session.posts where p.venue.count == 2 && !p.photo.isEmpty {
@@ -176,7 +181,8 @@ extension FriendsMapView {
                 UserAnnotation { _ in
                     MePin(person: session.me).onTapGesture { showMe = true }  // you, like anyone else: your profile
                 }
-                ForEach(photoSpots) { spot in
+                // a memory at the same spot as what's up next would sit on top of its flag: the flag wins there
+                ForEach(photoSpots.filter { !isUpNextSpot($0) }) { spot in
                     Annotation(spot.post.venueName, coordinate: CLLocationCoordinate2D(latitude: spot.post.venue[0], longitude: spot.post.venue[1]), anchor: .bottom) {
                         PhotoPin(spot: spot).onTapGesture { openPost = spot.post }
                     }
@@ -791,7 +797,17 @@ struct HangoutFlag: View {
                 Ticki(mood: hangout.start.timeIntervalSinceNow < 30 * 60 ? .run : .idle).frame(width: 30, height: 30)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(hangout.venueName.isEmpty ? hangout.title : hangout.venueName).font(.caption.weight(.heavy)).lineLimit(1)
-                    Text(hangout.start, style: .relative).font(.caption2.weight(.bold)).monospacedDigit()
+                    // a live countdown once it's close; before that, the day and time read better than "19 hr, 22 min"
+                    Group {
+                        if hangout.start.timeIntervalSinceNow < 2 * 3600 {
+                            Text(hangout.start, style: .relative)
+                        } else {
+                            Text(Calendar.current.isDateInToday(hangout.start) ? "Today · \(hangout.start.formatted(date: .omitted, time: .shortened))"
+                                 : Calendar.current.isDateInTomorrow(hangout.start) ? "Tomorrow · \(hangout.start.formatted(date: .omitted, time: .shortened))"
+                                 : hangout.start.formatted(.dateTime.weekday(.abbreviated).hour().minute()))
+                        }
+                    }
+                    .font(.caption2.weight(.bold)).monospacedDigit()
                 }
                 .foregroundStyle(.black)
             }

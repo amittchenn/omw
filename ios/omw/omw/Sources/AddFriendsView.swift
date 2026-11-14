@@ -43,7 +43,7 @@ struct AddFriendsView: View {
                                 .opensProfile(r.from)
                                 Spacer()
                                 Button("Accept") { session.accept(r) }
-                                    .buttonStyle(.borderedProminent).tint(Color.omwBlue).controlSize(.small)
+                                    .buttonStyle(OmwPillButton())
                                 Button { session.decline(r) } label: { Image(systemName: "xmark").foregroundStyle(.secondary) }
                                     .buttonStyle(.borderless)
                             }
@@ -71,6 +71,7 @@ struct AddFriendsView: View {
         }
         .listStyle(.insetGrouped)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search names or usernames")
+        .onChange(of: query) { let clean = query.undoingOmwShortcut; if clean != query { query = clean } }
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .task(id: query) {
@@ -127,12 +128,12 @@ struct FriendButton: View {
             label("Friends").foregroundStyle(.secondary)
         } else if let request = session.incoming.first(where: { $0.from == uid }) {
             Button("Accept") { session.accept(request) }
-                .buttonStyle(.borderedProminent).tint(Color.omwBlue).controlSize(.small)
+                .buttonStyle(OmwPillButton())
         } else if session.outgoing.contains(uid) {
             label("Requested").foregroundStyle(.secondary)
         } else if let card {
             Button("Add") { session.sendRequest(to: card) }
-                .buttonStyle(.borderedProminent).tint(Color.omwBlue).controlSize(.small)
+                .buttonStyle(OmwPillButton())
         }
     }
 

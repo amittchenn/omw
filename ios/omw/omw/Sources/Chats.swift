@@ -225,7 +225,7 @@ struct ChatsView: View {
                         ForEach(fresh) { f in
                             NavigationLink { DirectChat(uid: f.id) } label: {
                                 VStack(spacing: 5) {
-                                    Avatar(f, size: 60, showStatus: true)
+                                    Avatar(photo: f.photo, name: f.name, size: 60, ring: f.status.color ?? .clear)  // same size with or without a status
                                     Text(f.firstName).font(.caption).lineLimit(1)
                                 }
                                 .frame(width: 70)
@@ -238,6 +238,7 @@ struct ChatsView: View {
                 .scrollIndicators(.hidden)
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)  // the app's background, not a black band
             }
             if rows.isEmpty {
                 ContentUnavailableView(query.isEmpty ? (session.friends.isEmpty ? "Add friends to start chatting" : "No chats yet") : "No chats match that",
@@ -247,6 +248,7 @@ struct ChatsView: View {
             ForEach(rows) { r in
                 NavigationLink(value: r.ref) { row(r) }
                     .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             }
         }
         .listStyle(.plain)
@@ -277,7 +279,7 @@ struct ChatsView: View {
                 .foregroundStyle(r.unread ? .primary : .secondary)
             }
             Spacer(minLength: 0)
-            if r.unread { Circle().fill(Color.omwBlue).frame(width: 9, height: 9) }
+            if r.unread { Circle().fill(Color.coral).frame(width: 9, height: 9) }
         }
         .padding(.vertical, 2)
     }
@@ -295,7 +297,8 @@ struct ChatFace: View {
             Image(systemName: "calendar")
                 .font(.system(size: size * 0.4, weight: .semibold))
                 .frame(width: size, height: size)
-                .background(Color.sun.opacity(0.35), in: Circle())
+                .foregroundStyle(.black)
+                .background(Color.sun.gradient, in: Circle())  // omw! yellow (a see-through yellow turns olive on dark)
         case .chat(let id):
             if let c = session.chat(id) {
                 let others = c.others(session.uid ?? "")
@@ -335,7 +338,8 @@ struct NewChatSheet: View {
 
     private var shown: [Person] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        return q.isEmpty ? session.friends : session.friends.filter { "\($0.name) \($0.code)".lowercased().contains(q) }
+        let friends = session.friends.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }  // A to Z
+        return q.isEmpty ? friends : friends.filter { "\($0.name) \($0.code)".lowercased().contains(q) }
     }
 
     var body: some View {
@@ -359,7 +363,7 @@ struct NewChatSheet: View {
                             Spacer()
                             Image(systemName: picked.contains(f.id) ? "checkmark.circle.fill" : "circle")
                                 .font(.title3)
-                                .foregroundStyle(picked.contains(f.id) ? Color.omwBlue : Color(.tertiaryLabel))
+                                .foregroundStyle(picked.contains(f.id) ? Color.coral : Color(.tertiaryLabel))
                         }
                         .contentShape(Rectangle())
                     }
@@ -556,8 +560,9 @@ struct ConversationView: View {
                     }
                     Text(m.text)
                         .padding(.horizontal, 13).padding(.vertical, 8)
-                        .foregroundStyle(mine ? Color.white : Color.primary)
-                        .background(mine ? Color.omwBlue : Color.omwCard, in: .rect(cornerRadius: 19))
+                        // yours in omw! yellow (black text), not a messaging app's blue
+                        .foregroundStyle(mine ? Color.black : Color.primary)
+                        .background(mine ? Color.sun : Color.omwCard, in: .rect(cornerRadius: 19))
                         .textSelection(.enabled)
                 }
                 if !mine { Spacer(minLength: 60) }
@@ -575,7 +580,7 @@ struct ConversationView: View {
                 .background(Color.omwCard, in: .rect(cornerRadius: 20))
             if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button(action: send) {
-                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 34)).foregroundStyle(Color.omwBlue)
+                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 34)).foregroundStyle(.black, Color.sun)
                 }
                 .transition(.scale.combined(with: .opacity))
                 .accessibilityLabel("Send")
