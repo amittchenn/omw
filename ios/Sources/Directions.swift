@@ -80,7 +80,13 @@ struct DirectionsView: View {
         Map(position: $position) {
             UserAnnotation()
             if let route {
-                MapPolyline(route.polyline).stroke(Color.coral, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                if wreck {
+                    // the Wreck's way onto campus, in gold with a darker edge so it holds up on the map
+                    MapPolyline(route.polyline).stroke(Wreck.goldDeep, style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
+                    MapPolyline(route.polyline).stroke(Wreck.goldBright, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                } else {
+                    MapPolyline(route.polyline).stroke(Color.coral, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                }
             }
             Marker(target.name, systemImage: "mappin", coordinate: target.coordinate).tint(Color.coral)
         }
@@ -106,7 +112,7 @@ struct DirectionsView: View {
                             Label(first.instructions, systemImage: Self.symbol(for: first.instructions)).lineLimit(1)
                             Image(systemName: "chevron.down").font(.caption2.weight(.bold))
                         }
-                        .font(.caption.weight(.semibold)).foregroundStyle(Color.coral)
+                        .font(.caption.weight(.semibold)).foregroundStyle(wreck ? Color.wreckGold : Color.coral)
                     }
                     .buttonStyle(.plain)
                 }
@@ -149,12 +155,17 @@ struct DirectionsView: View {
                 HStack(spacing: 8) {
                     ForEach(Self.modes) { m in
                         Button { mode = m.id } label: {
-                            Image(systemName: m.symbol).font(.headline)
+                            Group {
+                                if Wreck.on(mode: m.id, to: target.coordinate) { WreckIcon(size: 21, selected: mode == m.id) } else { Image(systemName: m.symbol) }
+                            }
+                            .font(.headline)
                                 .frame(maxWidth: .infinity, minHeight: 40)
                                 .background(mode == m.id ? Color.sun : Color.omwCard2, in: Capsule())
                                 .foregroundStyle(mode == m.id ? Color.black : Color.primary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(Wreck.on(mode: m.id, to: target.coordinate) ? Wreck.name : Travel.name(m.id))
+                        .accessibilityAddTraits(mode == m.id ? .isSelected : [])
                     }
                 }
             }
@@ -211,8 +222,11 @@ struct DirectionsView: View {
             return "\(Self.minutes(transitMinutes)) by transit" + (route.map { " · walking route shown, \(Self.minutes($0.expectedTravelTime / 60))" } ?? "")
         }
         guard let route else { return failed ? "No route found" : "Finding the way…" }
-        return "\(Self.minutes(tripMinutes ?? seconds(route) / 60)) · \(Self.distance(route.distance))"
+        return "\(Self.minutes(tripMinutes ?? seconds(route) / 60))\(wreck ? " in the Wreck" : "") · \(Self.distance(route.distance))"
     }
+
+    /// Wreck mode: driving onto Georgia Tech's campus
+    private var wreck: Bool { Wreck.on(mode: mode, to: target.coordinate) }
 
     /// how long the route takes (by bike: the walking route at about 15 km/h)
     private func seconds(_ route: MKRoute) -> TimeInterval { mode == "cycling" ? route.distance / 4.2 : route.expectedTravelTime }
@@ -301,7 +315,7 @@ struct DirectionsView: View {
         guard going, let here = location.last else { return }
         while steps.indices.contains(step + 1), let d = distanceToStep(steps[step + 1]), d < 60 { step += 1; say(steps[step].instructions) }
         if CLLocation(latitude: target.coordinate.latitude, longitude: target.coordinate.longitude).distance(from: here) < 40 {
-            say("You've arrived at \(target.name)")
+            say(wreck ? "The Ramblin' Wreck has arrived at \(target.name). Go Jackets!" : "You've arrived at \(target.name)")
             going = false
         }
     }

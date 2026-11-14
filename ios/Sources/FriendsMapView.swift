@@ -223,7 +223,7 @@ extension FriendsMapView {
                 }
                 ForEach(live) { item in
                     Annotation(item.person.firstName, coordinate: item.spot.coordinate, anchor: .bottom) {
-                        FriendPin(person: item.person, minutesAgo: Int(Date.now.timeIntervalSince(item.spot.at) / 60))
+                        FriendPin(person: item.person, minutesAgo: Int(Date.now.timeIntervalSince(item.spot.at) / 60), wreck: session.inTheWreck(item.person))
                             .onTapGesture { ownPin(); selected = item.person }
                     }
                     .annotationTitles(.hidden)
@@ -864,14 +864,16 @@ struct LiveFriend: Identifiable {
 struct FriendPin: View {
     let person: Person
     let minutesAgo: Int
+    var wreck = false  // on their way to campus in the Ramblin' Wreck
 
     var body: some View {
         VStack(spacing: 3) {
             Avatar(person, size: 48, showStatus: true)
                 .background(Circle().fill(.background).padding(-2))
-                .background { if let c = person.status.color { Pulse(color: c).frame(width: 48, height: 48) } }
+                .background { if let c = wreck ? Wreck.gold : person.status.color { Pulse(color: c).frame(width: 48, height: 48) } }
                 .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
             HStack(spacing: 4) {
+                if wreck { WreckIcon(size: 11) }
                 Text(person.firstName).font(.caption.weight(.bold))
                 if minutesAgo >= 5 { Text("\(minutesAgo)m").font(.caption2).foregroundStyle(.secondary) }
             }
@@ -883,14 +885,15 @@ struct FriendPin: View {
 
 struct FriendCard: View {
     let person: Person
+    @Environment(Session.self) private var session
 
     var body: some View {
         HStack(spacing: 14) {
             Avatar(person, size: 60, showStatus: true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(person.name).font(.title3.weight(.bold))
-                Text(person.status == .none ? "@\(person.handle)" : person.status.label)
-                    .foregroundStyle(person.status.textColor ?? .secondary).font(.subheadline.weight(.semibold))
+                Text(person.status == .none ? "@\(person.handle)" : session.statusLabel(person))
+                    .foregroundStyle(session.statusColor(person) ?? .secondary).font(.subheadline.weight(.semibold))
             }
             Spacer()
             Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)

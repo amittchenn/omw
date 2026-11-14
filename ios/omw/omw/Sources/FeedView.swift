@@ -169,7 +169,7 @@ struct FriendsRow: View {
         switch f.status {
         case .free: f.freeUntil.map { "Free \(Self.till($0))" } ?? "Free"
         case .none: nil
-        default: f.status.label
+        default: session.statusLabel(f, short: true)
         }
     }
 
@@ -181,7 +181,7 @@ struct FriendsRow: View {
                 Text(name).font(.subheadline.weight(.bold)).lineLimit(1)
                 if let text {
                     Text(text).font(.caption.weight(.semibold)).lineLimit(1)
-                        .foregroundStyle(tint == nil ? Color.secondary : person.status.textColor ?? tint ?? .secondary)
+                        .foregroundStyle(tint == nil ? Color.secondary : session.statusColor(person) ?? tint ?? .secondary)
                 }
             }
         }

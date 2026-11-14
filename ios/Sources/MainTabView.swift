@@ -52,12 +52,18 @@ extension View {
     /// tapping a person or a post anywhere opens their profile / the post
     func withProfileRoutes() -> some View {
         environment(\.pushesProfiles, true)
-            .navigationDestination(for: ProfileRoute.self) { ProfileView(uid: $0.uid) }
-            .navigationDestination(for: PostRoute.self) { PostDetailView(id: $0.id) }
-            .navigationDestination(for: ChatRef.self) { ConversationView(ref: $0) }
-            .navigationDestination(for: PlanRoute.self) { PlanDetailView(id: $0.id) }
-            .navigationDestination(for: ChatsRoute.self) { _ in ChatsView() }
-            .navigationDestination(for: AddFriendsRoute.self) { _ in AddFriendsView() }
+            .navigationDestination(for: ProfileRoute.self) { ProfileView(uid: $0.uid).withShared() }
+            .navigationDestination(for: PostRoute.self) { PostDetailView(id: $0.id).withShared() }
+            .navigationDestination(for: ChatRef.self) { ConversationView(ref: $0).withShared() }
+            .navigationDestination(for: PlanRoute.self) { PlanDetailView(id: $0.id).withShared() }
+            .navigationDestination(for: ChatsRoute.self) { _ in ChatsView().withShared() }
+            .navigationDestination(for: AddFriendsRoute.self) { _ in AddFriendsView().withShared() }
+    }
+
+    /// the app's shared state on a pushed screen. A stack usually hands it down, but not always: after the planner
+    /// sheet closed, the next screen pushed on the Feed (Chats) came up without it and the app crashed
+    func withShared() -> some View {
+        environment(Session.shared).environment(LocationService.shared)
     }
 }
 

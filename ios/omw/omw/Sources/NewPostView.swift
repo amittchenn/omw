@@ -65,11 +65,11 @@ struct ComposeView: View {
                         .font(.body)
 
                     Divider()
-                    NavigationLink { PlacePicker(selection: $place) } label: {
+                    NavigationLink { PlacePicker(selection: $place).withShared() } label: {
                         row("mappin.and.ellipse", "Add location", place?.name ?? "")
                     }
                     Divider()
-                    NavigationLink { TagPicker(tagged: $tagged) } label: {
+                    NavigationLink { TagPicker(tagged: $tagged).withShared() } label: {
                         row("person.crop.circle.badge.plus", "Tag people", tagged.compactMap { session.person($0)?.handle }.joined(separator: ", "))
                     }
                     Divider()

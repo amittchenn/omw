@@ -122,10 +122,18 @@ struct UpNextCard: View {
                     Label("You're far from here right now", systemImage: "location.slash")
                         .font(.subheadline).foregroundStyle(.secondary)
                 } else if let leave = hangout.alerts[uid] {
-                    Label {
-                        Text("Leave by \(Text(leave.formatted(date: .omitted, time: .shortened)).bold())\(hangout.travel[uid].map { " · \(Self.trip($0)) trip" } ?? "")")
-                    } icon: { Image(systemName: "clock.fill") }
-                    .font(.subheadline).foregroundStyle(.primary)
+                    if wreck && leave < .now {
+                        // Wreck mode, and it's time: you're off
+                        Label { Text(Wreck.enRoute).bold() } icon: { WreckIcon(size: 16) }
+                            .font(.subheadline).foregroundStyle(Color.wreckGold)
+                    } else {
+                        Label {
+                            Text("Leave by \(Text(leave.formatted(date: .omitted, time: .shortened)).bold())\(hangout.travel[uid].map { " · \(Self.trip($0)) trip" } ?? "")")
+                        } icon: {
+                            if wreck { WreckIcon(size: 16) } else { Image(systemName: "clock.fill") }
+                        }
+                        .font(.subheadline).foregroundStyle(.primary)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -144,6 +152,9 @@ struct UpNextCard: View {
         }
         .padding(.top, 34)
     }
+
+    /// Wreck mode: you're driving to a spot on Georgia Tech's campus
+    private var wreck: Bool { Wreck.on(mode: hangout.modes[session.uid ?? ""], to: hangout.venue) }
 
     private var tooFar: Bool { (hangout.travel[session.uid ?? ""] ?? 0) > 12 * 60 }
 
@@ -172,7 +183,9 @@ struct UpNextCard: View {
         if tooFar { return ["That's a long way…", "Are you even in town?"] }
         guard let leave = hangout.alerts[uid] else { return ["See you at \(start)", "Tap me later, I'll know when to leave"] }
         let mins = Int(leave.timeIntervalSinceNow / 60)
-        if mins < 0 { return ["You were meant to leave \(-mins) min ago!", "Go go go!", "Tell them you're on the way"] }
+        if mins < 0 { return wreck ? [Wreck.enRoute, "Go Jackets!", "Ding ding, coming through"]
+                                   : ["You were meant to leave \(-mins) min ago!", "Go go go!", "Tell them you're on the way"] }
+        if wreck, mins < 30 { return ["Leave in \(mins) min!", "Warm up the Wreck", "Gold and ready to roll"] }
         if mins < 30 { return ["Leave in \(mins) min!", "Grab your keys", "Shoes on?"] }
         let when = mins < 60 * 12 ? "in \(mins / 60 > 0 ? "\(mins / 60) hr \(mins % 60) min" : "\(mins) min")" : "at \(leave.formatted(date: .omitted, time: .shortened))"
         return ["Leave \(when)", "I'll buzz you when it's time", "Don't be the late one"]
@@ -193,7 +206,7 @@ struct BoardCard: View {
     var body: some View {
         let board = session.standings.filter { $0.hangouts > 0 }
         if board.count >= 2 {
-            NavigationLink { BoardView() } label: {
+            NavigationLink { BoardView().withShared() } label: {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Label("On-time board", systemImage: "trophy.fill").font(.headline).foregroundStyle(.primary)
@@ -303,7 +316,7 @@ struct FriendsListView: View {
             LazyVStack(spacing: 0) {
                 ForEach(shown) { c in
                     // straight to their profile (a link that carries its own screen, so it can't open anything else)
-                    NavigationLink { ProfileView(uid: c.id) } label: {
+                    NavigationLink { ProfileView(uid: c.id).withShared() } label: {
                         HStack(spacing: 12) {
                             Avatar(photo: c.photo, name: c.name, size: 50)
                             VStack(alignment: .leading, spacing: 1) {

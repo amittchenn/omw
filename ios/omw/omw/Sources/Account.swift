@@ -225,7 +225,7 @@ struct EditProfileView: View {
             }
 
             Section {
-                NavigationLink { PlacePicker(selection: $home) } label: {
+                NavigationLink { PlacePicker(selection: $home).withShared() } label: {
                     HStack {
                         Image(systemName: "house.fill").foregroundStyle(.secondary)
                         Text(homeLabel)

@@ -80,6 +80,12 @@ struct PlanDetailView: View {
                             Annotation(session.person(dot.id)?.firstName ?? h.names[dot.id] ?? "", coordinate: dot.spot) {
                                 Avatar(session.person(dot.id), fallback: h.names[dot.id] ?? "", size: 30)
                                     .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                                    .overlay(alignment: .bottomTrailing) {
+                                        // in the Wreck: the little gold car rides along on their face
+                                        if Wreck.on(mode: h.modes[dot.id], to: h.venue) {
+                                            WreckIcon(size: 10).padding(2).background(.white, in: Capsule()).offset(x: 10, y: 4)
+                                        }
+                                    }
                                     .shadow(radius: 3)
                             }
                         }
@@ -156,7 +162,13 @@ struct PlanDetailView: View {
                         Text("Leave by").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                         Text(h.alerts[uid]?.formatted(date: .omitted, time: .shortened) ?? "–").font(.title.weight(.bold).monospacedDigit())
                         if let minutes = h.travel[uid] {
-                            Text("\(Int(minutes.rounded())) min \(Self.modeName(h.modes[uid]))").font(.footnote).foregroundStyle(.secondary)
+                            if Wreck.on(mode: h.modes[uid], to: h.venue) {
+                                // Wreck mode: driving onto campus
+                                Label { Text("\(Int(minutes.rounded())) min in the \(Wreck.name)") } icon: { WreckIcon(size: 13) }
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            } else {
+                                Text("\(Int(minutes.rounded())) min \(Self.modeName(h.modes[uid]))").font(.footnote).foregroundStyle(.secondary)
+                            }
                         }
                     }
                     Spacer()
@@ -187,6 +199,10 @@ struct PlanDetailView: View {
                 return (late < -1 ? "Here · \(-late) min early" : late <= 5 ? "Here · on time" : "Here · \(late) min late", .freeGreen)
             }
             if h.attendees.contains(u) {
+                // on their way right now (their dot is on the map)
+                if u != session.uid, onTheWay.contains(where: { $0.id == u }) {
+                    return Wreck.on(mode: h.modes[u], to: h.venue) ? (Wreck.enRoute, .wreckGold) : ("On the way", .omwBlue)
+                }
                 if let leave = h.alerts[u] { return ("Going · leaves \(leave.formatted(date: .omitted, time: .shortened))", .secondary) }
                 return ("Going", .secondary)
             }
