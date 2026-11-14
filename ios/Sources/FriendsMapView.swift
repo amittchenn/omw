@@ -427,7 +427,7 @@ struct SavedList: View {
                         open(MapPlace(name: s.name, address: s.address, lat: s.lat, lng: s.lng))
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "bookmark.fill").foregroundStyle(Color.omwBlue)
+                            Image(systemName: "bookmark.fill").foregroundStyle(Color.sun)  // same as the map's Saved button
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(s.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                                 if !s.address.isEmpty { Text(s.address).font(.caption).foregroundStyle(.secondary).lineLimit(1) }

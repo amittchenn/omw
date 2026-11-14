@@ -4,12 +4,15 @@
 //   .cheer    everyone's here / on time                    .sleepy   nothing planned
 //   .worried  someone's running late, or something failed  .idle     just hanging out (breathes, blinks, fidgets)
 import SwiftUI
+import UIKit
 
 struct Ticki: View {
     enum Mood { case idle, wave, run, cheer, sleepy, worried }
     var mood: Mood = .idle
     /// what Ticki says when you tap it, one line per tap, in turn
     var lines: [String] = []
+    /// where the speech bubble goes: above (the default), or to the left when Ticki sits in a corner with room beside it
+    var bubbleLeft = false
 
     @State private var pokedAt: Date?
     @State private var said: String?
@@ -18,6 +21,7 @@ struct Ticki: View {
     @State private var pokeKind = 0
     @State private var seed = Double.random(in: 0..<1000)
 
+    @State private var bubbleShift: CGFloat = 0
     private static let coral = Color(red: 0.95, green: 0.41, blue: 0.29)
     private static let coralDark = Color(red: 0.80, green: 0.30, blue: 0.22)
     private static let coralDeep = Color(red: 0.62, green: 0.21, blue: 0.16)   // the side of the case, in shadow
@@ -55,19 +59,34 @@ struct Ticki: View {
         // tap Ticki and it boings, spins, and says something (and doesn't open whatever it's sitting on)
         .onTapGesture { poke() }
         .sensoryFeedback(.impact(weight: .light, intensity: 0.8), trigger: pokes)
-        .overlay(alignment: .top) {
+        .overlay(alignment: bubbleLeft ? .leading : .top) {
+          // the guide that lifts the bubble above Ticki has to sit on a view that's always there: on the `if`'s
+          // content SwiftUI ignored it and the bubble covered Ticki's head
+          ZStack {
             if let said {
                 Text(said)
                     .font(.footnote.weight(.bold))
                     .multilineTextAlignment(.center)
-                    .fixedSize()
+                    // long lines wrap instead of running off the screen
+                    .frame(maxWidth: 200)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(.regularMaterial, in: .rect(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
-                    .alignmentGuide(.top) { $0[.bottom] + 2 }
+                    // Ticki in a corner (the up-next card): slide the bubble back inside the screen
+                    .offset(x: bubbleShift)
+                    .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
+                        let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.width ?? 390
+                        let left = frame.minX - bubbleShift, right = frame.maxX - bubbleShift, margin: CGFloat = 12
+                        bubbleShift = right > screen - margin ? screen - margin - right : left < margin ? margin - left : 0
+                    }
                     .transition(.scale(scale: 0.6, anchor: .bottom).combined(with: .opacity))
                     .id(said)
             }
+          }
+          // high enough that Ticki's hop (and bells) never go under it; or clear of its arms when it's beside Ticki
+          .alignmentGuide(.top) { $0[.bottom] + 14 }
+          .alignmentGuide(.leading) { $0[.trailing] + 2 }
         }
         .accessibilityLabel("Ticki")
         .accessibilityAddTraits(.isButton)
@@ -82,7 +101,7 @@ struct Ticki: View {
         turn += 1
         withAnimation(.spring(duration: 0.35, bounce: 0.4)) { said = line }
         Task {
-            try? await Task.sleep(for: .seconds(2.4))
+            try? await Task.sleep(for: .seconds(2.8))
             if said == line { withAnimation(.easeOut(duration: 0.2)) { said = nil } }
         }
     }
@@ -90,7 +109,7 @@ struct Ticki: View {
     /// 0…1 through the boing after a tap (nil: not boinging)
     private func boing(_ t: Date) -> Double? {
         guard let at = pokedAt else { return nil }
-        let x = t.timeIntervalSince(at) / 0.75
+        let x = t.timeIntervalSince(at) / 1.0  // long enough for the flip to read as a flip, not a flicker
         return x < 1 ? x : nil
     }
 
@@ -242,19 +261,21 @@ struct Ticki: View {
             switch pokeKind {
             case 0, 1:
                 // squash, hop with a full spin (either way), land with a wobble
-                let squash = 1 - Self.ease(b / 0.15)
-                let air = b > 0.15 && b < 0.7 ? (b - 0.15) / 0.55 : -1
+                let squash = 1 - Self.ease(b / 0.12)
+                let air = b > 0.12 && b < 0.72 ? (b - 0.12) / 0.6 : -1
                 if air >= 0 {
                     p.lift = 30 * 4 * air * (1 - air)
                     p.tilt = (pokeKind == 0 ? 360 : -360) * Self.ease(air)
                     p.sy = 1.05; p.sx = 0.96
-                } else if b <= 0.15 {
+                } else if b <= 0.12 {
                     p.sy = 1 - 0.12 * (1 - squash); p.sx = 1 + 0.1 * (1 - squash)
                 } else {
-                    let w = (b - 0.7) / 0.3
+                    let w = (b - 0.72) / 0.28
                     p.sy = 1 - 0.08 * sin(w * .pi) * (1 - w); p.sx = 1 + 0.06 * sin(w * .pi) * (1 - w)
                 }
-                p.leftArm = 140; p.rightArm = -140
+                // arms up for the jump, then they ease back down after landing instead of snapping
+                let down = b > 0.72 ? Self.ease((b - 0.72) / 0.28) : 0
+                p.leftArm = 140 + (p.leftArm - 140) * down; p.rightArm = -140 + (p.rightArm + 140) * down
             case 2:
                 // squished flat like a spring, then boings back
                 let w = sin(b * .pi * 3) * (1 - b)
@@ -282,8 +303,12 @@ struct Ticki: View {
         var fig = ctx  // the whole figure: lifted, squashed from the feet, tilted
         fig.translateBy(x: 100, y: 188 - p.lift)
         fig.scaleBy(x: p.sx, y: p.sy)
+        // small tilts (a sway, a lean) pivot on the feet; a flip turns around the middle of the body, so it spins in
+        // place instead of swinging down through whatever's below and off the edge of the screen
+        let pivot = 83 * min(abs(p.tilt) / 45, 1)  // 0 at the feet … 83 up = the centre of the face
+        fig.translateBy(x: 0, y: -pivot)
         fig.rotate(by: .degrees(p.tilt))
-        fig.translateBy(x: -100, y: -188)
+        fig.translateBy(x: -100, y: -188 + pivot)
 
         leg(&fig, hip: CGPoint(x: 86, y: 156), angle: p.leftLeg)
         leg(&fig, hip: CGPoint(x: 114, y: 156), angle: p.rightLeg)

@@ -36,6 +36,7 @@ struct FeedView: View {
                 }
             }
             .scrollIndicators(.hidden)
+            .statusBarScrim()
             .toolbar(.hidden, for: .navigationBar)  // our own header, like Instagram's (the bar's glass buttons squash the logo)
             .omwBackground()
             // swipe in from the very right edge for Chats, like Instagram. Only a thin strip at the screen's edge listens,

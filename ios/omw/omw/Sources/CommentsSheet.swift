@@ -41,10 +41,12 @@ struct CommentsSheet: View {
                     .onSubmit(send)
                     .padding(.horizontal, 14).padding(.vertical, 9)
                     .overlay(Capsule().strokeBorder(Color(.separator)))
+                // omw!'s coral, and visibly off until there's something to post
+                let empty = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 Button("Post", action: send)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.omwBlue)
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .fontWeight(.bold)
+                    .foregroundStyle(empty ? Color.secondary : Color.coral)
+                    .disabled(empty)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
         }

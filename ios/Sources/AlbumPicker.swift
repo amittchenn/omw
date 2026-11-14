@@ -130,7 +130,7 @@ struct AlbumPicker: View {
         if let i = chosen.firstIndex(of: asset) {
             Text("\(i + 1)").font(.caption.weight(.bold)).foregroundStyle(.white)
                 .frame(width: 24, height: 24)
-                .background(Color.omwBlue, in: Circle())
+                .background(Color.coral, in: Circle())
                 .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
         } else {
             Circle().strokeBorder(.white, lineWidth: 1.5).background(Circle().fill(.black.opacity(0.15))).frame(width: 24, height: 24)

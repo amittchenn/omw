@@ -55,6 +55,7 @@ struct PlansView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
+            .statusBarScrim()
             .toolbar(.hidden, for: .navigationBar)
             .omwBackground()
             .withProfileRoutes()

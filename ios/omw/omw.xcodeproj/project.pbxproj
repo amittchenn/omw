@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		F10871E830944B010027A2DD /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = F10871E730944B010027A2DD /* FirebaseAuth */; };
+		F1A0C0DE3096000100A0B001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = F1A0C0DE3096000200A0B002 /* FirebaseMessaging */; };
 		F10871EA30944B010027A2DD /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = F10871E930944B010027A2DD /* FirebaseFirestore */; };
 		F10871EF3094518B0027A2DD /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = F10871EE3094518B0027A2DD /* GoogleSignIn */; };
 		F10871F13094518B0027A2DD /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = F10871F03094518B0027A2DD /* GoogleSignInSwift */; };
@@ -89,6 +90,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F10871E830944B010027A2DD /* FirebaseAuth in Frameworks */,
+				F1A0C0DE3096000100A0B001 /* FirebaseMessaging in Frameworks */,
 				F10871EA30944B010027A2DD /* FirebaseFirestore in Frameworks */,
 				F10871EF3094518B0027A2DD /* GoogleSignIn in Frameworks */,
 				F10871F13094518B0027A2DD /* GoogleSignInSwift in Frameworks */,
@@ -161,6 +163,7 @@
 				F10871E930944B010027A2DD /* FirebaseFirestore */,
 				F10871EE3094518B0027A2DD /* GoogleSignIn */,
 				F10871F03094518B0027A2DD /* GoogleSignInSwift */,
+				F1A0C0DE3096000200A0B002 /* FirebaseMessaging */,
 			);
 			productName = omw;
 			productReference = F10871B13094496C0027A2DD /* omw.app */;
@@ -592,6 +595,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		F1A0C0DE3096000200A0B002 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F10871E630944B010027A2DD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
 		F10871E730944B010027A2DD /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = F10871E630944B010027A2DD /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;

@@ -379,13 +379,16 @@ struct NewChatSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .safeAreaInset(edge: .bottom) {
+                // same as the planner's: says what to do until it can go, then omw! yellow
+                let ready = !picked.isEmpty
                 Button(action: start) {
-                    Text(picked.count > 1 ? "Create group (\(picked.count + 1))" : "Chat")
+                    Text(!ready ? "Pick who to message" : picked.count > 1 ? "Create group (\(picked.count + 1))" : "Chat")
                         .font(.headline).frame(maxWidth: .infinity, minHeight: 50)
+                        .foregroundStyle(ready ? Color.black : Color.secondary)
+                        .background(ready ? Color.sun : Color.omwCard, in: .rect(cornerRadius: 18))
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.omwBlue)
-                .disabled(picked.isEmpty || working)
+                .buttonStyle(Pressable())
+                .disabled(!ready || working)
                 .padding(.horizontal, 16).padding(.bottom, 8)
                 .background(.bar)
             }
@@ -640,7 +643,7 @@ struct GroupInfoView: View {
                                     Avatar(f, size: 40)
                                     Text(f.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                                     Spacer()
-                                    Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(Color.omwBlue)
+                                    Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(.black, Color.sun)
                                 }
                             }
                         }

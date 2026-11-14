@@ -531,6 +531,7 @@ struct PlanSheet: View {
                 if let error { problem = error.localizedDescription; return }
                 // Ticki cheers it off, then the sheet goes
                 withAnimation(.spring(duration: 0.4, bounce: 0.3)) { sent = true }
+                session.setUpPush(ask: true)  // now "we'll tell you when to leave" makes sense
                 Task { try? await Task.sleep(for: .seconds(1.4)); dismiss() }
             }
         }

@@ -127,7 +127,13 @@ final class Session {
     var upcoming: [Hangout] { hangouts.filter { !$0.isOver }.sorted { $0.start < $1.start } }
     var past: [Hangout] { hangouts.filter(\.isOver).sorted { $0.start > $1.start } }
 
-    func signOut() { try? Auth.auth().signOut() }
+    /// signs out once this phone's notification token is off your profile (Push.swift)
+    func signOut() {
+        Task {
+            await removePushToken()
+            try? Auth.auth().signOut()
+        }
+    }
 
     // ---------- listening ----------
     @ObservationIgnored private var listeningFor: String?
