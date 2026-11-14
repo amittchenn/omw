@@ -115,6 +115,7 @@ struct PlanDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .omwBackground()  // cream by day, plum by night, like every other screen
         .toolbar {
             if going, h.chatOpen {
                 ToolbarItem(placement: .topBarTrailing) {

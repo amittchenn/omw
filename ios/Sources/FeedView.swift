@@ -181,12 +181,12 @@ struct FriendsRow: View {
                 Text(name).font(.subheadline.weight(.bold)).lineLimit(1)
                 if let text {
                     Text(text).font(.caption.weight(.semibold)).lineLimit(1)
-                        .foregroundStyle(tint ?? .secondary)
+                        .foregroundStyle(tint == nil ? Color.secondary : person.status.textColor ?? tint ?? .secondary)
                 }
             }
         }
-        .padding(.leading, 5).padding(.trailing, 14)
-        .frame(height: 40)
+        .padding(.leading, 5).padding(.trailing, 14).padding(.vertical, 2)
+        .frame(minHeight: 40)  // grows with big text instead of cutting the second line off
         .background(Color.omwCard, in: Capsule())
         .overlay(Capsule().strokeBorder(tint?.opacity(0.7) ?? (mine ? Color.sun.opacity(0.8) : .clear), lineWidth: 1.5))
     }
@@ -267,7 +267,7 @@ struct PostCard: View {
                         .filter { !$0.isEmpty }.joined(separator: " · "))
                         .lineLimit(1)
                     if let s = post.averageRating {
-                        Label(String(format: "%.1f", s / 2), systemImage: "star.fill").labelStyle(.titleAndIcon).foregroundStyle(Color.sun)
+                        Label(String(format: "%.1f", s / 2), systemImage: "star.fill").labelStyle(.titleAndIcon).foregroundStyle(Color.sunText)
                     }
                 }
                 .font(.caption.weight(.semibold)).foregroundStyle(.secondary)

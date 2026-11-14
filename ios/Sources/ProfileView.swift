@@ -8,6 +8,7 @@ import FirebaseFirestore
 struct ProfileView: View {
     let uid: String
     @Environment(Session.self) private var session
+    @Environment(\.dynamicTypeSize) private var textSize
     @State private var settings = false
     @State private var removing = false
     @State private var card: Card?  // for people who aren't your friends: their public card
@@ -116,7 +117,10 @@ struct ProfileView: View {
         HStack(spacing: 0) {
             ForEach(Tab.allCases, id: \.self) { t in
                 Button { withAnimation(.snappy(duration: 0.2)) { tab = t } } label: {
+                    // icon and word; with big text all three drop the icon together, so "Memo-ries" never wraps
                     Label(t.rawValue, systemImage: t == .posts ? "photo.on.rectangle.angled" : t == .places ? "star" : "calendar")
+                        .labelStyle(ProfileTabLabel(iconless: textSize >= .xLarge))
+                        .lineLimit(1).minimumScaleFactor(0.75)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(tab == t ? Color.primary : Color.secondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -218,8 +222,10 @@ struct ProfileView: View {
                                 // one small tag: the place, or the date if there isn't one
                                 Text(post.venueName.isEmpty ? post.at.formatted(.dateTime.month(.abbreviated).day()) : post.venueName)
                                     .font(.caption2.weight(.heavy)).lineLimit(1)
+                                    .dynamicTypeSize(...DynamicTypeSize.xLarge)  // a tag on a small tile, not body text
+                                    .foregroundStyle(.white)  // not the link's coral: it sits on a photo
                                     .padding(.horizontal, 7).padding(.vertical, 3)
-                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .background(.black.opacity(0.45), in: Capsule())
                                     .padding(6)
                             }
                             .clipShape(.rect(cornerRadius: 14))
@@ -453,5 +459,16 @@ struct PastHangoutsView: View {
         .navigationTitle(uid == session.uid ? "Hangouts" : "With \(name)")
         .omwBackground()
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// a profile tab's label: icon and word, or the word alone when the text is big
+struct ProfileTabLabel: LabelStyle {
+    let iconless: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            if !iconless { configuration.icon }
+            configuration.title
+        }
     }
 }

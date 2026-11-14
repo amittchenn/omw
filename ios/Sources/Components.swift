@@ -14,13 +14,20 @@ extension Color {
     static let coral = Color(red: 0.95, green: 0.41, blue: 0.29)   // Ticki
     static let sun = Color(red: 1, green: 0.902, blue: 0)          // omw! yellow, #FFE600
     static let omwBlue = Color(red: 0.118, green: 0.533, blue: 1)  // #1E88FF
-    static let freeGreen = Color(red: 0.2, green: 0.78, blue: 0.47)
+    // a touch deeper on cream by day, so "Free till 9" stays readable on a white pill
+    static let freeGreen = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.2, green: 0.78, blue: 0.47, alpha: 1)
+                                                                          : UIColor(red: 0.08, green: 0.60, blue: 0.33, alpha: 1) })
+    /// omw! yellow for text and small icons: yellow by night, a warm amber by day (yellow on white can't be read)
+    static let sunText = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 1, green: 0.902, blue: 0, alpha: 1)
+                                                                        : UIColor(red: 0.78, green: 0.55, blue: 0, alpha: 1) })
 }
 
 extension Person.Status {
     var color: Color? {
         switch self { case .out: .sun; case .onTheWay: .omwBlue; case .free: .freeGreen; case .none: nil }
     }
+    /// the status colour for words (yellow turns amber by day)
+    var textColor: Color? { self == .out ? .sunText : color }
     var label: String {
         switch self { case .out: "Out now"; case .onTheWay: "On the way"; case .free: "Free"; case .none: "" }
     }

@@ -156,7 +156,7 @@ struct FairSpotFinder: View {
     private func candidate(_ c: FairAnswer.Candidate, best: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                if best { Image(systemName: "star.fill").foregroundStyle(Color.sun) }
+                if best { Image(systemName: "star.fill").foregroundStyle(Color.sunText) }
                 Text(c.name).font(.subheadline.weight(.bold)).lineLimit(1)
                 Spacer()
                 Button("Meet here") {

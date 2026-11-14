@@ -149,7 +149,8 @@ struct UpNextCard: View {
 
     static func trip(_ minutes: Double) -> String {
         let m = Int(minutes.rounded())
-        return m < 60 ? "\(m) min" : m % 60 == 0 ? "\(m / 60) hr" : "\(m / 60) hr \(m % 60) min"
+        // no-break spaces: big text wraps "15 min" as one piece, never "15" then "min" on the next line
+        return m < 60 ? "\(m)\u{00A0}min" : m % 60 == 0 ? "\(m / 60)\u{00A0}hr" : "\(m / 60)\u{00A0}hr \(m % 60)\u{00A0}min"
     }
 
     private var tickiMood: Ticki.Mood {
