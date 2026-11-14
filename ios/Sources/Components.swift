@@ -86,6 +86,15 @@ struct RemoteImage: View {
 
 /// A round profile picture, with their first letter until (or if) the picture loads, and a ring for their status.
 struct Avatar: View {
+    /// soft colors from Ticki's world; the same name always gets the same one
+    static let tints: [Color] = [
+        Color(red: 1.00, green: 0.80, blue: 0.62), Color(red: 0.62, green: 0.84, blue: 1.00), Color(red: 0.66, green: 0.92, blue: 0.76),
+        Color(red: 0.84, green: 0.76, blue: 1.00), Color(red: 1.00, green: 0.72, blue: 0.72), Color(red: 1.00, green: 0.92, blue: 0.50),
+    ]
+    static func tint(for name: String) -> Color {
+        tints[name.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF } % tints.count]
+    }
+
     var photo: String
     var name: String
     var size: CGFloat = 40
@@ -93,12 +102,12 @@ struct Avatar: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(photo.isEmpty ? Color.sun.opacity(0.35) : Color.omwCard2)
+            Circle().fill(photo.isEmpty ? Self.tint(for: name).gradient : Color.omwCard2.gradient)
             if photo.isEmpty {
-                // no picture: their first letter (never drawn under a picture, so it can't show through)
+                // no picture: their first letter on their own color (never drawn under a picture, so it can't show through)
                 Text(String(name.prefix(1)).uppercased())
-                    .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: size * 0.44, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.78))
             } else {
                 RemoteImage(source: photo)
             }
@@ -106,6 +115,8 @@ struct Avatar: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
         .compositingGroup()  // fading a picture fades it as one image (no letter showing through)
+        // list dividers start just after the picture in every row (otherwise a letter avatar's letter pulls them left)
+        .alignmentGuide(.listRowSeparatorLeading) { d in d.width + 12 }
         .padding(ring == nil ? 0 : 3)
         .overlay {
             if let ring { Circle().strokeBorder(ring, lineWidth: 2.5) }
@@ -211,5 +222,28 @@ struct OpensProfile: ViewModifier {
                         .presentationDragIndicator(.visible)
                 }
         }
+    }
+}
+
+extension String {
+    /// iPhones come with a text shortcut that turns "omw" into "On my way!", and it fires even in fields with
+    /// autocorrect off. In an app called omw! that breaks emails (…@omw.demo), usernames and searches, so those
+    /// fields put it back.
+    var undoingOmwShortcut: String {
+        replacingOccurrences(of: "On my way!", with: "omw", options: .caseInsensitive)
+    }
+}
+
+/// omw!'s small action button (Add, Accept…): black on omw! yellow, not the system blue
+struct OmwPillButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(.black)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(Color.sun, in: Capsule())
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
     }
 }

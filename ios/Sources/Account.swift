@@ -206,7 +206,7 @@ struct EditProfileView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .onChange(of: code) {
-                                let clean = String(code.uppercased().filter { $0.isLetter && $0.isASCII || $0.isNumber || $0 == "_" }.prefix(15))
+                                let clean = String(code.undoingOmwShortcut.uppercased().filter { $0.isLetter && $0.isASCII || $0.isNumber || $0 == "_" }.prefix(15))
                                 if clean != code { code = clean }
                             }
                     }

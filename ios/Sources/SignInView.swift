@@ -181,6 +181,10 @@ struct EmailSignIn: View {
                 .textContentType(.emailAddress).keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .focused($field, equals: .email)
+                .onChange(of: email) {  // the iPhone's "omw" → "On my way!" shortcut; emails never contain spaces
+                    let clean = email.undoingOmwShortcut.filter { !$0.isWhitespace }
+                    if clean != email { email = clean }
+                }
                 .submitLabel(.next)
                 .onSubmit { field = .password }
                 .modifier(SignInField())
