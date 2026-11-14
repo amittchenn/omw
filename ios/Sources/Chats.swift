@@ -223,7 +223,7 @@ struct ChatsView: View {
                 ScrollView(.horizontal) {
                     HStack(alignment: .top, spacing: 14) {
                         ForEach(fresh) { f in
-                            NavigationLink { DirectChat(uid: f.id) } label: {
+                            NavigationLink { DirectChat(uid: f.id).withShared() } label: {
                                 VStack(spacing: 5) {
                                     Avatar(photo: f.photo, name: f.name, size: 60, ring: f.status.color ?? .clear)  // same size with or without a status
                                     Text(f.firstName).font(.caption).lineLimit(1)
@@ -263,7 +263,7 @@ struct ChatsView: View {
             }
         }
         .sheet(isPresented: $starting) { NewChatSheet { opened = $0 }.withOmw() }
-        .navigationDestination(item: $opened) { ConversationView(ref: $0) }
+        .navigationDestination(item: $opened) { ConversationView(ref: $0).withShared() }
     }
 
     private func row(_ r: Row) -> some View {

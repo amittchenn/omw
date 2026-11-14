@@ -49,18 +49,18 @@ struct ProfileView: View {
                     }
                 }
                 HStack(spacing: 0) {
-                    NavigationLink { PastHangoutsView(uid: uid, name: firstName) } label: {
+                    NavigationLink { PastHangoutsView(uid: uid, name: firstName).withShared() } label: {
                         stat(hangoutCount, hangoutCount == 1 ? "hangout" : "hangouts")
                     }
                     .buttonStyle(.plain)
                     if close {
-                        NavigationLink { BoardView().navigationTitle("On time") } label: {
+                        NavigationLink { BoardView().navigationTitle("On time").withShared() } label: {
                             stat(onTime, "on time", suffix: "%")
                         }
                         .buttonStyle(.plain)
                     }
                     if mine || session.isFriend(uid) {
-                        NavigationLink { FriendsListView(uid: uid) } label: {
+                        NavigationLink { FriendsListView(uid: uid).withShared() } label: {
                             stat(mine ? session.friends.count : friendCount, (mine ? session.friends.count : friendCount) == 1 ? "friend" : "friends")
                         }
                         .buttonStyle(.plain)
@@ -169,7 +169,7 @@ struct ProfileView: View {
     @ViewBuilder private var buttons: some View {
         if mine {
             HStack(spacing: 8) {
-                NavigationLink { EditProfileView() } label: { pill("Edit profile") }
+                NavigationLink { EditProfileView().withShared() } label: { pill("Edit profile") }
                 ShareLink(item: "Add me on omw! My username is @\(code.lowercased())") { pill("Share profile") }
             }
             .buttonStyle(.plain)
@@ -181,7 +181,7 @@ struct ProfileView: View {
                     Button("Remove friend", systemImage: "person.badge.minus", role: .destructive) { removing = true }
                 } label: { pill("Friends", systemImage: "chevron.down") }
                 .buttonStyle(.plain)
-                NavigationLink { DirectChat(uid: uid) } label: { pill("Message") }
+                NavigationLink { DirectChat(uid: uid).withShared() } label: { pill("Message") }
                     .buttonStyle(.plain)
             }
         }
@@ -260,7 +260,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section("Account") {
-                    NavigationLink { EditProfileView() } label: {
+                    NavigationLink { EditProfileView().withShared() } label: {
                         HStack(spacing: 12) {
                             Avatar(session.me, size: 44)
                             VStack(alignment: .leading, spacing: 1) {
@@ -300,7 +300,7 @@ struct SettingsView: View {
                     }
                     .foregroundStyle(.primary)
                     if let blocked = session.me?.blocked, !blocked.isEmpty {
-                        NavigationLink { BlockedList() } label: {
+                        NavigationLink { BlockedList().withShared() } label: {
                             HStack {
                                 Label("Blocked", systemImage: "hand.raised")
                                 Spacer()

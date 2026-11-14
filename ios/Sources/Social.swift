@@ -193,7 +193,7 @@ struct BoardCard: View {
     var body: some View {
         let board = session.standings.filter { $0.hangouts > 0 }
         if board.count >= 2 {
-            NavigationLink { BoardView() } label: {
+            NavigationLink { BoardView().withShared() } label: {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Label("On-time board", systemImage: "trophy.fill").font(.headline).foregroundStyle(.primary)
@@ -303,7 +303,7 @@ struct FriendsListView: View {
             LazyVStack(spacing: 0) {
                 ForEach(shown) { c in
                     // straight to their profile (a link that carries its own screen, so it can't open anything else)
-                    NavigationLink { ProfileView(uid: c.id) } label: {
+                    NavigationLink { ProfileView(uid: c.id).withShared() } label: {
                         HStack(spacing: 12) {
                             Avatar(photo: c.photo, name: c.name, size: 50)
                             VStack(alignment: .leading, spacing: 1) {

@@ -145,7 +145,7 @@ struct PlanSheet: View {
                     }
 
                     block("Where") {
-                        NavigationLink { PlacePicker(selection: $place) } label: {
+                        NavigationLink { PlacePicker(selection: $place).withShared() } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: place == nil ? "magnifyingglass" : "mappin.circle.fill")
                                     .foregroundStyle(place == nil ? Color.secondary : Color.red)

@@ -165,7 +165,7 @@ struct WeatherPanel: View {
         }
         // keyed on the spot to about 1 km and the hour: your location moving a few meters (it updates all the time)
         // used to restart the request before it ever finished, so the weather never showed up
-        .task(id: "\(String(format: "%.2f,%.2f", spot?.latitude ?? 0, spot?.longitude ?? 0)),\(Int(when.timeIntervalSince1970 / 3600))") {
+        .task(id: "\(String(format: "%.2f,%.2f", spot?.latitude ?? 0.0, spot?.longitude ?? 0.0)),\(Int(when.timeIntervalSince1970 / 3600))") {
             air = nil
             guard let spot else { forecast = nil; tried = true; return }
             try? await Task.sleep(for: .milliseconds(250))  // the time wheel spins through hours: wait till it stops
