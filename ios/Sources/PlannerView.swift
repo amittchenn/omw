@@ -132,7 +132,7 @@ struct PlanSheet: View {
                             ForEach(Travel.modes, id: \.self) { m in
                                 Button { modeFor[id] = m; results = nil } label: {
                                     Label { Text(Travel.name(m)) } icon: {
-                                        ModeIcon(mode: m, to: place.flatMap { p in p.lat.flatMap { la in p.lng.map { CLLocationCoordinate2D(latitude: la, longitude: $0) } } }, size: 21)
+                                        ModeIcon(mode: m, to: place.flatMap { p in p.lat.flatMap { la in p.lng.map { CLLocationCoordinate2D(latitude: la, longitude: $0) } } }, size: 21, selected: mode == m)
                                     }
                                         .labelStyle(.iconOnly)
                                         .font(.system(size: 17, weight: .semibold))

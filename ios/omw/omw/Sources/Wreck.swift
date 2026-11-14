@@ -26,12 +26,16 @@ enum Wreck {
 extension Color {
     /// the Wreck's gold, for words: a deeper gold on cream by day, old gold on plum by night
     static let wreckGold = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.80, green: 0.73, blue: 0.47, alpha: 1)
-                                                                          : UIColor(red: 0.52, green: 0.44, blue: 0.18, alpha: 1) })
+                                                                          : UIColor(red: 0.47, green: 0.39, blue: 0.14, alpha: 1) })
 }
 
 /// a tiny gold 1930s coupe, drawn (no image files): sized to sit where an SF Symbol would
 struct WreckIcon: View {
     var size: CGFloat = 18
+    /// picked as the way there: it pops a little wheelie
+    var selected = false
+    @State private var hops = 0
+    @Environment(\.accessibilityReduceMotion) private var still
     private static let gold = Color(red: 0.70, green: 0.64, blue: 0.41)       // old gold
     private static let goldDeep = Color(red: 0.55, green: 0.49, blue: 0.29)
     private static let glass = Color(red: 0.16, green: 0.19, blue: 0.27)
@@ -100,19 +104,37 @@ struct WreckIcon: View {
             }
         }
         .frame(width: size * 32 / 18, height: size)
+        .keyframeAnimator(initialValue: Hop(), trigger: hops) { car, hop in
+            // nose up on the back wheel, then settle
+            car.rotationEffect(.degrees(hop.tilt), anchor: UnitPoint(x: 0.25, y: 0.95)).offset(y: hop.lift)
+        } keyframes: { _ in
+            KeyframeTrack(\.tilt) {
+                CubicKeyframe(-9, duration: 0.14)
+                SpringKeyframe(0, duration: 0.4, spring: .bouncy(extraBounce: 0.2))
+            }
+            KeyframeTrack(\.lift) {
+                CubicKeyframe(-2, duration: 0.14)
+                SpringKeyframe(0, duration: 0.4, spring: .bouncy)
+            }
+        }
+        .onChange(of: selected) { _, now in if now, !still { hops += 1 } }
+        .sensoryFeedback(.impact(weight: .light), trigger: hops)
         .accessibilityLabel(Wreck.name)
     }
 }
+
+private struct Hop { var tilt = 0.0; var lift = 0.0 }
 
 /// how you're getting there, as an icon: the usual symbol, or the Wreck on the way to campus
 struct ModeIcon: View {
     let mode: String
     var to: CLLocationCoordinate2D?
     var size: CGFloat = 18
+    var selected = false
 
     var body: some View {
         if Wreck.on(mode: mode, to: to) {
-            WreckIcon(size: size)
+            WreckIcon(size: size, selected: selected)
         } else {
             Image(systemName: Travel.symbol(mode))
         }

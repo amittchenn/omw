@@ -150,7 +150,7 @@ struct DirectionsView: View {
                     ForEach(Self.modes) { m in
                         Button { mode = m.id } label: {
                             Group {
-                                if Wreck.on(mode: m.id, to: target.coordinate) { WreckIcon(size: 21) } else { Image(systemName: m.symbol) }
+                                if Wreck.on(mode: m.id, to: target.coordinate) { WreckIcon(size: 21, selected: mode == m.id) } else { Image(systemName: m.symbol) }
                             }
                             .font(.headline)
                                 .frame(maxWidth: .infinity, minHeight: 40)
