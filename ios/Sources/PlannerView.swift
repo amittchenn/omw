@@ -131,7 +131,9 @@ struct PlanSheet: View {
                         HStack(spacing: 8) {
                             ForEach(Travel.modes, id: \.self) { m in
                                 Button { modeFor[id] = m; results = nil } label: {
-                                    Label(Travel.name(m), systemImage: Travel.symbol(m))
+                                    Label { Text(Travel.name(m)) } icon: {
+                                        ModeIcon(mode: m, to: place.flatMap { p in p.lat.flatMap { la in p.lng.map { CLLocationCoordinate2D(latitude: la, longitude: $0) } } }, size: 17)
+                                    }
                                         .labelStyle(.iconOnly)
                                         .font(.system(size: 17, weight: .semibold))
                                         .frame(maxWidth: .infinity, minHeight: 42)

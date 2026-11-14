@@ -149,7 +149,10 @@ struct DirectionsView: View {
                 HStack(spacing: 8) {
                     ForEach(Self.modes) { m in
                         Button { mode = m.id } label: {
-                            Image(systemName: m.symbol).font(.headline)
+                            Group {
+                                if Wreck.on(mode: m.id, to: target.coordinate) { WreckIcon(size: 17) } else { Image(systemName: m.symbol) }
+                            }
+                            .font(.headline)
                                 .frame(maxWidth: .infinity, minHeight: 40)
                                 .background(mode == m.id ? Color.sun : Color.omwCard2, in: Capsule())
                                 .foregroundStyle(mode == m.id ? Color.black : Color.primary)

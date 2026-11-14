@@ -883,13 +883,14 @@ struct FriendPin: View {
 
 struct FriendCard: View {
     let person: Person
+    @Environment(Session.self) private var session
 
     var body: some View {
         HStack(spacing: 14) {
             Avatar(person, size: 60, showStatus: true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(person.name).font(.title3.weight(.bold))
-                Text(person.status == .none ? "@\(person.handle)" : person.status.label)
+                Text(person.status == .none ? "@\(person.handle)" : session.statusLabel(person))
                     .foregroundStyle(person.status.textColor ?? .secondary).font(.subheadline.weight(.semibold))
             }
             Spacer()
