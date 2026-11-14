@@ -146,6 +146,7 @@ extension Session {
             }
         }
         try await write(db.collection("hangouts").document(h.id), update)
+        setUpPush(ask: true)  // you're going: the leave-now alert is why you'd want notifications
     }
 
     /// Can't make it: you come off the plan and the others keep it. If nobody else is going or still deciding and it's

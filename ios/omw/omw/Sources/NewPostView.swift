@@ -205,7 +205,7 @@ struct TagPicker: View {
                     Spacer()
                     Image(systemName: tagged.contains(f.id) ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
-                        .foregroundStyle(tagged.contains(f.id) ? Color.omwBlue : Color.secondary)
+                        .foregroundStyle(tagged.contains(f.id) ? Color.coral : Color.secondary)
                 }
                 .contentShape(Rectangle())
             }

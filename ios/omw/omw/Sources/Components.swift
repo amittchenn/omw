@@ -191,6 +191,21 @@ extension View {
     func omwBackground() -> some View {
         scrollContentBackground(.hidden).background(Color.omwBG.ignoresSafeArea())
     }
+
+    /// on screens without a navigation bar: a band of the app background behind the clock and battery, fading out
+    /// below, so the status bar never sits on top of a photo or a card as you scroll
+    func statusBarScrim() -> some View {
+        overlay(alignment: .top) {
+            GeometryReader { g in
+                LinearGradient(stops: [.init(color: Color.omwBG, location: 0), .init(color: Color.omwBG, location: 0.7),
+                                       .init(color: Color.omwBG.opacity(0), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: g.safeAreaInsets.top + 10)
+                    .ignoresSafeArea(edges: .top)
+            }
+            .allowsHitTesting(false)
+        }
+    }
 }
 
 // ---------- tap anyone to see their profile ----------

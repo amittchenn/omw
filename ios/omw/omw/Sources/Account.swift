@@ -175,7 +175,7 @@ struct EditProfileView: View {
                 VStack(spacing: 10) {
                     Avatar(photo: newPhoto ?? session.me?.photo ?? "", name: name.isEmpty ? "?" : name, size: 96)
                     PhotosPicker(selection: $pick, matching: .images) {
-                        Text("Change picture").font(.subheadline.weight(.semibold)).foregroundStyle(Color.omwBlue)
+                        Text("Change picture").font(.subheadline.weight(.semibold)).foregroundStyle(Color.coral)
                     }
                 }
                 .frame(maxWidth: .infinity)
