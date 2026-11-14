@@ -363,7 +363,7 @@ struct RatePlaceSheet: View {
                 }
                 Spacer()
                 // already on your list: tapping changes that rating rather than adding it twice
-                if let rated { Label("\(rated)", systemImage: "star.fill").font(.footnote.weight(.bold)).foregroundStyle(Color.sun) }
+                if let rated { Label("\(rated)", systemImage: "star.fill").font(.footnote.weight(.bold)).foregroundStyle(Color.sunText) }
             }
         }
     }

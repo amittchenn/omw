@@ -22,5 +22,7 @@
 		<key>UIColorName</key>
 		<string>LaunchBackground</string>
 	</dict>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleDarkContent</string>
 </dict>
 </plist>

@@ -427,7 +427,7 @@ struct SavedList: View {
                         open(MapPlace(name: s.name, address: s.address, lat: s.lat, lng: s.lng))
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "bookmark.fill").foregroundStyle(Color.sun)  // same as the map's Saved button
+                            Image(systemName: "bookmark.fill").foregroundStyle(Color.sunText)  // same as the map's Saved button
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(s.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                                 if !s.address.isEmpty { Text(s.address).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
@@ -758,7 +758,7 @@ struct FriendCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(person.name).font(.title3.weight(.bold))
                 Text(person.status == .none ? "@\(person.handle)" : person.status.label)
-                    .foregroundStyle(person.status.color ?? .secondary).font(.subheadline.weight(.semibold))
+                    .foregroundStyle(person.status.textColor ?? .secondary).font(.subheadline.weight(.semibold))
             }
             Spacer()
             Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.tertiary)
