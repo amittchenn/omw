@@ -80,6 +80,12 @@ struct PlanDetailView: View {
                             Annotation(session.person(dot.id)?.firstName ?? h.names[dot.id] ?? "", coordinate: dot.spot) {
                                 Avatar(session.person(dot.id), fallback: h.names[dot.id] ?? "", size: 30)
                                     .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                                    .overlay(alignment: .bottomTrailing) {
+                                        // in the Wreck: the little gold car rides along on their face
+                                        if Wreck.on(mode: h.modes[dot.id], to: h.venue) {
+                                            WreckIcon(size: 10).padding(2).background(.white, in: Capsule()).offset(x: 10, y: 4)
+                                        }
+                                    }
                                     .shadow(radius: 3)
                             }
                         }

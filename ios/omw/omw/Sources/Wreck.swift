@@ -20,7 +20,9 @@ enum Wreck {
 
     static let enRoute = "Ramblin' Wreck en route 🐝"
     static let name = "Ramblin' Wreck"
-    static let short = "In the Wreck 🐝"  // where the full line won't fit (the feed's pills)
+    static let short = "In the Wreck 🐝"
+    static let gold = Color(red: 0.70, green: 0.64, blue: 0.41)      // old gold: the car, its route, its pulse
+    static let goldDeep = Color(red: 0.55, green: 0.49, blue: 0.29)  // where the full line won't fit (the feed's pills)
 }
 
 extension Color {

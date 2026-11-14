@@ -80,7 +80,13 @@ struct DirectionsView: View {
         Map(position: $position) {
             UserAnnotation()
             if let route {
-                MapPolyline(route.polyline).stroke(Color.coral, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                if wreck {
+                    // the Wreck's way onto campus, in gold with a darker edge so it holds up on the map
+                    MapPolyline(route.polyline).stroke(Wreck.goldDeep, style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
+                    MapPolyline(route.polyline).stroke(Wreck.gold, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                } else {
+                    MapPolyline(route.polyline).stroke(Color.coral, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                }
             }
             Marker(target.name, systemImage: "mappin", coordinate: target.coordinate).tint(Color.coral)
         }
@@ -214,8 +220,11 @@ struct DirectionsView: View {
             return "\(Self.minutes(transitMinutes)) by transit" + (route.map { " · walking route shown, \(Self.minutes($0.expectedTravelTime / 60))" } ?? "")
         }
         guard let route else { return failed ? "No route found" : "Finding the way…" }
-        return "\(Self.minutes(tripMinutes ?? seconds(route) / 60)) · \(Self.distance(route.distance))"
+        return "\(Self.minutes(tripMinutes ?? seconds(route) / 60))\(wreck ? " in the Wreck" : "") · \(Self.distance(route.distance))"
     }
+
+    /// Wreck mode: driving onto Georgia Tech's campus
+    private var wreck: Bool { Wreck.on(mode: mode, to: target.coordinate) }
 
     /// how long the route takes (by bike: the walking route at about 15 km/h)
     private func seconds(_ route: MKRoute) -> TimeInterval { mode == "cycling" ? route.distance / 4.2 : route.expectedTravelTime }
