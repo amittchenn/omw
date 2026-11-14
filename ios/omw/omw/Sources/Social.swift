@@ -138,9 +138,9 @@ struct UpNextCard: View {
         }
         .overlay(alignment: .topTrailing) {
             // running once it's nearly time to go, cheering once you're there
-            Ticki(mood: tickiMood, lines: tickiLines)
+            Ticki(mood: tickiMood, lines: tickiLines, bubbleLeft: true)  // the bubble sits in the card, not over the friends row
                 .frame(width: 88, height: 88)
-                .offset(x: -8, y: -34)
+                .offset(x: -14, y: -34)  // in from the edge, so arms and bells stay on screen mid-flip
         }
         .padding(.top, 34)
     }
