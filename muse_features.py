@@ -8,7 +8,7 @@ Both fall back to plain rules if the AI is down, so the buttons always do someth
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from places import search
 from travel import route
@@ -22,7 +22,7 @@ Rules:
 - type: the closest category id from the list, or null.
 - place: words for a map search, e.g. "boba", "Piedmont Park", "cheap tacos". null if they didn't say where or what kind of place.
 - when: their local time. Use the current time given to work out "Friday", "tomorrow", "tonight" (tonight = 19:00 unless they say).
-  "after 5" means 17:30. Weekday names mean the next one coming up. null if they didn't say a time.
+  "after 5" means 17:30. Weekday names mean the next one coming up; if it's today's weekday and that time is still ahead today, it means today. null if they didn't say a time.
 - find_time: true if they ask to find a time that works, or say "when everyone's free".
 """
 
@@ -67,7 +67,14 @@ def plan_from_text(text, friends, categories, now, lat, lng):
     when = None
     try:
         if data.get("when"):
-            when = datetime.fromisoformat(str(data["when"])[:16]).strftime("%Y-%m-%dT%H:%M")
+            when_dt = datetime.fromisoformat(str(data["when"])[:16])
+            # "sat 3pm" typed early on a Saturday means today, not a week out: if the AI jumped a week ahead
+            # although the same time today is still to come and today's weekday was named, bring it back
+            today_named = re.search(rf"\b{now_dt:%a}".lower(), lowered)
+            same_today = when_dt - timedelta(days=7)
+            if today_named and same_today.date() == now_dt.date() and same_today > now_dt:
+                when_dt = same_today
+            when = when_dt.strftime("%Y-%m-%dT%H:%M")
     except ValueError:
         pass
 

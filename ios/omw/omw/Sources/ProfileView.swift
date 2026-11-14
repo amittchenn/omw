@@ -304,11 +304,13 @@ struct SettingsView: View {
                     }
                 }
                 Section("About") {
-                    Link(destination: API.base.appending(path: "support")) { Label("Help", systemImage: "questionmark.circle") }
-                    Link(destination: API.base.appending(path: "privacy")) { Label("Privacy Policy", systemImage: "hand.raised.square") }
-                    Link(destination: API.base.appending(path: "terms")) { Label("Terms of Use", systemImage: "doc.text") }
+                    Group {  // the links in plain text color (on the Section it also turned the "About" header white)
+                        Link(destination: API.base.appending(path: "support")) { Label("Help", systemImage: "questionmark.circle") }
+                        Link(destination: API.base.appending(path: "privacy")) { Label("Privacy Policy", systemImage: "hand.raised.square") }
+                        Link(destination: API.base.appending(path: "terms")) { Label("Terms of Use", systemImage: "doc.text") }
+                    }
+                    .foregroundStyle(.primary)
                 }
-                .foregroundStyle(.primary)
                 Section {
                     Button("Sign out") { dismiss(); session.signOut() }
                         .foregroundStyle(.primary)

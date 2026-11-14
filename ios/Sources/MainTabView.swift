@@ -56,8 +56,14 @@ extension View {
             .navigationDestination(for: PostRoute.self) { PostDetailView(id: $0.id) }
             .navigationDestination(for: ChatRef.self) { ConversationView(ref: $0) }
             .navigationDestination(for: PlanRoute.self) { PlanDetailView(id: $0.id) }
+            .navigationDestination(for: ChatsRoute.self) { _ in ChatsView() }
+            .navigationDestination(for: AddFriendsRoute.self) { _ in AddFriendsView() }
     }
 }
+
+/// the chat list and Add friends, as routes like everything else on a stack
+struct ChatsRoute: Hashable {}
+struct AddFriendsRoute: Hashable {}
 
 /// "Plan a hangout", from anywhere: the ＋ on Plans, the Feed's ＋ menu
 @MainActor @Observable

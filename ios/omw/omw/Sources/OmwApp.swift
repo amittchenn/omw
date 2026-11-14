@@ -76,6 +76,7 @@ struct RootView: View {
         .animation(.snappy(duration: 0.22), value: session.user == nil)
         .animation(.snappy(duration: 0.22), value: seenTour)
         .fontDesign(.rounded)  // omw!'s friendly rounded type everywhere, like the web app's Nunito
+        .inAppBrowser()  // Terms, Privacy, Help and other web links open inside the app
     }
 }
 
@@ -85,5 +86,6 @@ extension View {
     func withOmw() -> some View {
         environment(Session.shared).environment(LocationService.shared)
             .environment(\.pushesProfiles, false)  // a sheet starts outside any navigation stack
+            .inAppBrowser()
     }
 }

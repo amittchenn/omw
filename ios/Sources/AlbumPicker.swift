@@ -143,7 +143,7 @@ struct AlbumPicker: View {
         } description: {
             Text("Allow omw! to see your photos to pick from your camera roll here, or choose them with Apple's picker.")
         } actions: {
-            Button("Allow in Settings", action: openSettings).buttonStyle(.borderedProminent).tint(Color.omwBlue)
+            Button("Allow in Settings", action: openSettings).buttonStyle(.borderedProminent).tint(Color.sun).foregroundStyle(.black)
             PhotosPicker(selection: $fallback, maxSelectionCount: 4, selectionBehavior: .ordered, matching: .images) {
                 Text("Choose photos")
             }

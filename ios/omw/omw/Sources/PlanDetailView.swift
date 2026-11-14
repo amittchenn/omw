@@ -98,7 +98,7 @@ struct PlanDetailView: View {
                 Section {
                     HStack(spacing: 10) {
                         Button { accept(h) } label: { Text("Going").frame(maxWidth: .infinity, minHeight: 44) }
-                            .buttonStyle(.borderedProminent).tint(Color.omwBlue)
+                            .buttonStyle(.borderedProminent).tint(Color.sun).foregroundStyle(.black)  // same as the Plans tab
                         Button { leave(h) } label: { Text("Can't make it").frame(maxWidth: .infinity, minHeight: 44) }
                             .buttonStyle(.bordered)
                     }
@@ -159,8 +159,16 @@ struct PlanDetailView: View {
                         }
                     }
                     Spacer()
-                    Button { directions(h) } label: { Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill") }
-                        .buttonStyle(.borderedProminent).tint(Color.omwBlue)
+                    // omw!'s own primary button (black on yellow, like Next and Sign in), not a maps app's blue
+                    Button { directions(h) } label: {
+                        Label("Go", systemImage: "location.north.fill")
+                            .font(.headline.weight(.bold))
+                            .padding(.horizontal, 18).padding(.vertical, 12)
+                            .background(Color.sun, in: Capsule())
+                            .foregroundStyle(.black)
+                    }
+                    .buttonStyle(Pressable())
+                    .accessibilityLabel("Directions")
                 }
                 if h.checkInOpen {
                     Button { imHere(h) } label: { Label("I'm here", systemImage: "mappin.and.ellipse") }

@@ -5,10 +5,12 @@ import SwiftUI
 struct FeedView: View {
     @Environment(Session.self) private var session
     @State private var commentsFor: Post?
-    @State private var chatsOpen = false
+    // every screen on this stack is a route (value), never a view-destination link: mixing the two made a chat opened
+    // from Chats bounce straight back when the unread badge in the header changed
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     header
@@ -39,7 +41,6 @@ struct FeedView: View {
             // swipe in from the very right edge for Chats, like Instagram. Only a thin strip at the screen's edge listens,
             // so scrolling the friends row or a memory's photos never opens it.
             .overlay(alignment: .trailing) { edgeSwipe(left: false) }
-            .navigationDestination(isPresented: $chatsOpen) { ChatsView() }
             .withProfileRoutes()
             .sheet(item: $commentsFor) { post in
                 CommentsSheet(post: post).withOmw()
@@ -62,9 +63,9 @@ extension FeedView {
                 Text(pulse).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
             }
             Spacer()
-            NavigationLink { AddFriendsView() } label: { HeaderIcon(symbol: "person.badge.plus", count: session.incoming.count, dot: true) }
+            NavigationLink(value: AddFriendsRoute()) { HeaderIcon(symbol: "person.badge.plus", count: session.incoming.count, dot: true) }
                 .accessibilityLabel("Add friends")
-            NavigationLink { ChatsView() } label: { HeaderIcon(symbol: "bubble.left", count: session.unreadChats) }
+            NavigationLink(value: ChatsRoute()) { HeaderIcon(symbol: "bubble.left", count: session.unreadChats) }
                 .accessibilityLabel("Chats")
         }
         .buttonStyle(.plain)
@@ -90,7 +91,7 @@ extension FeedView {
             .gesture(DragGesture(minimumDistance: 15).onEnded { v in
                 let dx = v.translation.width
                 guard abs(dx) > 60, abs(dx) > abs(v.translation.height) * 1.5 else { return }
-                if !left, dx < 0 { chatsOpen = true }
+                if !left, dx < 0 { path.append(ChatsRoute()) }
             })
     }
 }
@@ -146,7 +147,7 @@ struct FriendsRow: View {
                         pill(f, name: f.firstName, text: status(f), tint: f.status.color)
                     }
                 }
-                NavigationLink { AddFriendsView() } label: {
+                NavigationLink(value: AddFriendsRoute()) {
                     Image(systemName: "plus").font(.subheadline.weight(.bold))
                         .frame(width: 40, height: 40)
                         .background(Color.omwCard, in: Circle())
@@ -194,9 +195,13 @@ struct FriendsRow: View {
         return "Let friends know you're free"
     }
 
-    /// "till 9", "till 5:15" (it's always within the next few hours, so no am/pm)
+    /// "till 9", "till 5:15" today (a few hours away, so no am/pm); "till tomorrow" or "till Mon" after that
     nonisolated static func till(_ date: Date) -> String {
-        let h = Calendar.current.component(.hour, from: date) % 12, m = Calendar.current.component(.minute, from: date)
+        let cal = Calendar.current
+        // past today, the clock time alone reads as already over ("till 11:51" at 11:59 PM): say the day instead
+        if cal.isDateInTomorrow(date) { return "till tomorrow" }
+        if !cal.isDateInToday(date) { return "till \(date.formatted(.dateTime.weekday(.abbreviated)))" }
+        let h = cal.component(.hour, from: date) % 12, m = cal.component(.minute, from: date)
         return "till \(h == 0 ? 12 : h)\(m == 0 ? "" : String(format: ":%02d", m))"
     }
 

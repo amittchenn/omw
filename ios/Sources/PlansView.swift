@@ -9,6 +9,8 @@ struct PlansView: View {
     @Environment(Session.self) private var session
     @Environment(LocationService.self) private var location
     @State private var answering: String?
+    @State private var answeringGoing = true  // which button shows the spinner
+    @State private var answerError: (id: String, text: String)?
 
     var body: some View {
         NavigationStack {
@@ -82,24 +84,42 @@ struct PlansView: View {
             }
             .buttonStyle(.plain)
             HStack(spacing: 10) {
-                Button { answer(h, going: true) } label: { Text("Going").frame(maxWidth: .infinity, minHeight: 42) }
+                Button { answer(h, going: true) } label: { answerLabel("Going", h, going: true) }
                     .buttonStyle(.borderedProminent).tint(Color.sun).foregroundStyle(.black)
-                Button { answer(h, going: false) } label: { Text("Can't").frame(maxWidth: .infinity, minHeight: 42) }
+                Button { answer(h, going: false) } label: { answerLabel("Can't", h, going: false) }
                     .buttonStyle(.bordered).tint(Color.primary)
             }
             .font(.subheadline.weight(.bold))
             .disabled(answering == h.id)
+            if let e = answerError, e.id == h.id {
+                Text(e.text).font(.footnote.weight(.medium)).foregroundStyle(.secondary)
+            }
         }
         .padding(14)
         .background(Color.sun.opacity(0.14), in: .rect(cornerRadius: 20))
         .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.sun.opacity(0.5), lineWidth: 1))
     }
 
+    /// the button's word, or a spinner on the one you tapped while your answer (and your leave time) is worked out
+    private func answerLabel(_ text: String, _ h: Hangout, going: Bool) -> some View {
+        ZStack {
+            Text(text).opacity(answering == h.id && answeringGoing == going ? 0 : 1)
+            if answering == h.id && answeringGoing == going { ProgressView().tint(going ? .black : .primary) }
+        }
+        .frame(maxWidth: .infinity, minHeight: 42)
+    }
+
     private func answer(_ h: Hangout, going: Bool) {
         answering = h.id
+        answeringGoing = going
+        answerError = nil
         Task {
-            if going { try? await session.accept(h, from: location.last?.coordinate ?? session.me?.home) }
-            else { try? await session.cantMakeIt(h) }
+            do {
+                if going { try await session.accept(h, from: location.last?.coordinate ?? session.me?.home) }
+                else { try await session.cantMakeIt(h) }
+            } catch {
+                answerError = (h.id, "Couldn't send that. Check your connection and try again.")
+            }
             answering = nil
         }
     }

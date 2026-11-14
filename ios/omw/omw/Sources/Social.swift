@@ -291,7 +291,8 @@ struct FriendsListView: View {
 
     private var mine: Bool { uid == session.uid }
     private var shown: [Card] {
-        let list = mine ? session.friends.map(Card.init(person:)) : cards
+        let list = (mine ? session.friends.map(Card.init(person:)) : cards)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }  // A to Z, not load order
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         return q.isEmpty ? list : list.filter { "\($0.name) \($0.code)".lowercased().contains(q) }
     }

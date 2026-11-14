@@ -82,6 +82,7 @@ struct PlanSheet: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { scroller in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -235,10 +236,16 @@ struct PlanSheet: View {
                             Text("Includes traffic and how late each person usually runs.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
+                        .id("results")
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
+            }
+            // the leave times land below the fold: bring them into view as soon as they're worked out
+            .onChange(of: results == nil) { _, cleared in
+                if !cleared { withAnimation(.snappy) { scroller.scrollTo("results", anchor: .top) } }
+            }
             }
             .scrollDismissesKeyboard(.interactively)
             .omwBackground()
@@ -248,15 +255,21 @@ struct PlanSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .safeAreaInset(edge: .bottom) {
+                // until there's a spot it says what's missing, in a readable grey (the system's disabled yellow turned black on black)
+                let ready = place?.lat != nil
                 Button(action: results == nil ? plan : send) {
-                    Text(working ? (results == nil ? "Working out leave times…" : "Sending…")
-                         : results == nil ? "See when everyone leaves" : who.isEmpty ? "Save plan" : "Send invites")
-                        .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+                    HStack(spacing: 8) {
+                        if working { ProgressView().tint(.black) }
+                        Text(working ? (results == nil ? "Working out leave times…" : "Sending…")
+                             : !ready ? "Pick a spot to see leave times"
+                             : results == nil ? "See when everyone leaves" : who.isEmpty ? "Save plan" : "Send invites")
+                    }
+                    .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+                    .foregroundStyle(ready ? Color.black : Color.secondary)
+                    .background(ready ? Color.sun : Color.omwCard, in: .rect(cornerRadius: 18))
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.sun)
-                .foregroundStyle(.black)
-                .disabled(place?.lat == nil || working)
+                .buttonStyle(Pressable())
+                .disabled(!ready || working)
                 .padding(.horizontal, 16).padding(.bottom, 8)
                 .background(.bar)
             }
@@ -310,12 +323,12 @@ struct PlanSheet: View {
                 .overlay(alignment: .bottomTrailing) {
                     if picked {
                         Image(systemName: "checkmark.circle.fill").font(.title3)
-                            .foregroundStyle(.white, Color.omwBlue)
+                            .foregroundStyle(.black, Color.sun)
                             .background(Circle().fill(Color(.systemBackground)).padding(2))
                     }
                 }
                 .padding(3)
-                .overlay(Circle().strokeBorder(picked ? Color.omwBlue : Color.clear, lineWidth: 2.5))  // picked: a ring, like Instagram
+                .overlay(Circle().strokeBorder(picked ? Color.sun : Color.clear, lineWidth: 2.5))  // picked: an omw! yellow ring
             Text(name).font(.caption.weight(.semibold)).lineLimit(1)
         }
         .frame(width: 62)
@@ -327,7 +340,7 @@ struct PlanSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(r.user_id == session.uid ? "You" : session.person(r.user_id)?.firstName ?? "Friend").font(.subheadline.weight(.semibold))
                 Text("\(Int(r.travel_minutes.rounded())) min \(Self.modeName(r.travel_mode))\(r.label.map { " · \($0)" } ?? "")")
-                    .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    .font(.footnote).foregroundStyle(.secondary).lineLimit(2)  // the why ("Learning · Maps time…") was cut off
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 0) {

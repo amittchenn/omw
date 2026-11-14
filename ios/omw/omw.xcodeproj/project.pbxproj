@@ -405,6 +405,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = omw/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = omw/omw.entitlements;
+				INFOPLIST_KEY_CFBundleDisplayName = "omw!";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take the group photo when everyone's arrived at the hangout.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "With \"Always\", omw! checks you in when you arrive at a hangout and tells your friends you're on the way, even when the app is closed. You can change this anytime in Settings.";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -445,6 +447,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = omw/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = omw/omw.entitlements;
+				INFOPLIST_KEY_CFBundleDisplayName = "omw!";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take the group photo when everyone's arrived at the hangout.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "With \"Always\", omw! checks you in when you arrive at a hangout and tells your friends you're on the way, even when the app is closed. You can change this anytime in Settings.";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
